@@ -1,9 +1,10 @@
 # IL2X (Currently Experimental)
-Translates .NET IL to non .NET languages and runtimes.
+Translates .NET IL to non .NET languages and runtimes. (Powered by Mono.Cecil)<br>
+If you're looking for CS2X: https://github.com/reignstudios/CS2X
 
 ## Goals
 This project will focus on translating .NET IL for non-supported .NET targets.
-* IL2C: C89 [legacy, embedded, obscure compilers]
+* IL2C: C89 [legacy, embedded, obscure C compilers]
 * IL2CPP: C++ [embedded, modern, portable and readable]
 * IL2JV: Java [Android or other]
 * IL2JS: javaScript [native fast loading browser apps/widets]
