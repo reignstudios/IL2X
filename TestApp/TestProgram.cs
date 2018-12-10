@@ -10,6 +10,19 @@ namespace TestApp
 		}
 	}
 
+	namespace SubNamespace
+	{
+		class MyClass
+		{
+			struct MyStruct
+			{
+
+			}
+
+			MyStruct i;
+		}
+	}
+
 	interface MyInterface
 	{
 		
@@ -21,7 +34,12 @@ namespace TestApp
 	}
 }
 
-struct MyStruct
+class A
 {
-	
+	int i = 123;
+}
+
+class B : A
+{
+
 }
