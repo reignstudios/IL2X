@@ -2,6 +2,7 @@
 using System.IO;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace IL2X.Core
 {
@@ -9,7 +10,9 @@ namespace IL2X.Core
 	{
 		private StreamWriter writer;
 		private Stack<string> referencesParsed;
-		private string precompiledHeader;
+		private readonly string precompiledHeader;
+
+		private TypeReference activeType;
 
 		public ILTranslator_Cpp(string binaryPath, string precompiledHeader = null)
 		: base(binaryPath)
@@ -81,6 +84,7 @@ namespace IL2X.Core
 		{
 			if (type.Name == "<Module>") return;
 
+			activeType = type;
 			string filename = GetFullNameFlat(type, "_", "_");
 			string filePath = Path.Combine(outputPath, filename);
 
@@ -142,7 +146,26 @@ namespace IL2X.Core
 			string typeKindKeyword = GetTypeDeclarationKeyword(type);
 			writer.WriteLinePrefix($"{typeKindKeyword} {GetNestedNameFlat(type)}");
 			writer.WriteLinePrefix('{');
-			foreach (var field in type.Fields) WriteField(field);
+			StreamWriterEx.AddTab();
+
+			bool membersWritten = false;
+			if (type.HasFields)
+			{
+				if (membersWritten) writer.WriteLine();
+				membersWritten = true;
+				writer.WriteLinePrefix("// FIELDS");
+				foreach (var field in type.Fields) WriteField(field);
+			}
+
+			if (type.HasMethods)
+			{
+				if (membersWritten) writer.WriteLine();
+				membersWritten = true;
+				writer.WriteLinePrefix("// METHODS");
+				foreach (var method in type.Methods) WriteMethod(method);
+			}
+
+			StreamWriterEx.RemoveTab();
 			writer.WriteLinePrefix("};");
 
 			// close namespace
@@ -164,11 +187,27 @@ namespace IL2X.Core
 		private void WriteField(FieldDefinition field)
 		{
 			if (field.Attributes.HasFlag(FieldAttributes.RTSpecialName)) return;
-			writer.WriteLine($"\t{GetFullNameFlat(field.FieldType)} {field.Name};");
+			string accessModifier = (field.IsPublic || field.IsAssembly) ? "public:" : "private:";
+			writer.WriteLinePrefix($"{accessModifier} {GetFullNameFlat(field.FieldType)} {field.Name};");
+		}
+
+		private void WriteMethod(MethodDefinition method)
+		{
+			string accessModifier = (method.IsPublic || method.IsAssembly) ? "public:" : "private:";
+			string name = method.IsConstructor ? method.DeclaringType.Name : method.Name;
+			writer.WritePrefix($"{accessModifier} {GetFullNameFlat(method.ReturnType)} {name}(");
+			var lastParameter = method.Parameters.LastOrDefault();
+			foreach (var parameter in method.Parameters)
+			{
+				writer.Write($"{GetFullNameFlat(parameter.ParameterType)} {parameter.Name}");
+				if (parameter != lastParameter) writer.Write(", ");
+			}
+			writer.WriteLine(");");
 		}
 
 		private string GetFullNameFlat(TypeReference type)
 		{
+			if (activeType.Namespace == type.Namespace || activeType == type.DeclaringType) return GetNestedNameFlat(type, "_");// remove verbosity if possible
 			return GetFullNameFlat(type, "::", "_");
 		}
 

@@ -12,6 +12,11 @@ namespace TestApp
 
 	namespace SubNamespace
 	{
+		class MyClass2
+		{
+			
+		}
+
 		class MyClass
 		{
 			struct MyStruct
@@ -20,6 +25,13 @@ namespace TestApp
 			}
 
 			MyStruct i;
+			public MyClass2 i2;
+			internal MyClass2 i3;
+
+			internal int Foo(int i, int i2)
+			{
+				return i + i2;
+			}
 		}
 	}
 
