@@ -17,21 +17,24 @@ namespace TestApp
 			
 		}
 
-		class MyClass
+		abstract class MyClass
 		{
-			struct MyStruct
+			public struct MyStruct
 			{
-
+				unsafe fixed byte myFixedBuff[256];
 			}
 
-			MyStruct i;
+			static MyStruct i;
 			public MyClass2 i2;
 			internal MyClass2 i3;
+			protected MyStruct i4;
 
 			internal int Foo(int i, int i2)
 			{
 				return i + i2;
 			}
+
+			protected abstract void Boo();
 		}
 	}
 

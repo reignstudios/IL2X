@@ -4,6 +4,7 @@ using Mono.Cecil.Pdb;
 using System;
 using System.IO;
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace IL2X.Core
 {
@@ -68,7 +69,23 @@ namespace IL2X.Core
 
 		protected void GetQualifiedNameFlat(TypeReference type, ref string namespaceDelimiter, ref string nestedDelimiter, StringBuilder value, bool writeNamespace)
 		{
-			value.Insert(0, type.Name);
+			string name;
+			//if (IsAnonymousType(type))
+			//{
+			//	var match = Regex.Match(type.Name, @"(<>f__AnonymousType)(\d*)(.*)");
+			//	if (!match.Success) throw new Exception("Unable to parse anonymous type name: " + type.Name);
+			//	name = "f__AnonymousType_" + match.Groups[2].Value;
+			//}
+			if (IsSpecialNamedType(type, out string specialTypeName, out string instanceName))
+			{
+				name = instanceName;
+			}
+			else
+			{
+				name = type.Name;
+			}
+
+			value.Insert(0, name);
 			if (type.DeclaringType != null)
 			{
 				value.Insert(0, nestedDelimiter);
@@ -77,6 +94,28 @@ namespace IL2X.Core
 			else if (writeNamespace && !string.IsNullOrEmpty(type.Namespace))
 			{
 				value.Insert(0, type.Namespace.Replace(".", namespaceDelimiter) + namespaceDelimiter);
+			}
+		}
+
+		protected bool IsAnonymousType(TypeReference type)
+		{
+			return type.Name.StartsWith("<>f__AnonymousType");
+		}
+
+		protected bool IsSpecialNamedType(TypeReference type, out string specialTypeName, out string name)
+		{
+			var match = Regex.Match(type.Name, @"<(.*)>(.*)(`\d*)*");
+			if (match.Success)
+			{
+				specialTypeName = match.Groups[2].Value;
+				name = match.Groups[1].Value;
+				return true;
+			}
+			else
+			{
+				specialTypeName = null;
+				name = null;
+				return false;
 			}
 		}
 	}
