@@ -1,1 +1,2 @@
 IL opcodes: https://github.com/dotnet/coreclr/blob/master/src/inc/opcode.def
+C99 primitive types: stdint.h
