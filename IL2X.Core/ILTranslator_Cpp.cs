@@ -33,7 +33,7 @@ namespace IL2X.Core
 		{
 			var module = assemblyDefinition.MainModule;
 
-			// translate references
+			// translate references: TODO: make sure refs are only translated once <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 			if (translateReferences)
 			{
 				foreach (var reference in module.AssemblyReferences)
@@ -72,7 +72,11 @@ namespace IL2X.Core
 				foreach (var type in module.GetTypes())
 				{
 					if (type.Name == "<Module>") continue;
-					
+					if (type.Name == "<PrivateImplementationDetails>" || (type.DeclaringType != null && type.DeclaringType.Name == "<PrivateImplementationDetails>")) continue;
+					if (type.HasGenericParameters) continue;// TODO: generate unique generic types when ran accross in opcodes (then output ALL TYPES)
+					if (IsFixedBufferType(type)) continue;
+					if (type.Name == "<>c") continue;// TODO: handle closures
+
 					int namespaceCount = WriteNamespaceStart(type, false);
 					if (namespaceCount != 0) StreamWriterEx.AddTab();
 					string typeKindKeyword = GetTypeDeclarationKeyword(type);
@@ -86,6 +90,10 @@ namespace IL2X.Core
 		private void WriteType(TypeDefinition type, string outputPath)
 		{
 			if (type.Name == "<Module>") return;
+			if (type.Name == "<PrivateImplementationDetails>" || (type.DeclaringType != null && type.DeclaringType.Name == "<PrivateImplementationDetails>")) return;
+			if (type.HasGenericParameters) return;
+			if (IsFixedBufferType(type)) return;
+			if (type.Name == "<>c") return;// TODO: handle closures
 
 			activeType = type;
 			string filename = GetFullNameFlat(type, "_", "_");
@@ -179,7 +187,7 @@ namespace IL2X.Core
 					foreach (var field in type.Fields) WriteFieldHeader(field);
 				}
 			
-				if (type.HasProperties)
+				if (type.HasProperties)// TODO: is this needed or will methods do everything?
 				{
 					/*if (membersWritten) writer.WriteLine();
 					membersWritten = true;
@@ -242,13 +250,32 @@ namespace IL2X.Core
 		private void WriteFieldHeader(FieldDefinition field)
 		{
 			if (field.Attributes.HasFlag(FieldAttributes.RTSpecialName)) return;
+
+			// generate access modifiers
 			string accessModifier;
 			if (field.IsPublic || field.IsAssembly) accessModifier = "public: ";
 			else if (field.IsFamily) accessModifier = "protected: ";
 			else if (field.IsPrivate) accessModifier = "private: ";
 			else throw new NotImplementedException("Unsuported attributes: " + field.Attributes);
 			if (field.IsStatic) accessModifier += "static ";
-			writer.WriteLinePrefix($"{accessModifier}{GetFullNameFlat(field.FieldType)} {field.Name};");
+
+			// if fixed type, convert to native
+			TypeReference fieldType = field.FieldType;
+			bool isFixedType = false;
+			int fixedTypeSize = 0;
+			if (IsFixedBufferType(field.FieldType))
+			{
+				isFixedType = true;
+				if (!field.FieldType.IsDefinition) throw new Exception("Cant get name for reference of FixedBuffer: " + field.FieldType);
+				var typeDef = (TypeDefinition)field.FieldType;
+				fieldType = typeDef.Fields[0].FieldType;
+				fixedTypeSize = typeDef.ClassSize / GetPrimitiveSize(fieldType.MetadataType);
+			}
+
+			// write
+			writer.WritePrefix($"{accessModifier}{GetFullNameFlat(fieldType)} {field.Name}");
+			if (isFixedType) writer.WriteLine($"[{fixedTypeSize}];");
+			else writer.WriteLine(';');
 		}
 
 		private void WriteFieldSource(FieldDefinition field)
@@ -259,10 +286,13 @@ namespace IL2X.Core
 
 		private void WriteMethodHeader(MethodDefinition method)
 		{
-			string accessModifier = (method.IsPublic || method.IsAssembly) ? "public:" : "private:";
+			string accessModifier = (method.IsPublic || method.IsAssembly) ? "public: " : "private: ";
+			if (method.IsStatic) accessModifier += "static ";
+			if (method.IsVirtual) accessModifier += "virtual ";
+
 			string name = method.IsConstructor ? method.DeclaringType.Name : method.Name;
 			if (method.IsConstructor) writer.WritePrefix($"{name}(");
-			else writer.WritePrefix($"{accessModifier} {GetFullNameFlat(method.ReturnType)} {name}(");
+			else writer.WritePrefix($"{accessModifier}{GetFullNameFlat(method.ReturnType)} {name}(");
 			WriteParameters(method.Parameters);
 			writer.Write(')');
 			if (method.HasBody) writer.WriteLine(';');

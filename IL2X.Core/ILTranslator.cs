@@ -70,15 +70,25 @@ namespace IL2X.Core
 		protected void GetQualifiedNameFlat(TypeReference type, ref string namespaceDelimiter, ref string nestedDelimiter, StringBuilder value, bool writeNamespace)
 		{
 			string name;
-			//if (IsAnonymousType(type))
-			//{
-			//	var match = Regex.Match(type.Name, @"(<>f__AnonymousType)(\d*)(.*)");
-			//	if (!match.Success) throw new Exception("Unable to parse anonymous type name: " + type.Name);
-			//	name = "f__AnonymousType_" + match.Groups[2].Value;
-			//}
-			if (IsSpecialNamedType(type, out string specialTypeName, out string instanceName))
+			if (IsAnonymousType(type))
 			{
-				name = instanceName;
+				ParseAnonymousType(type, out int index);
+				name = $"f__AnonymousType_{index}";
+			}
+			else if (IsGeneratedType(type))
+			{
+				ParseGeneratedType(type, out string methodName, out int index);
+				name = $"d__{methodName}_{index}";
+			}
+			else if (IsDisplayClassType(type))
+			{
+				ParseDisplayClassType(type, out int index);
+				name = $"c__DisplayClass_{index}";
+			}
+			else if (IsFinishReadAsyncType(type))
+			{
+				ParseFinishReadAsyncType(type, out string methodName, out int index);
+				name = $"g__{methodName}_{index}";
 			}
 			else
 			{
@@ -102,21 +112,119 @@ namespace IL2X.Core
 			return type.Name.StartsWith("<>f__AnonymousType");
 		}
 
-		protected bool IsSpecialNamedType(TypeReference type, out string specialTypeName, out string name)
+		protected void ParseAnonymousType(TypeReference type, out int index)
 		{
-			var match = Regex.Match(type.Name, @"<(.*)>(.*)(`\d*)*");
+			var match = Regex.Match(type.Name, @"<>f__AnonymousType(\d*)`(\d*)");
 			if (match.Success)
 			{
-				specialTypeName = match.Groups[2].Value;
-				name = match.Groups[1].Value;
-				return true;
+				if (int.TryParse(match.Groups[1].Value, out int parsedIndex)) index = parsedIndex;
+				else index = 0;
 			}
 			else
 			{
-				specialTypeName = null;
-				name = null;
-				return false;
+				throw new Exception("Failed to parse f__AnonymousType");
 			}
+		}
+
+		protected bool IsGeneratedType(TypeReference type)
+		{
+			return Regex.IsMatch(type.Name, @"<.*>d__\d*");
+		}
+
+		protected void ParseGeneratedType(TypeReference type, out string methodName, out int index)
+		{
+			var match = Regex.Match(type.Name, @"<(.*)>d__(\d*)");
+			if (match.Success)
+			{
+				methodName = match.Groups[1].Value;
+				if (int.TryParse(match.Groups[2].Value, out int parsedIndex)) index = parsedIndex;
+				else index = 0;
+			}
+			else
+			{
+				throw new Exception("Failed to parse d__");
+			}
+		}
+
+		protected bool IsDisplayClassType(TypeReference type)
+		{
+			return Regex.IsMatch(type.Name, @"<>c__DisplayClass\d*");
+		}
+
+		protected void ParseDisplayClassType(TypeReference type, out int index)
+		{
+			var match = Regex.Match(type.Name, @"<>c__DisplayClass(\d*)");
+			if (match.Success)
+			{
+				if (int.TryParse(match.Groups[1].Value, out int parsedIndex)) index = parsedIndex;
+				else index = 0;
+			}
+			else
+			{
+				throw new Exception("Failed to parse c__DisplayClass");
+			}
+		}
+
+		protected bool IsFinishReadAsyncType(TypeReference type)
+		{
+			return Regex.IsMatch(type.Name, @"<<.*>g__FinishReadAsync\|\d*_0>d");
+		}
+
+		protected void ParseFinishReadAsyncType(TypeReference type, out string methodName, out int index)
+		{
+			var match = Regex.Match(type.Name, @"<<(.*)>g__FinishReadAsync\|(\d*)_0>d");
+			if (match.Success)
+			{
+				methodName = match.Groups[1].Value;
+				if (int.TryParse(match.Groups[2].Value, out int parsedIndex)) index = parsedIndex;
+				else index = 0;
+			}
+			else
+			{
+				throw new Exception("Failed to parse c__DisplayClass");
+			}
+		}
+
+		protected bool IsFixedBufferType(TypeReference type)
+		{
+			return Regex.IsMatch(type.Name, "<.*>e__FixedBuffer");
+		}
+
+		protected void ParseFixedBufferType(TypeDefinition type, out FieldDefinition fieldType, out string fieldName)
+		{
+			if (!type.HasFields) throw new Exception("e__FixedBuffer has no fields");
+			var match = Regex.Match(type.Name, @"<(.*)>e__FixedBuffer");
+			if (match.Success)
+			{
+				fieldType = type.Fields[0];
+				fieldName = match.Groups[1].Value;
+			}
+			else
+			{
+				throw new Exception("Failed to parse e__FixedBuffer");
+			}
+		}
+
+		protected int GetPrimitiveSize(MetadataType type)
+		{
+			switch (type)
+			{
+				case MetadataType.Void: return 0;
+				case MetadataType.Boolean: return sizeof(Boolean);
+				case MetadataType.Char: return sizeof(Char);
+				case MetadataType.SByte: return sizeof(SByte);
+				case MetadataType.Byte: return sizeof(Byte);
+				case MetadataType.Int16: return sizeof(Int16);
+				case MetadataType.UInt16: return sizeof(UInt16);
+				case MetadataType.Int32: return sizeof(Int32);
+				case MetadataType.UInt32: return sizeof(UInt32);
+				case MetadataType.Int64: return sizeof(Int64);
+				case MetadataType.UInt64: return sizeof(UInt64);
+				case MetadataType.Single: return sizeof(Single);
+				case MetadataType.Double: return sizeof(Double);
+			}
+
+			throw new Exception("GetPrimitiveSize failed: Invalid primitive type: " + type);
 		}
 	}
 }

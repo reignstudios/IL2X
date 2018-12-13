@@ -1,12 +1,39 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.Threading.Tasks;
 
 namespace TestApp
 {
-	class Program
+	interface MyInterface
+	{
+		void Foo();
+	}
+
+	class BaseProgram<T> : MyInterface
+	{
+		public T myT;
+		public virtual void Foo() { }
+	}
+
+	class Program : BaseProgram<int>
 	{
 		static void Main(string[] args)
 		{
 			Console.WriteLine("Hello World!");
+			var b = new BaseProgram<float>();
+		}
+
+		public override void Foo()
+		{
+			base.Foo();
+
+			var list = new List<int>();
+			var result = list.Exists(x => x == 0);
+		}
+
+		private async Task MyAsyncMethod()
+		{
+			await Task.Delay(100);
 		}
 	}
 
@@ -22,6 +49,7 @@ namespace TestApp
 			public struct MyStruct
 			{
 				unsafe fixed byte myFixedBuff[256];
+				unsafe fixed float myFixedBuff2[128];
 			}
 
 			static MyStruct i;
@@ -36,11 +64,6 @@ namespace TestApp
 
 			protected abstract void Boo();
 		}
-	}
-
-	interface MyInterface
-	{
-		
 	}
 
 	enum MyEnum
