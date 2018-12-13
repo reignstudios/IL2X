@@ -1,2 +1,3 @@
+IL auto generated types: http://source.roslyn.io/#Microsoft.CodeAnalysis.CSharp/Symbols/Synthesized/GeneratedNames.cs
 IL opcodes: https://github.com/dotnet/coreclr/blob/master/src/inc/opcode.def
 C99 primitive types: stdint.h
