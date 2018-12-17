@@ -62,6 +62,15 @@ namespace IL2X.Core
 			else throw new Exception("Unsuported type kind: " + type.Name);
 		}
 
+		private bool IsValidType(TypeReference type)
+		{
+			if (type.Name == "<Module>") return false;
+			if (type.Name == "<PrivateImplementationDetails>" || (type.DeclaringType != null && type.DeclaringType.Name == "<PrivateImplementationDetails>")) return false;
+			if (IsFixedBufferType(type)) return false;
+			if (type.HasGenericParameters) return false;// TODO: convert to C++ templates or C style option (future option: generate all opcode uses into new type and add compiler options to force specific ones)
+			return true;
+		}
+
 		private void WriteAllTypesHeader(ModuleDefinition module, string outputPath)
 		{
 			using (var stream = new FileStream(Path.Combine(outputPath, "__ALL_TYPES.h"), FileMode.Create, FileAccess.Write))
@@ -71,29 +80,17 @@ namespace IL2X.Core
 				writer.WriteLine();
 				foreach (var type in module.GetTypes())
 				{
-					if (type.Name == "<Module>") continue;
-					if (type.Name == "<PrivateImplementationDetails>" || (type.DeclaringType != null && type.DeclaringType.Name == "<PrivateImplementationDetails>")) continue;
-					if (type.HasGenericParameters) continue;// TODO: generate unique generic types when ran accross in opcodes (then output ALL TYPES)
-					if (IsFixedBufferType(type)) continue;
-					if (type.Name == "<>c") continue;// TODO: handle closures
+					if (!IsValidType(type)) continue;
 
-					int namespaceCount = WriteNamespaceStart(type, false);
-					if (namespaceCount != 0) StreamWriterEx.AddTab();
-					string typeKindKeyword = GetTypeDeclarationKeyword(type);
-					writer.Write($"{typeKindKeyword} {GetNestedNameFlat(type)};");
-					if (namespaceCount != 0) StreamWriterEx.RemoveTab();
-					WriteNamespaceEnd(namespaceCount, true);
+					activeType = type;
+					writer.WriteLine($"#include \"{GetFullNameFlat(type, "_", "_")}.h\";");
 				}
 			}
 		}
 
 		private void WriteType(TypeDefinition type, string outputPath)
 		{
-			if (type.Name == "<Module>") return;
-			if (type.Name == "<PrivateImplementationDetails>" || (type.DeclaringType != null && type.DeclaringType.Name == "<PrivateImplementationDetails>")) return;
-			if (type.HasGenericParameters) return;
-			if (IsFixedBufferType(type)) return;
-			if (type.Name == "<>c") return;// TODO: handle closures
+			if (!IsValidType(type)) return;
 
 			activeType = type;
 			string filename = GetFullNameFlat(type, "_", "_");
@@ -158,7 +155,7 @@ namespace IL2X.Core
 
 			// write members
 			string typeKindKeyword = GetTypeDeclarationKeyword(type);
-			writer.WriteLinePrefix($"{typeKindKeyword} {GetNestedNameFlat(type)}");
+			writer.WriteLinePrefix($"{typeKindKeyword} {GetNestedTypeNameFlat(type)}");
 			writer.WriteLinePrefix('{');
 			StreamWriterEx.AddTab();
 
@@ -170,7 +167,7 @@ namespace IL2X.Core
 					foreach (var field in type.Fields)
 					{
 						if (field.Attributes.HasFlag(FieldAttributes.RTSpecialName)) continue;
-						writer.WritePrefix($"{field.Name} = {field.Constant}");
+						writer.WritePrefix($"{GetmemberName(field)} = {field.Constant}");
 						if (field != lastField) writer.WriteLine(',');
 						else writer.WriteLine();
 					}
@@ -273,7 +270,7 @@ namespace IL2X.Core
 			}
 
 			// write
-			writer.WritePrefix($"{accessModifier}{GetFullNameFlat(fieldType)} {field.Name}");
+			writer.WritePrefix($"{accessModifier}{GetFullTypeNameFlat(fieldType)} {GetmemberName(field)}");
 			if (isFixedType) writer.WriteLine($"[{fixedTypeSize}];");
 			else writer.WriteLine(';');
 		}
@@ -281,7 +278,7 @@ namespace IL2X.Core
 		private void WriteFieldSource(FieldDefinition field)
 		{
 			if (field.Attributes.HasFlag(FieldAttributes.RTSpecialName) || !field.IsStatic) return;
-			writer.WriteLinePrefix($"{GetFullNameFlat(field.FieldType)} {field.DeclaringType.Name}::{field.Name};");
+			writer.WriteLinePrefix($"{GetFullTypeNameFlat(field.FieldType)} {GetFullTypeNameFlat(field.DeclaringType)}::{GetmemberName(field)};");
 		}
 
 		private void WriteMethodHeader(MethodDefinition method)
@@ -290,9 +287,9 @@ namespace IL2X.Core
 			if (method.IsStatic) accessModifier += "static ";
 			if (method.IsVirtual) accessModifier += "virtual ";
 
-			string name = method.IsConstructor ? method.DeclaringType.Name : method.Name;
+			string name = method.IsConstructor ? GetFullTypeNameFlat(method.DeclaringType) : GetmemberName(method);
 			if (method.IsConstructor) writer.WritePrefix($"{name}(");
-			else writer.WritePrefix($"{accessModifier}{GetFullNameFlat(method.ReturnType)} {name}(");
+			else writer.WritePrefix($"{accessModifier}{GetFullTypeNameFlat(method.ReturnType)} {name}(");
 			WriteParameters(method.Parameters);
 			writer.Write(')');
 			if (method.HasBody) writer.WriteLine(';');
@@ -301,8 +298,8 @@ namespace IL2X.Core
 		
 		private void WriteMethodSource(MethodDefinition method)
 		{
-			if (method.IsConstructor) writer.WritePrefix(string.Format("{0}::{0}(", method.DeclaringType.Name));
-			else writer.WritePrefix($"{GetFullNameFlat(method.ReturnType)} {method.DeclaringType.Name}::{method.Name}(");
+			if (method.IsConstructor) writer.WritePrefix(string.Format("{0}::{0}(", GetFullTypeNameFlat(method.DeclaringType)));
+			else writer.WritePrefix($"{GetFullTypeNameFlat(method.ReturnType)} {GetFullTypeNameFlat(method.DeclaringType)}::{GetmemberName(method)}(");
 			WriteParameters(method.Parameters);
 			writer.WriteLine(')');
 			writer.WriteLinePrefix('{');
@@ -317,7 +314,7 @@ namespace IL2X.Core
 			var lastParameter = parameters.LastOrDefault();
 			foreach (var parameter in parameters)
 			{
-				writer.Write($"{GetFullNameFlat(parameter.ParameterType)} {parameter.Name}");
+				writer.Write($"{GetFullTypeNameFlat(parameter.ParameterType)} {parameter.Name}");
 				if (parameter != lastParameter) writer.Write(", ");
 			}
 		}
@@ -349,7 +346,7 @@ namespace IL2X.Core
 			return null;
 		}
 
-		private string GetFullNameFlat(TypeReference type)
+		private string GetFullTypeNameFlat(TypeReference type)
 		{
 			string nativeTypeName = GetNativeRuntimeTypeName(type);
 			if (nativeTypeName != null) return nativeTypeName;
@@ -358,7 +355,7 @@ namespace IL2X.Core
 			return GetFullNameFlat(type, "::", "_");
 		}
 
-		private string GetNestedNameFlat(TypeReference type)
+		private string GetNestedTypeNameFlat(TypeReference type)
 		{
 			return GetNestedNameFlat(type, "_");
 		}

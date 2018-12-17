@@ -67,28 +67,13 @@ namespace IL2X.Core
 			return value.ToString();
 		}
 
-		protected void GetQualifiedNameFlat(TypeReference type, ref string namespaceDelimiter, ref string nestedDelimiter, StringBuilder value, bool writeNamespace)
+		private void GetQualifiedNameFlat(TypeReference type, ref string namespaceDelimiter, ref string nestedDelimiter, StringBuilder value, bool writeNamespace)
 		{
 			string name;
-			if (IsAnonymousType(type))
+			if (ParseMemberImplementationDetail(type, out string fieldName, out string detailName))
 			{
-				ParseAnonymousType(type, out int index);
-				name = $"f__AnonymousType_{index}";
-			}
-			else if (IsGeneratedType(type))
-			{
-				ParseGeneratedType(type, out string methodName, out int index);
-				name = $"d__{methodName}_{index}";
-			}
-			else if (IsDisplayClassType(type))
-			{
-				ParseDisplayClassType(type, out int index);
-				name = $"c__DisplayClass_{index}";
-			}
-			else if (IsFinishReadAsyncType(type))
-			{
-				ParseFinishReadAsyncType(type, out string methodName, out int index);
-				name = $"g__{methodName}_{index}";
+				if (string.IsNullOrEmpty(fieldName)) name = $"__{detailName}";
+				else name = $"__{detailName}_{fieldName}";
 			}
 			else
 			{
@@ -107,101 +92,38 @@ namespace IL2X.Core
 			}
 		}
 
-		protected bool IsAnonymousType(TypeReference type)
-		{
-			return type.Name.StartsWith("<>f__AnonymousType");
-		}
-
-		protected void ParseAnonymousType(TypeReference type, out int index)
-		{
-			var match = Regex.Match(type.Name, @"<>f__AnonymousType(\d*)`(\d*)");
-			if (match.Success)
-			{
-				if (int.TryParse(match.Groups[1].Value, out int parsedIndex)) index = parsedIndex;
-				else index = 0;
-			}
-			else
-			{
-				throw new Exception("Failed to parse f__AnonymousType");
-			}
-		}
-
-		protected bool IsGeneratedType(TypeReference type)
-		{
-			return Regex.IsMatch(type.Name, @"<.*>d__\d*");
-		}
-
-		protected void ParseGeneratedType(TypeReference type, out string methodName, out int index)
-		{
-			var match = Regex.Match(type.Name, @"<(.*)>d__(\d*)");
-			if (match.Success)
-			{
-				methodName = match.Groups[1].Value;
-				if (int.TryParse(match.Groups[2].Value, out int parsedIndex)) index = parsedIndex;
-				else index = 0;
-			}
-			else
-			{
-				throw new Exception("Failed to parse d__");
-			}
-		}
-
-		protected bool IsDisplayClassType(TypeReference type)
-		{
-			return Regex.IsMatch(type.Name, @"<>c__DisplayClass\d*");
-		}
-
-		protected void ParseDisplayClassType(TypeReference type, out int index)
-		{
-			var match = Regex.Match(type.Name, @"<>c__DisplayClass(\d*)");
-			if (match.Success)
-			{
-				if (int.TryParse(match.Groups[1].Value, out int parsedIndex)) index = parsedIndex;
-				else index = 0;
-			}
-			else
-			{
-				throw new Exception("Failed to parse c__DisplayClass");
-			}
-		}
-
-		protected bool IsFinishReadAsyncType(TypeReference type)
-		{
-			return Regex.IsMatch(type.Name, @"<<.*>g__FinishReadAsync\|\d*_0>d");
-		}
-
-		protected void ParseFinishReadAsyncType(TypeReference type, out string methodName, out int index)
-		{
-			var match = Regex.Match(type.Name, @"<<(.*)>g__FinishReadAsync\|(\d*)_0>d");
-			if (match.Success)
-			{
-				methodName = match.Groups[1].Value;
-				if (int.TryParse(match.Groups[2].Value, out int parsedIndex)) index = parsedIndex;
-				else index = 0;
-			}
-			else
-			{
-				throw new Exception("Failed to parse c__DisplayClass");
-			}
-		}
-
 		protected bool IsFixedBufferType(TypeReference type)
 		{
-			return Regex.IsMatch(type.Name, "<.*>e__FixedBuffer");
+			return Regex.IsMatch(type.Name, @"<\w*>e__FixedBuffer");
 		}
 
-		protected void ParseFixedBufferType(TypeDefinition type, out FieldDefinition fieldType, out string fieldName)
+		protected string GetmemberName(MemberReference member)
 		{
-			if (!type.HasFields) throw new Exception("e__FixedBuffer has no fields");
-			var match = Regex.Match(type.Name, @"<(.*)>e__FixedBuffer");
-			if (match.Success)
+			if (ParseMemberImplementationDetail(member, out string fieldName, out string detailName))
 			{
-				fieldType = type.Fields[0];
-				fieldName = match.Groups[1].Value;
+				if (string.IsNullOrEmpty(fieldName)) return $"__{detailName}";
+				else return $"__{detailName}_{fieldName}";
 			}
 			else
 			{
-				throw new Exception("Failed to parse e__FixedBuffer");
+				return member.Name;
+			}
+		}
+
+		protected bool ParseMemberImplementationDetail(MemberReference member, out string fieldName, out string detailName)
+		{
+			var match = Regex.Match(member.Name, @"<(\w*)>(\w*)");
+			if (match.Success)
+			{
+				fieldName = match.Groups[1].Value;
+				detailName = match.Groups[2].Value;
+				return true;
+			}
+			else
+			{
+				fieldName = null;
+				detailName = null;
+				return false;
 			}
 		}
 
