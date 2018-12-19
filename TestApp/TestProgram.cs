@@ -11,8 +11,18 @@ namespace TestApp
 
 	class BaseProgram<T> : MyInterface
 	{
+		public List<List<T>> nestedT;
 		public T myT;
 		public virtual void Foo() { }
+		public E MyTFoo<E>(E input)
+		{
+			return input;
+		}
+
+		public T MyTFoo(T input)
+		{
+			return input;
+		}
 	}
 
 	class Program : BaseProgram<int>

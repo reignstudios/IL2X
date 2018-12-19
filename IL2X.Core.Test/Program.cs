@@ -15,7 +15,7 @@ namespace IL2X.Core.Test
 			if (!Directory.Exists(outputPath)) Directory.CreateDirectory(outputPath);
 			using (var translator = new ILTranslator_Cpp(binaryPath, "pch.h"))
 			{
-				translator.Translate(outputPath, false);
+				translator.Translate(outputPath, true);
 			}
 		}
 	}

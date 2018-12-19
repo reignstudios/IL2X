@@ -2,6 +2,7 @@
 using Mono.Cecil.Cil;
 using Mono.Cecil.Pdb;
 using System;
+using System.Linq;
 using System.IO;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -52,39 +53,32 @@ namespace IL2X.Core
 
 		public abstract void Translate(string outputPath, bool translateReferences);
 
-		protected string GetFullNameFlat(TypeReference type, string namespaceDelimiter, string nestedDelimiter)
+		protected abstract string GetFullTypeName(TypeReference type);
+		protected string GetFullTypeName(TypeReference type, string namespaceDelimiter, string nestedDelimiter, char genericOpenBracket, char genericCloseBracket, char genericDelimiter, bool writeGenericParts)
 		{
 			var value = new StringBuilder();
-			GetQualifiedNameFlat(type, ref namespaceDelimiter, ref nestedDelimiter, value, true);
+			GetQualifiedTypeName(type, ref namespaceDelimiter, ref nestedDelimiter, genericOpenBracket, genericCloseBracket, genericDelimiter, writeGenericParts, value, true);
 			return value.ToString();
 		}
 
-		protected string GetNestedNameFlat(TypeReference type, string nestedDelimiter)
+		protected abstract string GetNestedTypeName(TypeReference type);
+		protected string GetNestedTypeName(TypeReference type, string nestedDelimiter, char genericOpenBracket, char genericCloseBracket, char genericDelimiter, bool writeGenericParts)
 		{
-			if (!type.IsNested) return type.Name;
+			if (!type.IsNested) return GetMemberName(type, nestedDelimiter, nestedDelimiter, genericOpenBracket, genericCloseBracket, genericDelimiter, writeGenericParts);
 			var value = new StringBuilder();
-			GetQualifiedNameFlat(type, ref nestedDelimiter, ref nestedDelimiter, value, false);
+			GetQualifiedTypeName(type, ref nestedDelimiter, ref nestedDelimiter, genericOpenBracket, genericCloseBracket, genericDelimiter, writeGenericParts, value, false);
 			return value.ToString();
 		}
 
-		private void GetQualifiedNameFlat(TypeReference type, ref string namespaceDelimiter, ref string nestedDelimiter, StringBuilder value, bool writeNamespace)
+		private void GetQualifiedTypeName(TypeReference type, ref string namespaceDelimiter, ref string nestedDelimiter, char genericOpenBracket, char genericCloseBracket, char genericDelimiter, bool writeGenericParts, StringBuilder value, bool writeNamespace)
 		{
-			string name;
-			if (ParseMemberImplementationDetail(type, out string fieldName, out string detailName))
-			{
-				if (string.IsNullOrEmpty(fieldName)) name = $"__{detailName}";
-				else name = $"__{detailName}_{fieldName}";
-			}
-			else
-			{
-				name = type.Name;
-			}
-
+			string name = GetMemberName(type, namespaceDelimiter, nestedDelimiter, genericOpenBracket, genericCloseBracket, genericDelimiter, writeGenericParts);
 			value.Insert(0, name);
+			if (type.IsGenericParameter) return;
 			if (type.DeclaringType != null)
 			{
 				value.Insert(0, nestedDelimiter);
-				GetQualifiedNameFlat(type.DeclaringType, ref namespaceDelimiter, ref nestedDelimiter, value, writeNamespace);
+				GetQualifiedTypeName(type.DeclaringType, ref namespaceDelimiter, ref nestedDelimiter, genericOpenBracket, genericCloseBracket, genericDelimiter, writeGenericParts, value, writeNamespace);
 			}
 			else if (writeNamespace && !string.IsNullOrEmpty(type.Namespace))
 			{
@@ -97,34 +91,62 @@ namespace IL2X.Core
 			return Regex.IsMatch(type.Name, @"<\w*>e__FixedBuffer");
 		}
 
-		protected string GetmemberName(MemberReference member)
+		protected abstract string GetMemberName(MemberReference member);
+		protected string GetMemberName(MemberReference member, string namespaceDelimiter, string nestedDelimiter, char genericOpenBracket, char genericCloseBracket, char genericDelimiter, bool writeGenericParts)
 		{
-			if (ParseMemberImplementationDetail(member, out string fieldName, out string detailName))
+			string memberName = member.Name;
+			ParseMemberImplementationDetail(ref memberName);
+
+			if (member is IGenericInstance)
 			{
-				if (string.IsNullOrEmpty(fieldName)) return $"__{detailName}";
-				else return $"__{detailName}_{fieldName}";
+				var generic = (IGenericInstance)member;
+				if (generic.HasGenericArguments && memberName.Contains('`'))
+				{
+					return ResolveGenericName(memberName, generic.GenericArguments, genericOpenBracket, genericCloseBracket, genericDelimiter, writeGenericParts);
+				}
 			}
-			else
+			else if (member is IGenericParameterProvider)
 			{
-				return member.Name;
+				var generic = (IGenericParameterProvider)member;
+				if (generic.HasGenericParameters && memberName.Contains('`'))
+				{
+					return ResolveGenericName(memberName, generic.GenericParameters, genericOpenBracket, genericCloseBracket, genericDelimiter, writeGenericParts);
+				}
+			}
+
+			return memberName;
+		}
+
+		private void ParseMemberImplementationDetail(ref string memberName)
+		{
+			var match = Regex.Match(memberName, @"<(.*)>(.*)");
+			if (match.Success)
+			{
+				if (string.IsNullOrEmpty(match.Groups[1].Value)) memberName = $"__{match.Groups[2].Value}";
+				else memberName = $"__{match.Groups[1].Value}_{match.Groups[2].Value}";
+				ParseMemberImplementationDetail(ref memberName);
+				if (memberName.Contains('|')) memberName = memberName.Replace('|', '_');
 			}
 		}
 
-		protected bool ParseMemberImplementationDetail(MemberReference member, out string fieldName, out string detailName)
+		private string ResolveGenericName<T>(string memberName, Mono.Collections.Generic.Collection<T> collection, char genericOpenBracket, char genericCloseBracket, char genericDelimiter, bool writeGenericParts) where T : TypeReference
 		{
-			var match = Regex.Match(member.Name, @"<(\w*)>(\w*)");
-			if (match.Success)
+			var match = Regex.Match(memberName, @"(\w*)`\d*");
+			if (!match.Success) throw new Exception("Failed to remove generic name tick: " + memberName);
+			var name = new StringBuilder(match.Groups[1].Value);
+			if (writeGenericParts)
 			{
-				fieldName = match.Groups[1].Value;
-				detailName = match.Groups[2].Value;
-				return true;
+				name.Append(genericOpenBracket);
+				var lastItem = collection.LastOrDefault();
+				foreach (var item in collection)
+				{
+					name.Append(GetFullTypeName(item));
+					if (item != lastItem) name.Append(genericDelimiter);
+				}
+				name.Append(genericCloseBracket);
 			}
-			else
-			{
-				fieldName = null;
-				detailName = null;
-				return false;
-			}
+
+			return name.ToString();
 		}
 
 		protected int GetPrimitiveSize(MetadataType type)

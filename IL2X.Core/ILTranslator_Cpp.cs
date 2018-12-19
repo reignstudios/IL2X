@@ -15,6 +15,7 @@ namespace IL2X.Core
 		private Stack<string> referencesParsed;
 		private readonly string precompiledHeader;
 
+
 		private TypeReference activeType;
 
 		public ILTranslator_Cpp(string binaryPath, string precompiledHeader = null)
@@ -33,7 +34,7 @@ namespace IL2X.Core
 		{
 			var module = assemblyDefinition.MainModule;
 
-			// translate references: TODO: make sure refs are only translated once <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+			// translate references
 			if (translateReferences)
 			{
 				foreach (var reference in module.AssemblyReferences)
@@ -67,8 +68,12 @@ namespace IL2X.Core
 			if (type.Name == "<Module>") return false;
 			if (type.Name == "<PrivateImplementationDetails>" || (type.DeclaringType != null && type.DeclaringType.Name == "<PrivateImplementationDetails>")) return false;
 			if (IsFixedBufferType(type)) return false;
-			if (type.HasGenericParameters) return false;// TODO: convert to C++ templates or C style option (future option: generate all opcode uses into new type and add compiler options to force specific ones)
 			return true;
+		}
+
+		private string GetTypeFilename(TypeDefinition type)
+		{
+			return GetFullTypeName(type, "_", "_", '[', ']', ',', true);
 		}
 
 		private void WriteAllTypesHeader(ModuleDefinition module, string outputPath)
@@ -83,7 +88,7 @@ namespace IL2X.Core
 					if (!IsValidType(type)) continue;
 
 					activeType = type;
-					writer.WriteLine($"#include \"{GetFullNameFlat(type, "_", "_")}.h\";");
+					writer.WriteLine($"#include \"{GetTypeFilename(type)}.h\";");
 				}
 			}
 		}
@@ -93,7 +98,7 @@ namespace IL2X.Core
 			if (!IsValidType(type)) return;
 
 			activeType = type;
-			string filename = GetFullNameFlat(type, "_", "_");
+			string filename = GetTypeFilename(type);
 			string filePath = Path.Combine(outputPath, filename);
 			
 			// write header
@@ -107,7 +112,7 @@ namespace IL2X.Core
 			}
 
 			// write source
-			if (!type.IsEnum)
+			if (!type.IsEnum && !type.HasGenericParameters)
 			{
 				using (var stream = new FileStream(filePath + ".cpp", FileMode.Create, FileAccess.Write))
 				using (writer = new StreamWriter(stream))
@@ -153,9 +158,17 @@ namespace IL2X.Core
 			int namespaceCount = WriteNamespaceStart(type, true);
 			StreamWriterEx.AddTab();
 
+			// write generic parameters
+			if (type.HasGenericParameters)
+			{
+				writer.WritePrefix();
+				WriteGenericParameters(type);
+				writer.WriteLine();
+			}
+
 			// write members
 			string typeKindKeyword = GetTypeDeclarationKeyword(type);
-			writer.WriteLinePrefix($"{typeKindKeyword} {GetNestedTypeNameFlat(type)}");
+			writer.WriteLinePrefix($"{typeKindKeyword} {GetNestedTypeName(type)}");
 			writer.WriteLinePrefix('{');
 			StreamWriterEx.AddTab();
 
@@ -167,7 +180,7 @@ namespace IL2X.Core
 					foreach (var field in type.Fields)
 					{
 						if (field.Attributes.HasFlag(FieldAttributes.RTSpecialName)) continue;
-						writer.WritePrefix($"{GetmemberName(field)} = {field.Constant}");
+						writer.WritePrefix($"{GetMemberName(field)} = {field.Constant}");
 						if (field != lastField) writer.WriteLine(',');
 						else writer.WriteLine();
 					}
@@ -248,14 +261,6 @@ namespace IL2X.Core
 		{
 			if (field.Attributes.HasFlag(FieldAttributes.RTSpecialName)) return;
 
-			// generate access modifiers
-			string accessModifier;
-			if (field.IsPublic || field.IsAssembly) accessModifier = "public: ";
-			else if (field.IsFamily) accessModifier = "protected: ";
-			else if (field.IsPrivate) accessModifier = "private: ";
-			else throw new NotImplementedException("Unsuported attributes: " + field.Attributes);
-			if (field.IsStatic) accessModifier += "static ";
-
 			// if fixed type, convert to native
 			TypeReference fieldType = field.FieldType;
 			bool isFixedType = false;
@@ -270,7 +275,9 @@ namespace IL2X.Core
 			}
 
 			// write
-			writer.WritePrefix($"{accessModifier}{GetFullTypeNameFlat(fieldType)} {GetmemberName(field)}");
+			WriteAccessModifier(field, field.IsPublic, field.IsAssembly, false, field.IsFamily, field.IsFamilyOrAssembly, field.IsFamilyAndAssembly, field.IsPrivate);
+			if (field.IsStatic) writer.Write("static ");
+			writer.Write($"{GetFullTypeName(fieldType)} {GetMemberName(field)}");
 			if (isFixedType) writer.WriteLine($"[{fixedTypeSize}];");
 			else writer.WriteLine(';');
 		}
@@ -278,19 +285,34 @@ namespace IL2X.Core
 		private void WriteFieldSource(FieldDefinition field)
 		{
 			if (field.Attributes.HasFlag(FieldAttributes.RTSpecialName) || !field.IsStatic) return;
-			writer.WriteLinePrefix($"{GetFullTypeNameFlat(field.FieldType)} {GetFullTypeNameFlat(field.DeclaringType)}::{GetmemberName(field)};");
+			writer.WriteLinePrefix($"{GetFullTypeName(field.FieldType)} {GetFullTypeName(field.DeclaringType)}::{GetMemberName(field)};");
 		}
 
 		private void WriteMethodHeader(MethodDefinition method)
 		{
-			string accessModifier = (method.IsPublic || method.IsAssembly) ? "public: " : "private: ";
-			if (method.IsStatic) accessModifier += "static ";
-			if (method.IsVirtual) accessModifier += "virtual ";
+			// write access modifier
+			WriteAccessModifier(method, method.IsPublic, method.IsAssembly, method.IsVirtual, method.IsFamily, method.IsFamilyOrAssembly, method.IsFamilyAndAssembly, method.IsPrivate);
 
-			string name = method.IsConstructor ? GetFullTypeNameFlat(method.DeclaringType) : GetmemberName(method);
-			if (method.IsConstructor) writer.WritePrefix($"{name}(");
-			else writer.WritePrefix($"{accessModifier}{GetFullTypeNameFlat(method.ReturnType)} {name}(");
+			// write generic parameters
+			if (method.HasGenericParameters)
+			{
+				WriteGenericParameters(method);
+				writer.Write(' ');
+			}
+
+			// write attributes
+			if (method.IsStatic) writer.Write("static ");
+			if (method.IsVirtual) writer.Write("virtual ");
+
+			// write definition
+			string name = method.IsConstructor ? GetFullTypeName(method.DeclaringType) : GetMemberName(method);
+			if (method.IsConstructor) writer.Write($"{name}(");
+			else writer.Write($"{GetFullTypeName(method.ReturnType)} {name}(");
+
+			// write parameters
 			WriteParameters(method.Parameters);
+
+			// finish
 			writer.Write(')');
 			if (method.HasBody) writer.WriteLine(';');
 			else writer.WriteLine(" = 0;");
@@ -298,8 +320,8 @@ namespace IL2X.Core
 		
 		private void WriteMethodSource(MethodDefinition method)
 		{
-			if (method.IsConstructor) writer.WritePrefix(string.Format("{0}::{0}(", GetFullTypeNameFlat(method.DeclaringType)));
-			else writer.WritePrefix($"{GetFullTypeNameFlat(method.ReturnType)} {GetFullTypeNameFlat(method.DeclaringType)}::{GetmemberName(method)}(");
+			if (method.IsConstructor) writer.WritePrefix(string.Format("{0}::{0}(", GetFullTypeName(method.DeclaringType)));
+			else writer.WritePrefix($"{GetFullTypeName(method.ReturnType)} {GetFullTypeName(method.DeclaringType)}::{GetMemberName(method)}(");
 			WriteParameters(method.Parameters);
 			writer.WriteLine(')');
 			writer.WriteLinePrefix('{');
@@ -309,12 +331,32 @@ namespace IL2X.Core
 			writer.WriteLinePrefix('}');
 		}
 
+		private void WriteGenericParameters(IGenericParameterProvider generic)
+		{
+			writer.Write("template<");
+			var lastParameter = generic.GenericParameters.LastOrDefault();
+			foreach (var parameter in generic.GenericParameters)
+			{
+				writer.Write($"typename {GetFullTypeName(parameter)}");
+				if (parameter != lastParameter) writer.Write(',');
+			}
+			writer.Write('>');
+		}
+
+		private void WriteAccessModifier(MemberReference member, bool isPublic, bool isAssembly, bool isVirtual, bool isFamily, bool isFamilyOrAssembly, bool isFamilyAndAssembly, bool isPrivate)
+		{
+			if (isPublic || isAssembly || isVirtual || isFamilyOrAssembly || isFamilyAndAssembly) writer.WritePrefix("public: ");
+			else if (isFamily) writer.WritePrefix("protected: ");
+			else if (isPrivate) writer.WritePrefix("private: ");
+			else throw new NotImplementedException("Unsuported access modifier state: " + member.FullName);
+		}
+
 		private void WriteParameters(Collection<ParameterDefinition> parameters)
 		{
 			var lastParameter = parameters.LastOrDefault();
 			foreach (var parameter in parameters)
 			{
-				writer.Write($"{GetFullTypeNameFlat(parameter.ParameterType)} {parameter.Name}");
+				writer.Write($"{GetFullTypeName(parameter.ParameterType)} {parameter.Name}");
 				if (parameter != lastParameter) writer.Write(", ");
 			}
 		}
@@ -346,18 +388,23 @@ namespace IL2X.Core
 			return null;
 		}
 
-		private string GetFullTypeNameFlat(TypeReference type)
+		protected override string GetFullTypeName(TypeReference type)
 		{
 			string nativeTypeName = GetNativeRuntimeTypeName(type);
 			if (nativeTypeName != null) return nativeTypeName;
 
-			if (activeType.Namespace == type.Namespace || activeType == type.DeclaringType) return GetNestedNameFlat(type, "_");// remove verbosity if possible
-			return GetFullNameFlat(type, "::", "_");
+			if (activeType.Namespace == type.Namespace || activeType == type.DeclaringType) return GetNestedTypeName(type);// remove verbosity if possible
+			return GetFullTypeName(type, "::", "_", '<', '>', ',', !type.IsDefinition);
 		}
 
-		private string GetNestedTypeNameFlat(TypeReference type)
+		protected override string GetNestedTypeName(TypeReference type)
 		{
-			return GetNestedNameFlat(type, "_");
+			return GetNestedTypeName(type, "_", '<', '>', ',', !type.IsDefinition);
+		}
+
+		protected override string GetMemberName(MemberReference member)
+		{
+			return GetMemberName(member, "::", "_", '<', '>', ',', !member.IsDefinition);
 		}
 	}
 }
