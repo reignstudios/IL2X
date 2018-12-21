@@ -53,15 +53,14 @@ namespace IL2X.Core
 
 		public abstract void Translate(string outputPath, bool translateReferences);
 
-		protected abstract string GetFullTypeName(TypeReference type);
+		protected abstract string GetFullTypeName(TypeReference type, bool isBaseType);
 		protected string GetFullTypeName(TypeReference type, string namespaceDelimiter, string nestedDelimiter, char genericOpenBracket, char genericCloseBracket, char genericDelimiter, bool writeGenericParts)
 		{
 			var value = new StringBuilder();
 			GetQualifiedTypeName(type, ref namespaceDelimiter, ref nestedDelimiter, genericOpenBracket, genericCloseBracket, genericDelimiter, writeGenericParts, value, true);
 			return value.ToString();
 		}
-
-		protected abstract string GetNestedTypeName(TypeReference type);
+		
 		protected string GetNestedTypeName(TypeReference type, string nestedDelimiter, char genericOpenBracket, char genericCloseBracket, char genericDelimiter, bool writeGenericParts)
 		{
 			if (!type.IsNested) return GetMemberName(type, nestedDelimiter, nestedDelimiter, genericOpenBracket, genericCloseBracket, genericDelimiter, writeGenericParts);
@@ -90,13 +89,26 @@ namespace IL2X.Core
 		{
 			return Regex.IsMatch(type.Name, @"<\w*>e__FixedBuffer");
 		}
-
-		protected abstract string GetMemberName(MemberReference member);
+		
 		protected string GetMemberName(MemberReference member, string namespaceDelimiter, string nestedDelimiter, char genericOpenBracket, char genericCloseBracket, char genericDelimiter, bool writeGenericParts)
 		{
 			string memberName = member.Name;
+
+			// strip method name mangle
+			if (member is MethodDefinition)
+			{
+				var method = (MethodDefinition)member;
+				if (method.IsFinal)
+				{
+					var parts = method.Name.Split('.');
+					memberName = parts[parts.Length - 1];
+				}
+			}
+
+			// handle generated implementation details
 			ParseMemberImplementationDetail(ref memberName);
 
+			// handle generic names
 			if (member is IGenericInstance)
 			{
 				var generic = (IGenericInstance)member;
@@ -140,7 +152,7 @@ namespace IL2X.Core
 				var lastItem = collection.LastOrDefault();
 				foreach (var item in collection)
 				{
-					name.Append(GetFullTypeName(item));
+					name.Append(GetFullTypeName(item, false));
 					if (item != lastItem) name.Append(genericDelimiter);
 				}
 				name.Append(genericCloseBracket);

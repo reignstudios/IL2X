@@ -11,11 +11,12 @@ namespace IL2X.Core
 {
 	public class ILTranslator_Cpp : ILTranslator
 	{
+		private const string allTypesHeader = "__ALL_TYPES.h";
+
 		private StreamWriter writer;
 		private Stack<string> referencesParsed;
 		private readonly string precompiledHeader;
-
-
+		
 		private TypeReference activeType;
 
 		public ILTranslator_Cpp(string binaryPath, string precompiledHeader = null)
@@ -49,7 +50,7 @@ namespace IL2X.Core
 			}
 
 			// translate assembly
-			outputPath = Path.Combine(outputPath, assemblyDefinition.Name.Name.Replace('.', '_'));
+			outputPath = Path.Combine(outputPath, GetAssemblyFolderName(assemblyDefinition.Name.Name));
 			if (!Directory.Exists(outputPath)) Directory.CreateDirectory(outputPath);
 			WriteAllTypesHeader(module, outputPath);
 			foreach (var type in module.GetTypes()) WriteType(type, outputPath);
@@ -71,6 +72,11 @@ namespace IL2X.Core
 			return true;
 		}
 
+		private string GetAssemblyFolderName(string assemblyName)
+		{
+			return assemblyName.Replace('.', '_');
+		}
+
 		private string GetTypeFilename(TypeDefinition type)
 		{
 			return GetFullTypeName(type, "_", "_", '[', ']', ',', true);
@@ -78,11 +84,25 @@ namespace IL2X.Core
 
 		private void WriteAllTypesHeader(ModuleDefinition module, string outputPath)
 		{
-			using (var stream = new FileStream(Path.Combine(outputPath, "__ALL_TYPES.h"), FileMode.Create, FileAccess.Write))
+			using (var stream = new FileStream(Path.Combine(outputPath, allTypesHeader), FileMode.Create, FileAccess.Write))
 			using (writer = new StreamWriter(stream))
 			{
 				writer.WriteLine("#pragma once");
+
+				// include dependencies
+				if (module.AssemblyReferences.Count != 0)
+				{
+					writer.WriteLine();
+					writer.WriteLine("// DEPENDENCIES");
+					foreach (var reference in module.AssemblyReferences)
+					{
+						writer.WriteLine($"#include \"../{GetAssemblyFolderName(reference.Name)}/{allTypesHeader}\"");
+					}
+				}
+
+				// include types
 				writer.WriteLine();
+				writer.WriteLine("// TYPES");
 				foreach (var type in module.GetTypes())
 				{
 					if (!IsValidType(type)) continue;
@@ -106,7 +126,7 @@ namespace IL2X.Core
 			using (writer = new StreamWriter(stream))
 			{
 				writer.WriteLine("#pragma once");
-				writer.WriteLine("#include \"__ALL_TYPES.h\";");
+				writer.WriteLine($"#include \"{allTypesHeader}\";");
 				writer.WriteLine();
 				WriteTypeHeader(type);
 			}
@@ -156,7 +176,7 @@ namespace IL2X.Core
 		{
 			// write namespace
 			int namespaceCount = WriteNamespaceStart(type, true);
-			StreamWriterEx.AddTab();
+			if (namespaceCount != 0) StreamWriterEx.AddTab();
 
 			// write generic parameters
 			if (type.HasGenericParameters)
@@ -166,12 +186,38 @@ namespace IL2X.Core
 				writer.WriteLine();
 			}
 
-			// write members
+			// write type name
 			string typeKindKeyword = GetTypeDeclarationKeyword(type);
-			writer.WriteLinePrefix($"{typeKindKeyword} {GetNestedTypeName(type)}");
+			writer.WritePrefix($"{typeKindKeyword} {GetNestedTypeName(type)}");
+			if (type.IsSealed) writer.Write(" final");
+
+			// write inheritance
+			if (type.IsEnum)
+			{
+				if (type.HasFields && type.Fields[0].IsRuntimeSpecialName) writer.Write($" : {GetFullTypeName(type.Fields[0].FieldType)}");
+			}
+			else
+			{
+				if (type.BaseType != null) writer.Write($" : public {GetFullTypeName(type.BaseType, true)}");
+				if (type.HasInterfaces)
+				{
+					if (type.BaseType == null) writer.Write(" : ");
+					else writer.Write(", ");
+					var lastInterface = type.Interfaces.LastOrDefault();
+					foreach (var i in type.Interfaces)
+					{
+						writer.Write($"public {GetFullTypeName(i.InterfaceType, true)}");
+						if (i != lastInterface) writer.Write(", ");
+					}
+				}
+			}
+
+			// finish write type name
+			writer.WriteLine();
 			writer.WriteLinePrefix('{');
 			StreamWriterEx.AddTab();
 
+			// write members
 			if (type.IsEnum)
 			{
 				if (type.HasFields)
@@ -179,7 +225,7 @@ namespace IL2X.Core
 					var lastField = type.Fields.LastOrDefault();
 					foreach (var field in type.Fields)
 					{
-						if (field.Attributes.HasFlag(FieldAttributes.RTSpecialName)) continue;
+						if (field.IsRuntimeSpecialName) continue;
 						writer.WritePrefix($"{GetMemberName(field)} = {field.Constant}");
 						if (field != lastField) writer.WriteLine(',');
 						else writer.WriteLine();
@@ -197,13 +243,13 @@ namespace IL2X.Core
 					foreach (var field in type.Fields) WriteFieldHeader(field);
 				}
 			
-				if (type.HasProperties)// TODO: is this needed or will methods do everything?
+				/*if (type.HasProperties)// TODO: is this needed or will methods do everything?
 				{
-					/*if (membersWritten) writer.WriteLine();
+					if (membersWritten) writer.WriteLine();
 					membersWritten = true;
 					writer.WriteLinePrefix("// Properties");
-					foreach (var method in type.Properties) WriteMethodHeader(method);*/
-				}
+					foreach (var method in type.Properties) WriteMethodHeader(method);
+				}*/
 
 				if (type.HasMethods)
 				{
@@ -218,7 +264,7 @@ namespace IL2X.Core
 			writer.WriteLinePrefix("};");
 
 			// close namespace
-			StreamWriterEx.RemoveTab();
+			if (namespaceCount != 0) StreamWriterEx.RemoveTab();
 			WriteNamespaceEnd(namespaceCount, true);
 		}
 
@@ -226,7 +272,7 @@ namespace IL2X.Core
 		{
 			// write namespace
 			int namespaceCount = WriteNamespaceStart(type, true);
-			StreamWriterEx.AddTab();
+			if (namespaceCount != 0) StreamWriterEx.AddTab();
 
 			// write members
 			bool membersWritten = false;
@@ -253,13 +299,13 @@ namespace IL2X.Core
 			}
 
 			// close namespace
-			StreamWriterEx.RemoveTab();
+			if (namespaceCount != 0) StreamWriterEx.RemoveTab();
 			WriteNamespaceEnd(namespaceCount, true);
 		}
 
 		private void WriteFieldHeader(FieldDefinition field)
 		{
-			if (field.Attributes.HasFlag(FieldAttributes.RTSpecialName)) return;
+			if (field.IsSpecialName) return;
 
 			// if fixed type, convert to native
 			TypeReference fieldType = field.FieldType;
@@ -284,12 +330,15 @@ namespace IL2X.Core
 
 		private void WriteFieldSource(FieldDefinition field)
 		{
-			if (field.Attributes.HasFlag(FieldAttributes.RTSpecialName) || !field.IsStatic) return;
+			if (field.IsSpecialName || !field.IsStatic) return;
 			writer.WriteLinePrefix($"{GetFullTypeName(field.FieldType)} {GetFullTypeName(field.DeclaringType)}::{GetMemberName(field)};");
 		}
 
 		private void WriteMethodHeader(MethodDefinition method)
 		{
+			if (method.IsInternalCall) return;// TODO: handle internal calls
+			if (method.IsPInvokeImpl) return;// TODO: handle pinvoke calls
+
 			// write access modifier
 			WriteAccessModifier(method, method.IsPublic, method.IsAssembly, method.IsVirtual, method.IsFamily, method.IsFamilyOrAssembly, method.IsFamilyAndAssembly, method.IsPrivate);
 
@@ -305,7 +354,7 @@ namespace IL2X.Core
 			if (method.IsVirtual) writer.Write("virtual ");
 
 			// write definition
-			string name = method.IsConstructor ? GetFullTypeName(method.DeclaringType) : GetMemberName(method);
+			string name = method.IsConstructor ? GetNestedTypeName(method.DeclaringType) : GetMemberName(method);
 			if (method.IsConstructor) writer.Write($"{name}(");
 			else writer.Write($"{GetFullTypeName(method.ReturnType)} {name}(");
 
@@ -314,14 +363,20 @@ namespace IL2X.Core
 
 			// finish
 			writer.Write(')');
+			if (method.IsFinal) writer.Write(" final");
 			if (method.HasBody) writer.WriteLine(';');
-			else writer.WriteLine(" = 0;");
+			else if (method.IsVirtual) writer.WriteLine(" = 0;");
+			else if (method.IsConstructor) writer.WriteLine(';');// auto generated contructor TODO: auto generate source that calls initializer
+			else throw new Exception("Unsuported method type: " + method.FullName);
 		}
 		
 		private void WriteMethodSource(MethodDefinition method)
 		{
-			if (method.IsConstructor) writer.WritePrefix(string.Format("{0}::{0}(", GetFullTypeName(method.DeclaringType)));
-			else writer.WritePrefix($"{GetFullTypeName(method.ReturnType)} {GetFullTypeName(method.DeclaringType)}::{GetMemberName(method)}(");
+			if (method.IsInternalCall) return;// TODO: handle internal calls
+			if (method.IsPInvokeImpl) return;// TODO: handle pinvoke calls
+
+			if (method.IsConstructor) writer.WritePrefix(string.Format("{0}::{0}(", GetNestedTypeName(method.DeclaringType)));
+			else writer.WritePrefix($"{GetFullTypeName(method.ReturnType)} {GetNestedTypeName(method.DeclaringType)}::{GetMemberName(method)}(");
 			WriteParameters(method.Parameters);
 			writer.WriteLine(')');
 			writer.WriteLinePrefix('{');
@@ -388,21 +443,39 @@ namespace IL2X.Core
 			return null;
 		}
 
-		protected override string GetFullTypeName(TypeReference type)
+		protected override string GetFullTypeName(TypeReference type, bool isBaseType = false)
 		{
-			string nativeTypeName = GetNativeRuntimeTypeName(type);
-			if (nativeTypeName != null) return nativeTypeName;
+			bool isByRef = type.IsByReference;
+			if (type.IsByReference)
+			{
+				var refType = (ByReferenceType)type;
+				type = refType.ElementType;
+			}
 
-			if (activeType.Namespace == type.Namespace || activeType == type.DeclaringType) return GetNestedTypeName(type);// remove verbosity if possible
-			return GetFullTypeName(type, "::", "_", '<', '>', ',', !type.IsDefinition);
+			string name = GetNativeRuntimeTypeName(type);
+			if (name != null) return name;
+
+			if (activeType.Namespace == type.Namespace || activeType == type.DeclaringType) name = GetNestedTypeName(type);// remove verbosity if possible
+			else name = GetFullTypeName(type, "::", "_", '<', '>', ',', !type.IsDefinition);
+			
+			if (type.IsArray)
+			{
+				var arrayType = (ArrayType)type;
+				string elementName = GetFullTypeName(arrayType.ElementType);
+				name = $"IL2X_Array<{elementName}>";
+			}
+			
+			if (!isBaseType && !type.IsValueType && !type.IsGenericParameter) name += '*';
+			if (isByRef) name += '&';
+			return name;
 		}
 
-		protected override string GetNestedTypeName(TypeReference type)
+		protected string GetNestedTypeName(TypeReference type)
 		{
 			return GetNestedTypeName(type, "_", '<', '>', ',', !type.IsDefinition);
 		}
 
-		protected override string GetMemberName(MemberReference member)
+		protected string GetMemberName(MemberReference member)
 		{
 			return GetMemberName(member, "::", "_", '<', '>', ',', !member.IsDefinition);
 		}

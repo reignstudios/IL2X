@@ -27,17 +27,24 @@ namespace TestApp
 
 	class Program : BaseProgram<int>
 	{
+		int[] array = new int[123];
+		Program[] array2 = new Program[123];
+		List<int> list = new List<int>();
+
 		static void Main(string[] args)
 		{
 			Console.WriteLine("Hello World!");
 			var b = new BaseProgram<float>();
 		}
 
+		public void Resize(ref int[] array)
+		{
+			
+		}
+
 		public override void Foo()
 		{
 			base.Foo();
-
-			var list = new List<int>();
 			var result = list.Exists(x => x == 0);
 		}
 
