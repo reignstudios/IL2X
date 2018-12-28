@@ -189,7 +189,6 @@ namespace IL2X.Core
 			// write type name
 			string typeKindKeyword = GetTypeDeclarationKeyword(type);
 			writer.WritePrefix($"{typeKindKeyword} {GetNestedTypeName(type)}");
-			if (type.IsSealed) writer.Write(" final");
 
 			// write inheritance
 			if (type.IsEnum)
@@ -198,6 +197,7 @@ namespace IL2X.Core
 			}
 			else
 			{
+				if (type.IsSealed) writer.Write(" final");
 				if (type.BaseType != null) writer.Write($" : public {GetFullTypeName(type.BaseType, true)}");
 				if (type.HasInterfaces)
 				{
