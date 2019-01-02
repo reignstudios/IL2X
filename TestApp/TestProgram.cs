@@ -67,6 +67,7 @@ namespace TestApp
 			{
 				unsafe fixed byte myFixedBuff[256];
 				unsafe fixed float myFixedBuff2[128];
+				unsafe byte** myPtr;
 			}
 
 			static MyStruct i;

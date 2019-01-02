@@ -58,7 +58,7 @@ namespace IL2X.Core
 
 		private string GetTypeDeclarationKeyword(TypeDefinition type)
 		{
-			if (type.IsEnum) return "enum";
+			if (type.IsEnum) return "enum class";
 			else if (type.IsInterface) return "class";
 			else if (type.IsClass) return type.IsValueType ? "struct" : "class";
 			else throw new Exception("Unsuported type kind: " + type.Name);
@@ -421,7 +421,7 @@ namespace IL2X.Core
 			// TODO: parse opcodes and evaluation stack
 		}
 
-		private string GetNativeRuntimeTypeName(TypeReference type)
+		private string GetNativePrimitiveTypeName(TypeReference type)
 		{
 			switch (type.MetadataType)
 			{
@@ -445,19 +445,38 @@ namespace IL2X.Core
 
 		protected override string GetFullTypeName(TypeReference type, bool isBaseType = false)
 		{
+			// check if is by ref
 			bool isByRef = type.IsByReference;
-			if (type.IsByReference)
+			if (isByRef)
 			{
 				var refType = (ByReferenceType)type;
 				type = refType.ElementType;
 			}
 
-			string name = GetNativeRuntimeTypeName(type);
-			if (name != null) return name;
+			// check if is pointer
+			bool isPtr = type.IsPointer;
+			int ptrCount = 0;
+			if (isPtr)
+			{
+				while (type.IsPointer)
+				{
+					var ptrType = (PointerType)type;
+					type = ptrType.ElementType;
+					++ptrCount;
+				}
+			}
 
-			if (activeType.Namespace == type.Namespace || activeType == type.DeclaringType) name = GetNestedTypeName(type);// remove verbosity if possible
-			else name = GetFullTypeName(type, "::", "_", '<', '>', ',', !type.IsDefinition);
+			// check if type is primitive
+			string name = GetNativePrimitiveTypeName(type);
+
+			// get non-primitive flattened name
+			if (name == null)
+			{
+				if (activeType.Namespace == type.Namespace || activeType == type.DeclaringType) name = GetNestedTypeName(type);// remove verbosity if possible
+				else name = GetFullTypeName(type, "::", "_", '<', '>', ',', !type.IsDefinition);
+			}
 			
+			// box if array type
 			if (type.IsArray)
 			{
 				var arrayType = (ArrayType)type;
@@ -465,7 +484,16 @@ namespace IL2X.Core
 				name = $"IL2X_Array<{elementName}>";
 			}
 			
-			if (!isBaseType && !type.IsValueType && !type.IsGenericParameter) name += '*';
+			// finish
+			if (isPtr)
+			{
+				for (int i = 0; i != ptrCount; ++i) name += '*';
+			}
+			else if (!isBaseType && !type.IsValueType && !type.IsGenericParameter)
+			{
+				name += '*';
+			}
+
 			if (isByRef) name += '&';
 			return name;
 		}
