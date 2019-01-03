@@ -9,51 +9,42 @@ using System.Text.RegularExpressions;
 
 namespace IL2X.Core
 {
-	public class ILTranslator_Cpp : ILTranslator
+	public class ILAssemblyTranslator_Cpp : ILAssemblyTranslator
 	{
 		private const string allTypesHeader = "__ALL_TYPES.h";
 
 		private StreamWriter writer;
-		private Stack<string> referencesParsed;
+		//private Stack<ILAssemblyTranslator_Cpp> referencesParsed;
 		private readonly string precompiledHeader;
 		
 		private TypeReference activeType;
 
-		public ILTranslator_Cpp(string binaryPath, string precompiledHeader = null)
-		: base(binaryPath)
+		public ILAssemblyTranslator_Cpp(string binaryPath, bool loadReferences, string precompiledHeader = null)
+		: base(binaryPath, loadReferences)
 		{
 			this.precompiledHeader = precompiledHeader;
 		}
 
-		public override void Translate(string outputPath, bool translateReferences)
+		public override void Translate(string outputPath)
 		{
-			referencesParsed = new Stack<string>();
-			TranslateModule(assemblyDefinition, outputPath, translateReferences);
+			TranslateAssembly(assembly, outputPath);
 		}
 
-		private void TranslateModule(AssemblyDefinition assemblyDefinition, string outputPath, bool translateReferences)
+		private void TranslateAssembly(ILAssembly assembly, string outputPath)
 		{
-			var module = assemblyDefinition.MainModule;
-
-			// translate references
-			if (translateReferences)
+			// translate reference modules
+			foreach (var reference in assembly.references)
 			{
-				foreach (var reference in module.AssemblyReferences)
-				{
-					using (var refAssemblyDefinition = assemblyResolver.Resolve(reference))
-					{
-						if (referencesParsed.Contains(refAssemblyDefinition.FullName)) continue;
-						TranslateModule(refAssemblyDefinition, outputPath, translateReferences);
-						referencesParsed.Push(refAssemblyDefinition.FullName);
-					}
-				}
+				TranslateAssembly(reference, outputPath);
 			}
 
-			// translate assembly
-			outputPath = Path.Combine(outputPath, GetAssemblyFolderName(assemblyDefinition.Name.Name));
+			// create assembly folder
+			outputPath = Path.Combine(outputPath, GetAssemblyFolderName(assembly.assemblyDefinition.Name.Name));
 			if (!Directory.Exists(outputPath)) Directory.CreateDirectory(outputPath);
-			WriteAllTypesHeader(module, outputPath);
-			foreach (var type in module.GetTypes()) WriteType(type, outputPath);
+
+			// translate main module
+			WriteAllTypesHeader(assembly.assemblyDefinition.MainModule, outputPath);
+			foreach (var type in assembly.assemblyDefinition.MainModule.GetTypes()) WriteType(type, outputPath);
 		}
 
 		private string GetTypeDeclarationKeyword(TypeDefinition type)
@@ -126,8 +117,44 @@ namespace IL2X.Core
 			using (writer = new StreamWriter(stream))
 			{
 				writer.WriteLine("#pragma once");
-				writer.WriteLine($"#include \"{allTypesHeader}\"");
+				
+				// include base type headers
+				if (type.BaseType != null)
+				{
+					var baseTypeDefinition = type.BaseType.Resolve();
+					writer.WriteLine($"#include \"{GetTypeFilename(baseTypeDefinition)}.h\"");
+				}
+
+				foreach (var i in type.Interfaces)
+				{
+					var baseTypeDefinition = i.InterfaceType.Resolve();
+					writer.WriteLine($"#include \"{GetTypeFilename(baseTypeDefinition)}.h\"");
+				}
+
 				writer.WriteLine();
+
+				// predefine used types
+				var usedTyped = GetAllUsedTypeTypes(type);
+				if (usedTyped.Count != 0)
+				{
+					foreach (var usedType in usedTyped)
+					{
+						if (usedType.ContainsGenericParameter) continue;
+
+						var resolvedType = usedType.Resolve();
+						int namespaceCount = WriteNamespaceStart(resolvedType, false);
+						if (usedType.IsGenericInstance)
+						{
+							WriteGenericParameters(resolvedType);
+							writer.Write(' ');
+						}
+						writer.Write($"{GetTypeDeclarationKeyword(resolvedType)} {GetNestedTypeName(resolvedType)};");
+						WriteNamespaceEnd(namespaceCount, true);
+					}
+
+					writer.WriteLine();
+				}
+
 				WriteTypeHeader(type);
 			}
 
@@ -139,6 +166,7 @@ namespace IL2X.Core
 				{
 					if (!string.IsNullOrEmpty(precompiledHeader)) writer.WriteLine($"#include \"{precompiledHeader}\"");
 					writer.WriteLine($"#include \"{filename}.h\"");
+					writer.WriteLine($"#include \"{allTypesHeader}\"");
 					writer.WriteLine();
 					WriteTypeSource(type);
 				}

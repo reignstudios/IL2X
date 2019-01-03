@@ -6,52 +6,27 @@ using System.Linq;
 using System.IO;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Collections.Generic;
 
 namespace IL2X.Core
 {
-	public abstract class ILTranslator : IDisposable
+	public abstract class ILAssemblyTranslator : IDisposable
 	{
-		protected DefaultAssemblyResolver assemblyResolver;
-		protected AssemblyDefinition assemblyDefinition;
-		protected ISymbolReader symbolReader;
+		protected ILAssembly assembly;
+		protected Stack<ILAssembly> allAssemblies;
 
-		public ILTranslator(string binaryPath, params string[] searchPaths)
+		public ILAssemblyTranslator(string binaryPath, bool loadReferences, params string[] searchPaths)
 		{
-			// create assebly resolver object
-			var readerParameters = new ReaderParameters();
-			assemblyResolver = new DefaultAssemblyResolver();
-			readerParameters.AssemblyResolver = assemblyResolver;
-
-			// add resolver paths
-			foreach (string path in searchPaths) assemblyResolver.AddSearchDirectory(path);
-
-			// read debug symbol file
-			string symbolsPath = Path.Combine(Path.GetDirectoryName(binaryPath), Path.GetFileNameWithoutExtension(binaryPath) + ".pdb");
-			if (File.Exists(symbolsPath))
-			{
-				// load assembly
-				var symbolReaderProvider = new PdbReaderProvider();
-				readerParameters.SymbolReaderProvider = symbolReaderProvider;
-				readerParameters.ReadSymbols = true;
-				assemblyDefinition = AssemblyDefinition.ReadAssembly(binaryPath, readerParameters);
-
-				// load symbols
-				symbolReader = symbolReaderProvider.GetSymbolReader(assemblyDefinition.MainModule, symbolsPath);
-			}
-			else
-			{
-				assemblyDefinition = AssemblyDefinition.ReadAssembly(binaryPath, readerParameters);
-			}
+			allAssemblies = new Stack<ILAssembly>();
+			assembly = new ILAssembly(allAssemblies, binaryPath, loadReferences, searchPaths);
 		}
 
 		public void Dispose()
 		{
-			Utils.DisposeInstance(ref symbolReader);
-			Utils.DisposeInstance(ref assemblyDefinition);
-			Utils.DisposeInstance(ref assemblyResolver);
+			Utils.DisposeInstance(ref assembly);
 		}
 
-		public abstract void Translate(string outputPath, bool translateReferences);
+		public abstract void Translate(string outputPath);
 
 		protected abstract string GetFullTypeName(TypeReference type, bool isBaseType);
 		protected string GetFullTypeName(TypeReference type, string namespaceDelimiter, string nestedDelimiter, char genericOpenBracket, char genericCloseBracket, char genericDelimiter, bool writeGenericParts)
@@ -181,6 +156,26 @@ namespace IL2X.Core
 			}
 
 			throw new Exception("GetPrimitiveSize failed: Invalid primitive type: " + type);
+		}
+
+		protected List<TypeReference> GetAllUsedTypeTypes(TypeDefinition type)
+		{
+			var types = new List<TypeReference>();
+			foreach (var field in type.Fields)
+			{
+				if (!types.Exists(x => x.FullName == field.FieldType.FullName)) types.Add(field.FieldType);
+			}
+
+			foreach (var method in type.Methods)
+			{
+				if (!types.Exists(x => x.FullName == method.ReturnType.FullName)) types.Add(method.ReturnType);
+				foreach (var parameter in method.Parameters)
+				{
+					if (!types.Exists(x => x.FullName == parameter.ParameterType.FullName)) types.Add(parameter.ParameterType);
+				}
+			}
+
+			return types;
 		}
 	}
 }
