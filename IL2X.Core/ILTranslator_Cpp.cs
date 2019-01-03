@@ -108,7 +108,7 @@ namespace IL2X.Core
 					if (!IsValidType(type)) continue;
 
 					activeType = type;
-					writer.WriteLine($"#include \"{GetTypeFilename(type)}.h\";");
+					writer.WriteLine($"#include \"{GetTypeFilename(type)}.h\"");
 				}
 			}
 		}
@@ -126,7 +126,7 @@ namespace IL2X.Core
 			using (writer = new StreamWriter(stream))
 			{
 				writer.WriteLine("#pragma once");
-				writer.WriteLine($"#include \"{allTypesHeader}\";");
+				writer.WriteLine($"#include \"{allTypesHeader}\"");
 				writer.WriteLine();
 				WriteTypeHeader(type);
 			}
@@ -137,8 +137,8 @@ namespace IL2X.Core
 				using (var stream = new FileStream(filePath + ".cpp", FileMode.Create, FileAccess.Write))
 				using (writer = new StreamWriter(stream))
 				{
-					writer.WriteLine($"#include \"{precompiledHeader}\";");
-					writer.WriteLine($"#include \"{filename}.h\";");
+					if (!string.IsNullOrEmpty(precompiledHeader)) writer.WriteLine($"#include \"{precompiledHeader}\"");
+					writer.WriteLine($"#include \"{filename}.h\"");
 					writer.WriteLine();
 					WriteTypeSource(type);
 				}
