@@ -56,7 +56,7 @@ namespace IL2X.Core
 			else throw new Exception("Unsuported type kind: " + type.Name);
 		}
 
-		private bool IsValidType(TypeReference type)
+		private bool IsValidFileType(TypeReference type)
 		{
 			if (type.Name == "<Module>") return false;
 			if (type.Name == "<PrivateImplementationDetails>" || (type.DeclaringType != null && type.DeclaringType.Name == "<PrivateImplementationDetails>")) return false;
@@ -97,7 +97,7 @@ namespace IL2X.Core
 				writer.WriteLine("// TYPES");
 				foreach (var type in module.GetTypes())
 				{
-					if (!IsValidType(type)) continue;
+					if (!IsValidFileType(type)) continue;
 
 					activeType = type;
 					writer.WriteLine($"#include \"{GetTypeFilename(type)}.h\"");
@@ -105,9 +105,44 @@ namespace IL2X.Core
 			}
 		}
 
+		private TypeReference ValidateElementType(TypeReference usedType)
+		{
+			var validateType = usedType;
+			while (true)
+			{
+				if (validateType.IsByReference)
+				{
+					var specialType = (ByReferenceType)validateType;
+					validateType = specialType.ElementType;
+					continue;
+				}
+				else if (validateType.IsArray)
+				{
+					var specialType = (ArrayType)validateType;
+					validateType = specialType.ElementType;
+					continue;
+				}
+				else if (validateType.IsRequiredModifier)
+				{
+					var specialType = (RequiredModifierType)validateType;
+					validateType = specialType.ElementType;
+					continue;
+				}
+				else if (IsFixedBufferType(validateType))
+				{
+					validateType = GetFixedBufferType((TypeDefinition)validateType, out _);
+					continue;
+				}
+
+				break;
+			}
+
+			return validateType;
+		}
+
 		private void WriteType(TypeDefinition type, string outputPath)
 		{
-			if (!IsValidType(type)) return;
+			if (!IsValidFileType(type)) return;
 
 			activeType = type;
 			string filename = GetTypeFilename(type);
@@ -139,33 +174,25 @@ namespace IL2X.Core
 				var usedTyped = GetAllUsedTypeTypes(type);
 				if (usedTyped.Count != 0)
 				{
+					// write value type field headers (as full type info is required)
+					foreach (var field in type.Fields)
+					{
+						var validateType = ValidateElementType(field.FieldType);
+						if (!validateType.IsValueType) continue;
+						if (validateType.IsGenericParameter) continue;
+
+						var resolvedType = validateType.Resolve();
+						if (resolvedType == null) throw new Exception("Failed to result type: " + field.FieldType);
+						if (processedTypes.Exists(x => x.FullName == resolvedType.FullName)) continue;// type already processed so skip
+						writer.WriteLine($"#include \"{GetTypeFilename(resolvedType)}.h\"");
+						processedTypes.Add(resolvedType);
+					}
+
+					// write ref or non-field value types (no full type info is needed)
 					foreach (var usedType in usedTyped)
 					{
-						var validateType = usedType;
-						while (true)
-						{
-							if (validateType.IsByReference)
-							{
-								var specialType = (ByReferenceType)validateType;
-								validateType = specialType.ElementType;
-								continue;
-							}
-							else if (validateType.IsArray)
-							{
-								var specialType = (ArrayType)validateType;
-								validateType = specialType.ElementType;
-								continue;
-							}
-							else if (validateType.IsRequiredModifier)
-							{
-								var specialType = (RequiredModifierType)validateType;
-								validateType = specialType.ElementType;
-								continue;
-							}
-
-							break;
-						}
-
+						var validateType = ValidateElementType(usedType);
+						if (validateType.IsValueType) continue;// value types use #include instead
 						if (validateType.IsGenericParameter) continue;
 
 						var resolvedType = validateType.Resolve();
@@ -374,9 +401,7 @@ namespace IL2X.Core
 			{
 				isFixedType = true;
 				if (!field.FieldType.IsDefinition) throw new Exception("Cant get name for reference of FixedBuffer: " + field.FieldType);
-				var typeDef = (TypeDefinition)field.FieldType;
-				fieldType = typeDef.Fields[0].FieldType;
-				fixedTypeSize = typeDef.ClassSize / GetPrimitiveSize(fieldType.MetadataType);
+				fieldType = GetFixedBufferType((TypeDefinition)field.FieldType, out fixedTypeSize);
 			}
 
 			// write

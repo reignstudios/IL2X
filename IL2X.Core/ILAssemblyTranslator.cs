@@ -64,6 +64,13 @@ namespace IL2X.Core
 		{
 			return Regex.IsMatch(type.Name, @"<\w*>e__FixedBuffer");
 		}
+
+		protected TypeReference GetFixedBufferType(TypeDefinition type, out int fixedTypeSize)
+		{
+			var fixedType = type.Fields[0].FieldType;
+			fixedTypeSize = type.ClassSize / GetPrimitiveSize(fixedType.MetadataType);
+			return fixedType;
+		}
 		
 		protected string GetMemberName(MemberReference member, string namespaceDelimiter, string nestedDelimiter, char genericOpenBracket, char genericCloseBracket, char genericDelimiter, bool writeGenericParts, bool writeGenericNameUnique)
 		{
