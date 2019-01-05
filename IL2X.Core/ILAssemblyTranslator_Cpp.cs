@@ -153,24 +153,24 @@ namespace IL2X.Core
 			using (writer = new StreamWriter(stream))
 			{
 				writer.WriteLine("#pragma once");
-				
+				var processedTypes = new List<TypeReference>();
+
 				// include base type headers
 				if (type.BaseType != null)
 				{
 					var baseTypeDefinition = type.BaseType.Resolve();
 					writer.WriteLine($"#include \"{GetTypeFilename(baseTypeDefinition)}.h\"");
+					processedTypes.Add(baseTypeDefinition);
 				}
 
 				foreach (var i in type.Interfaces)
 				{
 					var baseTypeDefinition = i.InterfaceType.Resolve();
 					writer.WriteLine($"#include \"{GetTypeFilename(baseTypeDefinition)}.h\"");
+					processedTypes.Add(baseTypeDefinition);
 				}
 
-				writer.WriteLine();
-
 				// predefine used types
-				var processedTypes = new List<TypeReference>();
 				var usedTyped = GetAllUsedTypeTypes(type);
 				if (usedTyped.Count != 0)
 				{
@@ -187,6 +187,8 @@ namespace IL2X.Core
 						writer.WriteLine($"#include \"{GetTypeFilename(resolvedType)}.h\"");
 						processedTypes.Add(resolvedType);
 					}
+
+					writer.WriteLine();
 
 					// write ref or non-field value types (no full type info is needed)
 					foreach (var usedType in usedTyped)
@@ -210,6 +212,10 @@ namespace IL2X.Core
 						processedTypes.Add(resolvedType);
 					}
 
+					writer.WriteLine();
+				}
+				else
+				{
 					writer.WriteLine();
 				}
 

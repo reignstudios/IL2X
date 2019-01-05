@@ -61,7 +61,7 @@ namespace TestApp
 			
 		}
 
-		abstract class MyClass
+		abstract class MyClass : MyClass2
 		{
 			public struct MyStruct
 			{

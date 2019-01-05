@@ -13,7 +13,7 @@ namespace IL2X.Core.Test
 
 			const string outputPath = @"..\..\..\..\TestApp\bin\Debug\netcoreapp2.1\TestOutput";
 			if (!Directory.Exists(outputPath)) Directory.CreateDirectory(outputPath);
-			using (var translator = new ILAssemblyTranslator_Cpp(binaryPath, false))//, "stdafx.h"))// stdafx.h || pch.h
+			using (var translator = new ILAssemblyTranslator_Cpp(binaryPath, true))//, "stdafx.h"))// stdafx.h || pch.h
 			{
 				translator.Translate(outputPath);
 			}
