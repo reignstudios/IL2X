@@ -6,6 +6,7 @@ using System.Linq;
 using Mono.Collections.Generic;
 using Mono.Cecil.Cil;
 using System.Text.RegularExpressions;
+using System.Text;
 
 namespace IL2X.Core
 {
@@ -70,7 +71,7 @@ namespace IL2X.Core
 
 		private string GetTypeFilename(TypeDefinition type)
 		{
-			return GetFullTypeName(type, "_", "_", '[', ']', ',', true);
+			return GetFullTypeName(type, "_", "_", '[', ']', ',', true, false);
 		}
 
 		private void WriteAllTypesHeader(ModuleDefinition module, string outputPath)
@@ -173,7 +174,7 @@ namespace IL2X.Core
 						int namespaceCount = WriteNamespaceStart(resolvedType, false);
 						if (validateType.IsGenericInstance)
 						{
-							WriteGenericParameters(resolvedType);
+							WriteGenericTemplateParameters(resolvedType);
 							writer.Write(' ');
 						}
 						writer.Write($"{GetTypeDeclarationKeyword(resolvedType)} {GetNestedTypeName(resolvedType)};");
@@ -240,7 +241,7 @@ namespace IL2X.Core
 			if (type.HasGenericParameters)
 			{
 				writer.WritePrefix();
-				WriteGenericParameters(type);
+				WriteGenericTemplateParameters(type);
 				writer.WriteLine();
 			}
 
@@ -403,7 +404,7 @@ namespace IL2X.Core
 			// write generic parameters
 			if (method.HasGenericParameters)
 			{
-				WriteGenericParameters(method);
+				WriteGenericTemplateParameters(method);
 				writer.Write(' ');
 			}
 
@@ -444,7 +445,7 @@ namespace IL2X.Core
 			writer.WriteLinePrefix('}');
 		}
 
-		private void WriteGenericParameters(IGenericParameterProvider generic)
+		private void WriteGenericTemplateParameters(IGenericParameterProvider generic)
 		{
 			writer.Write("template<");
 			var lastParameter = generic.GenericParameters.LastOrDefault();
@@ -531,7 +532,7 @@ namespace IL2X.Core
 			if (name == null)
 			{
 				if (activeType.Namespace == type.Namespace || activeType == type.DeclaringType) name = GetNestedTypeName(type);// remove verbosity if possible
-				else name = GetFullTypeName(type, "::", "_", '<', '>', ',', !type.IsDefinition);
+				else name = GetFullTypeName(type, "::", "_", '<', '>', ',', !type.IsDefinition, true);
 			}
 			
 			// box if array type
@@ -558,12 +559,12 @@ namespace IL2X.Core
 
 		protected string GetNestedTypeName(TypeReference type)
 		{
-			return GetNestedTypeName(type, "_", '<', '>', ',', !type.IsDefinition);
+			return GetNestedTypeName(type, "_", '<', '>', ',', !type.IsDefinition, true);
 		}
 
 		protected string GetMemberName(MemberReference member)
 		{
-			return GetMemberName(member, "::", "_", '<', '>', ',', !member.IsDefinition);
+			return GetMemberName(member, "::", "_", '<', '>', ',', !member.IsDefinition, true);
 		}
 	}
 }
