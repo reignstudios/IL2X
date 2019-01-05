@@ -143,7 +143,9 @@ namespace IL2X.Core
 				var lastParameter = type.GenericParameters.LastOrDefault();
 				foreach (var argument in type.GenericParameters)
 				{
-					name.Append($"_{argument.Name}");
+					string argName = argument.Name;
+					ParseMemberImplementationDetail(ref argName);
+					name.Append($"_{argName}");
 					if (argument == lastParameter) name.Append('_');
 				}
 			}
