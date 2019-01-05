@@ -134,22 +134,52 @@ namespace IL2X.Core
 				writer.WriteLine();
 
 				// predefine used types
+				var processedTypes = new List<TypeReference>();
 				var usedTyped = GetAllUsedTypeTypes(type);
 				if (usedTyped.Count != 0)
 				{
 					foreach (var usedType in usedTyped)
 					{
-						if (usedType.ContainsGenericParameter) continue;
+						var validateType = usedType;
+						while (true)
+						{
+							if (validateType.IsByReference)
+							{
+								var specialType = (ByReferenceType)validateType;
+								validateType = specialType.ElementType;
+								continue;
+							}
+							else if (validateType.IsArray)
+							{
+								var specialType = (ArrayType)validateType;
+								validateType = specialType.ElementType;
+								continue;
+							}
+							else if (validateType.IsRequiredModifier)
+							{
+								var specialType = (RequiredModifierType)validateType;
+								validateType = specialType.ElementType;
+								continue;
+							}
 
-						var resolvedType = usedType.Resolve();
+							break;
+						}
+
+						if (validateType.IsGenericParameter) continue;
+
+						var resolvedType = validateType.Resolve();
+						if (resolvedType == null) throw new Exception("Failed to result type: " + usedType);
+						if (processedTypes.Exists(x => x.FullName == resolvedType.FullName)) continue;// type already processed so skip
 						int namespaceCount = WriteNamespaceStart(resolvedType, false);
-						if (usedType.IsGenericInstance)
+						if (validateType.IsGenericInstance)
 						{
 							WriteGenericParameters(resolvedType);
 							writer.Write(' ');
 						}
 						writer.Write($"{GetTypeDeclarationKeyword(resolvedType)} {GetNestedTypeName(resolvedType)};");
 						WriteNamespaceEnd(namespaceCount, true);
+
+						processedTypes.Add(resolvedType);
 					}
 
 					writer.WriteLine();
