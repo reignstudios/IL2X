@@ -15,7 +15,6 @@ namespace IL2X.Core
 		private const string allTypesHeader = "__ALL_TYPES.h";
 
 		private StreamWriter writer;
-		//private Stack<ILAssemblyTranslator_Cpp> referencesParsed;
 		private readonly string precompiledHeader;
 		
 		private TypeReference activeType;
@@ -80,6 +79,7 @@ namespace IL2X.Core
 			using (writer = new StreamWriter(stream))
 			{
 				writer.WriteLine("#pragma once");
+				writer.WriteLine("#include \"IL2X_Array.h\"");
 
 				// include dependencies
 				if (module.AssemblyReferences.Count != 0)
@@ -178,11 +178,14 @@ namespace IL2X.Core
 					foreach (var field in type.Fields)
 					{
 						var validateType = ValidateElementType(field.FieldType);
+						if (validateType.MetadataType == MetadataType.Void) continue;
 						if (!validateType.IsValueType) continue;
 						if (validateType.IsGenericParameter) continue;
+						if (field.IsStatic) continue;
 
 						var resolvedType = validateType.Resolve();
 						if (resolvedType == null) throw new Exception("Failed to result type: " + field.FieldType);
+						if (resolvedType.IsEnum) continue;// enums get forward declared
 						if (processedTypes.Exists(x => x.FullName == resolvedType.FullName)) continue;// type already processed so skip
 						writer.WriteLine($"#include \"{GetTypeFilename(resolvedType)}.h\"");
 						processedTypes.Add(resolvedType);
@@ -194,8 +197,9 @@ namespace IL2X.Core
 					foreach (var usedType in usedTyped)
 					{
 						var validateType = ValidateElementType(usedType);
-						if (validateType.IsValueType) continue;// value types use #include instead
+						if (validateType.MetadataType == MetadataType.Void) continue;
 						if (validateType.IsGenericParameter) continue;
+						if (validateType.FullName == type.FullName) continue;
 
 						var resolvedType = validateType.Resolve();
 						if (resolvedType == null) throw new Exception("Failed to result type: " + usedType);
@@ -206,7 +210,12 @@ namespace IL2X.Core
 							WriteGenericTemplateParameters(resolvedType);
 							writer.Write(' ');
 						}
-						writer.Write($"{GetTypeDeclarationKeyword(resolvedType)} {GetNestedTypeName(resolvedType)};");
+						writer.Write($"{GetTypeDeclarationKeyword(resolvedType)} {GetNestedTypeName(resolvedType)}");
+						if (resolvedType.IsEnum)
+						{
+							if (resolvedType.HasFields && resolvedType.Fields[0].IsRuntimeSpecialName) writer.Write($" : {GetNativePrimitiveTypeName(resolvedType.Fields[0].FieldType)}");
+						}
+						writer.Write(';');
 						WriteNamespaceEnd(namespaceCount, true);
 
 						processedTypes.Add(resolvedType);
@@ -285,7 +294,7 @@ namespace IL2X.Core
 			// write inheritance
 			if (type.IsEnum)
 			{
-				if (type.HasFields && type.Fields[0].IsRuntimeSpecialName) writer.Write($" : {GetFullTypeName(type.Fields[0].FieldType)}");
+				if (type.HasFields && type.Fields[0].IsRuntimeSpecialName) writer.Write($" : {GetNativePrimitiveTypeName(type.Fields[0].FieldType)}");
 			}
 			else
 			{
@@ -398,9 +407,9 @@ namespace IL2X.Core
 		private void WriteFieldHeader(FieldDefinition field)
 		{
 			if (field.IsSpecialName) return;
+			TypeReference fieldType = field.FieldType;
 
 			// if fixed type, convert to native
-			TypeReference fieldType = field.FieldType;
 			bool isFixedType = false;
 			int fixedTypeSize = 0;
 			if (IsFixedBufferType(field.FieldType))
@@ -410,10 +419,17 @@ namespace IL2X.Core
 				fieldType = GetFixedBufferType((TypeDefinition)field.FieldType, out fixedTypeSize);
 			}
 
+			// check if primitive backing type
+			string fieldTypeName = GetFullTypeName(fieldType);
+			if (fieldType.IsPrimitive && fieldType.IsValueType && fieldType.MetadataType == field.DeclaringType.MetadataType && field.Name == "m_value")
+			{
+				fieldTypeName = GetNativePrimitiveTypeName(fieldType);
+			}
+
 			// write
 			WriteAccessModifier(field, field.IsPublic, field.IsAssembly, false, field.IsFamily, field.IsFamilyOrAssembly, field.IsFamilyAndAssembly, field.IsPrivate);
 			if (field.IsStatic) writer.Write("static ");
-			writer.Write($"{GetFullTypeName(fieldType)} {GetMemberName(field)}");
+			writer.Write($"{fieldTypeName} {GetMemberName(field)}");
 			if (isFixedType) writer.WriteLine($"[{fixedTypeSize}];");
 			else writer.WriteLine(';');
 		}
@@ -445,8 +461,15 @@ namespace IL2X.Core
 
 			// write definition
 			string name = method.IsConstructor ? GetNestedTypeName(method.DeclaringType) : GetMemberName(method);
-			if (method.IsConstructor) writer.Write($"{name}(");
-			else writer.Write($"{GetFullTypeName(method.ReturnType)} {name}(");
+			if (method.IsConstructor)
+			{
+				if (method.IsStatic) writer.Write("void STATIC_");
+				writer.Write($"{name}(");
+			}
+			else
+			{
+				writer.Write($"{GetFullTypeName(method.ReturnType)} {name}(");
+			}
 
 			// write parameters
 			WriteParameters(method.Parameters);
@@ -465,8 +488,15 @@ namespace IL2X.Core
 			if (method.IsInternalCall) return;// TODO: handle internal calls
 			if (method.IsPInvokeImpl) return;// TODO: handle pinvoke calls
 
-			if (method.IsConstructor) writer.WritePrefix(string.Format("{0}::{0}(", GetNestedTypeName(method.DeclaringType)));
-			else writer.WritePrefix($"{GetFullTypeName(method.ReturnType)} {GetNestedTypeName(method.DeclaringType)}::{GetMemberName(method)}(");
+			if (method.IsConstructor)
+			{
+				if (method.IsStatic) writer.Write("void STATIC_");
+				writer.WritePrefix(string.Format("{0}::{0}(", GetNestedTypeName(method.DeclaringType)));
+			}
+			else
+			{
+				writer.WritePrefix($"{GetFullTypeName(method.ReturnType)} {GetNestedTypeName(method.DeclaringType)}::{GetMemberName(method)}(");
+			}
 			WriteParameters(method.Parameters);
 			writer.WriteLine(')');
 			writer.WriteLinePrefix('{');
@@ -556,14 +586,22 @@ namespace IL2X.Core
 				}
 			}
 
-			// check if type is primitive
-			string name = GetNativePrimitiveTypeName(type);
+			// check if type is void
+			string name = type.MetadataType == MetadataType.Void ? "void" : null;
 
 			// get non-primitive flattened name
 			if (name == null)
 			{
-				if (activeType.Namespace == type.Namespace || activeType == type.DeclaringType) name = GetNestedTypeName(type);// remove verbosity if possible
-				else name = GetFullTypeName(type, "::", "_", '<', '>', ',', !type.IsDefinition, true);
+				if (activeType.Namespace == type.Namespace || activeType == type.DeclaringType)
+				{
+					name = GetNestedTypeName(type);// remove verbosity if possible
+				}
+				else
+				{
+					if (!type.IsGenericParameter) name = "::";
+					else name = string.Empty;
+					name += GetFullTypeName(type, "::", "_", '<', '>', ',', !type.IsDefinition, true);
+				}
 			}
 			
 			// box if array type

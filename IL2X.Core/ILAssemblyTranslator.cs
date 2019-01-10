@@ -32,7 +32,7 @@ namespace IL2X.Core
 		protected string GetFullTypeName(TypeReference type, string namespaceDelimiter, string nestedDelimiter, char genericOpenBracket, char genericCloseBracket, char genericDelimiter, bool writeGenericParts, bool writeGenericNameUnique)
 		{
 			var value = new StringBuilder();
-			GetQualifiedTypeName(type, ref namespaceDelimiter, ref nestedDelimiter, genericOpenBracket, genericCloseBracket, genericDelimiter, writeGenericParts, writeGenericNameUnique, value, true);
+			GetQualifiedTypeName(type, namespaceDelimiter, nestedDelimiter, genericOpenBracket, genericCloseBracket, genericDelimiter, writeGenericParts, writeGenericNameUnique, value, true);
 			return value.ToString();
 		}
 		
@@ -40,11 +40,11 @@ namespace IL2X.Core
 		{
 			if (!type.IsNested) return GetMemberName(type, nestedDelimiter, nestedDelimiter, genericOpenBracket, genericCloseBracket, genericDelimiter, writeGenericParts, writeGenericNameUnique);
 			var value = new StringBuilder();
-			GetQualifiedTypeName(type, ref nestedDelimiter, ref nestedDelimiter, genericOpenBracket, genericCloseBracket, genericDelimiter, writeGenericParts, writeGenericNameUnique, value, false);
+			GetQualifiedTypeName(type, nestedDelimiter, nestedDelimiter, genericOpenBracket, genericCloseBracket, genericDelimiter, writeGenericParts, writeGenericNameUnique, value, false);
 			return value.ToString();
 		}
 
-		private void GetQualifiedTypeName(TypeReference type, ref string namespaceDelimiter, ref string nestedDelimiter, char genericOpenBracket, char genericCloseBracket, char genericDelimiter, bool writeGenericParts, bool writeGenericNameUnique, StringBuilder value, bool writeNamespace)
+		private void GetQualifiedTypeName(TypeReference type, in string namespaceDelimiter, in string nestedDelimiter, char genericOpenBracket, char genericCloseBracket, char genericDelimiter, bool writeGenericParts, bool writeGenericNameUnique, StringBuilder value, bool writeNamespace)
 		{
 			string name = GetMemberName(type, namespaceDelimiter, nestedDelimiter, genericOpenBracket, genericCloseBracket, genericDelimiter, writeGenericParts, writeGenericNameUnique);
 			value.Insert(0, name);
@@ -52,7 +52,7 @@ namespace IL2X.Core
 			if (type.DeclaringType != null)
 			{
 				value.Insert(0, nestedDelimiter);
-				GetQualifiedTypeName(type.DeclaringType, ref namespaceDelimiter, ref nestedDelimiter, genericOpenBracket, genericCloseBracket, genericDelimiter, writeGenericParts, writeGenericNameUnique, value, writeNamespace);
+				GetQualifiedTypeName(type.DeclaringType, namespaceDelimiter, nestedDelimiter, genericOpenBracket, genericCloseBracket, genericDelimiter, writeGenericParts, writeGenericNameUnique, value, writeNamespace);
 			}
 			else if (writeNamespace && !string.IsNullOrEmpty(type.Namespace))
 			{
