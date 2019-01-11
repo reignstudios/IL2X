@@ -592,7 +592,7 @@ namespace IL2X.Core
 			// get non-primitive flattened name
 			if (name == null)
 			{
-				if (activeType.Namespace == type.Namespace || activeType == type.DeclaringType)
+				if ((activeType.Namespace == type.Namespace && type.DeclaringType == null) || (activeType == type.DeclaringType && string.IsNullOrEmpty(type.Namespace)))
 				{
 					name = GetNestedTypeName(type);// remove verbosity if possible
 				}
