@@ -161,11 +161,13 @@ namespace IL2X.Core
 			if (writeGenericParts)
 			{
 				name.Append(genericOpenBracket);
-				var lastItem = collection.LastOrDefault();
+				int i = 0;
+				int count = collection.Count;
 				foreach (var item in collection)
 				{
 					name.Append(GetFullTypeName(item, false));
-					if (item != lastItem) name.Append(genericDelimiter);
+					++i;
+					if (i != count) name.Append(genericDelimiter);// must check via count as types could match
 				}
 				name.Append(genericCloseBracket);
 			}
@@ -195,20 +197,87 @@ namespace IL2X.Core
 			throw new Exception("GetPrimitiveSize failed: Invalid primitive type: " + type);
 		}
 
-		protected List<TypeReference> GetAllUsedTypeTypes(TypeDefinition type)
+		protected List<TypeReference> GetAllElementTypes(TypeReference type)
 		{
 			var types = new List<TypeReference>();
+			var elementType = type;
+			while (true)
+			{
+				if (elementType.IsByReference)
+				{
+					var specialType = (ByReferenceType)elementType;
+					elementType = specialType.ElementType;
+					continue;
+				}
+				else if (elementType.IsArray)
+				{
+					var specialType = (ArrayType)elementType;
+					elementType = specialType.ElementType;
+					continue;
+				}
+				else if (elementType.IsPointer)
+				{
+					var specialType = (PointerType)elementType;
+					elementType = specialType.ElementType;
+					continue;
+				}
+				else if (elementType.IsRequiredModifier)
+				{
+					var specialType = (RequiredModifierType)elementType;
+					elementType = specialType.ElementType;
+					continue;
+				}
+				else if (IsFixedBufferType(elementType))
+				{
+					elementType = GetFixedBufferType((TypeDefinition)elementType, out _);
+					continue;
+				}
+				else if (elementType.IsGenericInstance)
+				{
+					types.Add(elementType);
+					var specialType = (GenericInstanceType)elementType;
+					if (specialType.HasGenericArguments)
+					{
+						foreach (var argType in specialType.GenericArguments)
+						{
+							var argTypeElements = GetAllElementTypes(argType);
+							types.AddRange(argTypeElements);
+						}
+					}
+					elementType = specialType.ElementType;
+					continue;
+				}
+
+				if (!elementType.HasGenericParameters) types.Add(elementType);
+				break;
+			}
+
+			return types;
+		}
+
+		protected List<TypeReference> GetAllUsedPublicTypes(TypeDefinition type)
+		{
+			var types = new List<TypeReference>();
+			void AddElementTypes(TypeReference elementTypeRoot)
+			{
+				var elementTypes = GetAllElementTypes(elementTypeRoot);
+				foreach (var elementType in elementTypes)
+				{
+					if (!types.Exists(x => x.FullName == elementType.FullName)) types.Add(elementType);
+				}
+			}
+
 			foreach (var field in type.Fields)
 			{
-				if (!types.Exists(x => x.FullName == field.FieldType.FullName)) types.Add(field.FieldType);
+				AddElementTypes(field.FieldType);
 			}
 
 			foreach (var method in type.Methods)
 			{
-				if (!types.Exists(x => x.FullName == method.ReturnType.FullName)) types.Add(method.ReturnType);
+				AddElementTypes(method.ReturnType);
 				foreach (var parameter in method.Parameters)
 				{
-					if (!types.Exists(x => x.FullName == parameter.ParameterType.FullName)) types.Add(parameter.ParameterType);
+					AddElementTypes(parameter.ParameterType);
 				}
 			}
 

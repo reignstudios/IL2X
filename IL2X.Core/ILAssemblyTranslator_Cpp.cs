@@ -105,41 +105,6 @@ namespace IL2X.Core
 			}
 		}
 
-		private TypeReference ValidateElementType(TypeReference usedType)
-		{
-			var validateType = usedType;
-			while (true)
-			{
-				if (validateType.IsByReference)
-				{
-					var specialType = (ByReferenceType)validateType;
-					validateType = specialType.ElementType;
-					continue;
-				}
-				else if (validateType.IsArray)
-				{
-					var specialType = (ArrayType)validateType;
-					validateType = specialType.ElementType;
-					continue;
-				}
-				else if (validateType.IsRequiredModifier)
-				{
-					var specialType = (RequiredModifierType)validateType;
-					validateType = specialType.ElementType;
-					continue;
-				}
-				else if (IsFixedBufferType(validateType))
-				{
-					validateType = GetFixedBufferType((TypeDefinition)validateType, out _);
-					continue;
-				}
-
-				break;
-			}
-
-			return validateType;
-		}
-
 		private void WriteType(TypeDefinition type, string outputPath)
 		{
 			if (!IsValidFileType(type)) return;
@@ -171,19 +136,28 @@ namespace IL2X.Core
 				}
 
 				// predefine used types
-				var usedTyped = GetAllUsedTypeTypes(type);
+				var usedTyped = GetAllUsedPublicTypes(type);
 				if (usedTyped.Count != 0)
 				{
 					// write value type field headers (as full type info is required)
 					foreach (var field in type.Fields)
 					{
-						var validateType = ValidateElementType(field.FieldType);
-						if (validateType.MetadataType == MetadataType.Void) continue;
-						if (!validateType.IsValueType) continue;
-						if (validateType.IsGenericParameter) continue;
+						var elementType = field.FieldType;
+						if (elementType.MetadataType == MetadataType.Void) continue;
+						if (IsFixedBufferType(elementType))
+						{
+							elementType = GetFixedBufferType((TypeDefinition)elementType, out _);
+						}
+						if (elementType.IsRequiredModifier)
+						{
+							var specialType = (RequiredModifierType)elementType;
+							elementType = specialType.ElementType;
+						}
+						if (!elementType.IsValueType) continue;
+						if (elementType.IsGenericParameter) continue;
 						if (field.IsStatic) continue;
 
-						var resolvedType = validateType.Resolve();
+						var resolvedType = elementType.Resolve();
 						if (resolvedType == null) throw new Exception("Failed to result type: " + field.FieldType);
 						if (resolvedType.IsEnum) continue;// enums get forward declared
 						if (processedTypes.Exists(x => x.FullName == resolvedType.FullName)) continue;// type already processed so skip
@@ -196,16 +170,15 @@ namespace IL2X.Core
 					// write ref or non-field value types (no full type info is needed)
 					foreach (var usedType in usedTyped)
 					{
-						var validateType = ValidateElementType(usedType);
-						if (validateType.MetadataType == MetadataType.Void) continue;
-						if (validateType.IsGenericParameter) continue;
-						if (validateType.FullName == type.FullName) continue;
+						if (usedType.MetadataType == MetadataType.Void) continue;
+						if (usedType.IsGenericParameter) continue;
+						if (usedType.FullName == type.FullName) continue;
 
-						var resolvedType = validateType.Resolve();
+						var resolvedType = usedType.Resolve();
 						if (resolvedType == null) throw new Exception("Failed to result type: " + usedType);
 						if (processedTypes.Exists(x => x.FullName == resolvedType.FullName)) continue;// type already processed so skip
 						int namespaceCount = WriteNamespaceStart(resolvedType, false);
-						if (validateType.IsGenericInstance)
+						if (usedType.IsGenericInstance)
 						{
 							WriteGenericTemplateParameters(resolvedType);
 							writer.Write(' ');
@@ -571,6 +544,13 @@ namespace IL2X.Core
 			{
 				var refType = (ByReferenceType)type;
 				type = refType.ElementType;
+			}
+
+			// check if required modifier
+			if (type.IsRequiredModifier)
+			{
+				var modType = (RequiredModifierType)type;
+				type = modType.ElementType;
 			}
 
 			// check if is pointer
