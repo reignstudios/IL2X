@@ -5,4 +5,4 @@ C99 primitive types: stdint.h
 C templates: https://softwareengineering.stackexchange.com/questions/262571/what-did-people-do-before-templates-in-c
 
 
-Test compile VC++: cl /EHsc System_Object.cpp
+Test compile VC++: cl /EHsc System_Object.cpp -w

@@ -2,6 +2,29 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
 
+interface IAbc
+{
+	object Foo();
+}
+
+interface IAbc2<T> : IAbc
+{
+	new T Foo();
+}
+
+class Abc : IAbc2<int>, IAbc
+{
+	public int Foo()
+	{
+		throw new NotImplementedException();
+	}
+
+	object IAbc.Foo()
+	{
+		throw new NotImplementedException();
+	}
+}
+
 namespace TestApp
 {
 	interface MyInterface
