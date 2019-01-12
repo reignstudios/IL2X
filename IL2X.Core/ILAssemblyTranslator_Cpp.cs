@@ -493,7 +493,8 @@ namespace IL2X.Core
 
 		private void WriteAccessModifier(MemberReference member, bool isPublic, bool isAssembly, bool isVirtual, bool isFamily, bool isFamilyOrAssembly, bool isFamilyAndAssembly, bool isPrivate)
 		{
-			if (isPublic || isAssembly || isVirtual || isFamilyOrAssembly || isFamilyAndAssembly) writer.WritePrefix("public: ");
+			if (isPublic || isAssembly || isFamilyOrAssembly || isFamilyAndAssembly) writer.WritePrefix("public: ");
+			else if (isVirtual && isPrivate) writer.WritePrefix("public: ");
 			else if (isFamily) writer.WritePrefix("protected: ");
 			else if (isPrivate) writer.WritePrefix("private: ");
 			else throw new NotImplementedException("Unsuported access modifier state: " + member.FullName);
