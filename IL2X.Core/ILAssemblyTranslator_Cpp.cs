@@ -130,6 +130,13 @@ namespace IL2X.Core
 
 				foreach (var i in type.Interfaces)
 				{
+					if (type.BaseType != null)
+					{
+						var resolvedBaseType = type.BaseType;
+						if (!resolvedBaseType.IsDefinition) resolvedBaseType = resolvedBaseType.Resolve();
+						if (HasInterfaceTypeRecursive((TypeDefinition)resolvedBaseType, i.InterfaceType)) continue;
+					}
+
 					var baseTypeDefinition = i.InterfaceType.Resolve();
 					writer.WriteLine($"#include \"{GetTypeFilename(baseTypeDefinition)}.h\"");
 					processedTypes.Add(baseTypeDefinition);
@@ -275,11 +282,21 @@ namespace IL2X.Core
 				if (type.BaseType != null) writer.Write($" : public {GetFullTypeName(type.BaseType, true)}");
 				if (type.HasInterfaces)
 				{
-					if (type.BaseType == null) writer.Write(" : ");
-					else writer.Write(", ");
+					var baseTypeResolved = type.BaseType;
+					if (baseTypeResolved != null && !baseTypeResolved.IsDefinition) baseTypeResolved = baseTypeResolved.Resolve();
+					bool firstInstance = true;
 					var lastInterface = type.Interfaces.LastOrDefault();
 					foreach (var i in type.Interfaces)
 					{
+						if (baseTypeResolved != null && HasInterfaceTypeRecursive((TypeDefinition)baseTypeResolved, i.InterfaceType)) continue;
+
+						if (firstInstance)
+						{
+							firstInstance = false;
+							if (type.BaseType == null) writer.Write(" : ");
+							else writer.Write(", ");
+						}
+
 						writer.Write($"public {GetFullTypeName(i.InterfaceType, true)}");
 						if (i != lastInterface) writer.Write(", ");
 					}
@@ -449,6 +466,7 @@ namespace IL2X.Core
 
 			// finish
 			writer.Write(')');
+			if (method.IsVirtual && !method.IsNewSlot) writer.Write(" override");
 			if (method.IsFinal) writer.Write(" final");
 			if (method.HasBody) writer.WriteLine(';');
 			else if (method.IsVirtual) writer.WriteLine(" = 0;");

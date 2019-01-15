@@ -2,26 +2,34 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
 
-interface IAbc
+interface Bar
 {
-	object Foo();
+	int Foo();
 }
 
-interface IAbc2<T> : IAbc
+interface Kar
 {
-	new T Foo();
+	short Foo();
 }
 
-class Abc : IAbc2<int>, IAbc
+class Abc : Kar, Bar
 {
-	public int Foo()
+	public virtual short Foo()
 	{
-		throw new NotImplementedException();
+		return 0;
 	}
 
-	object IAbc.Foo()
+	int Bar.Foo()
 	{
-		throw new NotImplementedException();
+		return 0;
+	}
+}
+
+class Abc2 : Abc, Kar
+{
+	public override short Foo()
+	{
+		return base.Foo();
 	}
 }
 

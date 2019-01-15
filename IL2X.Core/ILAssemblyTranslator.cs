@@ -283,5 +283,22 @@ namespace IL2X.Core
 
 			return types;
 		}
+
+		protected bool HasInterfaceTypeRecursive(TypeDefinition type, TypeReference interfaceType)
+		{
+			foreach (var i in type.Interfaces)
+			{
+				if (i.InterfaceType.FullName == interfaceType.FullName) return true;
+			}
+
+			if (type.BaseType != null)
+			{
+				var resolvedType = type.BaseType;
+				if (!resolvedType.IsDefinition) resolvedType = resolvedType.Resolve();
+				return HasInterfaceTypeRecursive((TypeDefinition)resolvedType, interfaceType);
+			}
+
+			return false;
+		}
 	}
 }
