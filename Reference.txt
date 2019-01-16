@@ -6,3 +6,4 @@ C templates: https://softwareengineering.stackexchange.com/questions/262571/what
 
 
 Test compile VC++: cl /EHsc System_Object.cpp -w
+Clear cmd: cls

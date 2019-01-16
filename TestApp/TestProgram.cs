@@ -23,6 +23,11 @@ class Abc : Kar, Bar
 	{
 		return 0;
 	}
+
+	public int Bar()
+	{
+		return 1;
+	}
 }
 
 class Abc2 : Abc, Kar
@@ -30,6 +35,11 @@ class Abc2 : Abc, Kar
 	public override short Foo()
 	{
 		return base.Foo();
+	}
+
+	public new string Bar()
+	{
+		return "";
 	}
 }
 

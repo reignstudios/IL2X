@@ -98,7 +98,7 @@ namespace IL2X.Core
 				foreach (var type in module.GetTypes())
 				{
 					if (!IsValidFileType(type)) continue;
-
+					
 					activeType = type;
 					writer.WriteLine($"#include \"{GetTypeFilename(type)}.h\"");
 				}
@@ -190,7 +190,7 @@ namespace IL2X.Core
 							WriteGenericTemplateParameters(resolvedType);
 							writer.Write(' ');
 						}
-						writer.Write($"{GetTypeDeclarationKeyword(resolvedType)} {GetNestedTypeName(resolvedType)}");
+						writer.Write($"{GetTypeDeclarationKeyword(resolvedType)} {GetTypeDefinitionName(resolvedType)}");
 						if (resolvedType.IsEnum)
 						{
 							if (resolvedType.HasFields && resolvedType.Fields[0].IsRuntimeSpecialName) writer.Write($" : {GetNativePrimitiveTypeName(resolvedType.Fields[0].FieldType)}");
@@ -269,7 +269,7 @@ namespace IL2X.Core
 
 			// write type name
 			string typeKindKeyword = GetTypeDeclarationKeyword(type);
-			writer.WritePrefix($"{typeKindKeyword} {GetNestedTypeName(type)}");
+			writer.WritePrefix($"{typeKindKeyword} {GetTypeDefinitionName(type)}");
 
 			// write inheritance
 			if (type.IsEnum)
@@ -279,7 +279,7 @@ namespace IL2X.Core
 			else
 			{
 				if (type.IsSealed) writer.Write(" final");
-				if (type.BaseType != null) writer.Write($" : public {GetFullTypeName(type.BaseType, true)}");
+				if (type.BaseType != null) writer.Write($" : public {GetFullTypeName(type.BaseType, false)}");
 				if (type.HasInterfaces)
 				{
 					var baseTypeResolved = type.BaseType;
@@ -297,7 +297,7 @@ namespace IL2X.Core
 							else writer.Write(", ");
 						}
 
-						writer.Write($"public {GetFullTypeName(i.InterfaceType, true)}");
+						writer.Write($"public {GetFullTypeName(i.InterfaceType, false)}");
 						if (i != lastInterface) writer.Write(", ");
 					}
 				}
@@ -325,6 +325,9 @@ namespace IL2X.Core
 			}
 			else
 			{
+				if (type.Name.Contains("CerHashtable"))// TODO: ========================== <<<<<<<<<<<<<<<<<<<<<<<<<<<< Fields generated wrong in this type
+				{ }
+
 				bool membersWritten = false;
 				if (type.HasFields)
 				{
@@ -450,7 +453,7 @@ namespace IL2X.Core
 			if (method.IsVirtual) writer.Write("virtual ");
 
 			// write definition
-			string name = method.IsConstructor ? GetNestedTypeName(method.DeclaringType) : GetMemberName(method);
+			string name = method.IsConstructor ? GetTypeDefinitionName(method.DeclaringType) : GetMemberName(method);
 			if (method.IsConstructor)
 			{
 				if (method.IsStatic) writer.Write("void STATIC_");
@@ -482,11 +485,11 @@ namespace IL2X.Core
 			if (method.IsConstructor)
 			{
 				if (method.IsStatic) writer.Write("void STATIC_");
-				writer.WritePrefix(string.Format("{0}::{0}(", GetNestedTypeName(method.DeclaringType)));
+				writer.WritePrefix(string.Format("{0}::{0}(", GetTypeDefinitionName(method.DeclaringType)));
 			}
 			else
 			{
-				writer.WritePrefix($"{GetFullTypeName(method.ReturnType)} {GetNestedTypeName(method.DeclaringType)}::{GetMemberName(method)}(");
+				writer.WritePrefix($"{GetFullTypeName(method.ReturnType)} {GetTypeDefinitionName(method.DeclaringType)}::{GetMemberName(method)}(");
 			}
 			WriteParameters(method.Parameters);
 			writer.WriteLine(')');
@@ -523,7 +526,7 @@ namespace IL2X.Core
 			var lastParameter = parameters.LastOrDefault();
 			foreach (var parameter in parameters)
 			{
-				writer.Write($"{GetFullTypeName(parameter.ParameterType)} {parameter.Name}");
+				writer.Write($"{GetFullTypeName(parameter.ParameterType)} {GetParameterName(parameter)}");
 				if (parameter != lastParameter) writer.Write(", ");
 			}
 		}
@@ -555,9 +558,91 @@ namespace IL2X.Core
 			return null;
 		}
 
-		protected override string GetFullTypeName(TypeReference type, bool isBaseType = false)
+		private delegate void CustomImplementationCallback(ref string name, TypeReference type, out bool useNested);
+		private string ResolveTypeName(CustomImplementationCallback callback, TypeReference type, bool canWritePtrSymbol, bool canWriteRefTypePtrSymbol, bool nameMangleArrayBrackes)
 		{
 			// check if is by ref
+			bool isByRef = type.IsByReference;
+			if (isByRef)
+			{
+				var refType = (ByReferenceType)type;
+				type = refType.ElementType;
+			}
+
+			// check if required modifier
+			if (type.IsRequiredModifier)
+			{
+				var modType = (RequiredModifierType)type;
+				type = modType.ElementType;
+			}
+
+			// check if is pointer
+			bool isPtr = type.IsPointer;
+			int ptrCount = 0;
+			if (isPtr && canWritePtrSymbol)
+			{
+				while (type.IsPointer)
+				{
+					var ptrType = (PointerType)type;
+					type = ptrType.ElementType;
+					++ptrCount;
+				}
+			}
+
+			// check if type is void
+			string name = type.MetadataType == MetadataType.Void ? "void" : null;
+
+			// invoke custom implementation
+			callback(ref name, type, out bool useNested);
+
+			// box if array type
+			if (type.IsArray)
+			{
+				var arrayType = (ArrayType)type;
+				string elementName;
+				if (!useNested) elementName = GetFullTypeName(arrayType.ElementType, canWritePtrSymbol);
+				else elementName = GetNestedTypeName(arrayType.ElementType, canWritePtrSymbol);
+				if (!nameMangleArrayBrackes) name = $"IL2X_Array<{elementName}>";
+				else name = $"ARRAY_{elementName}_";
+			}
+
+			// finish
+			if (isPtr && canWritePtrSymbol)
+			{
+				for (int i = 0; i != ptrCount; ++i) name += '*';
+			}
+			else if (canWritePtrSymbol && canWriteRefTypePtrSymbol && !type.IsValueType && !type.IsGenericParameter)
+			{
+				name += '*';
+			}
+
+			if (isByRef) name += '&';
+			return name;
+		}
+
+		protected override string GetFullTypeName(TypeReference type, bool canWriteRefTypePtrSymbol = true)
+		{
+			void callback(ref string name, TypeReference elementType, out bool useNested)
+			{
+				useNested = false;
+				if (name != null) return;
+				
+				if ((activeType.Namespace == elementType.Namespace && elementType.DeclaringType == null) || (activeType == elementType.DeclaringType && string.IsNullOrEmpty(elementType.Namespace)))
+				{
+					//name = GetNestedTypeName(type, canWritePtrSymbol);// remove verbosity if possible
+					name = GetNestedTypeName(elementType, "_", '<', '>', ',', !elementType.IsDefinition, true);
+				}
+				else
+				{
+					if (!elementType.IsGenericParameter) name = "::";
+					else name = string.Empty;
+					name += GetFullTypeName(elementType, "::", "_", '<', '>', ',', !elementType.IsDefinition, true);
+				}
+			}
+
+			return ResolveTypeName(callback, type, true, canWriteRefTypePtrSymbol, false);
+
+			/*// check if is by ref
 			bool isByRef = type.IsByReference;
 			if (isByRef)
 			{
@@ -622,17 +707,58 @@ namespace IL2X.Core
 			}
 
 			if (isByRef) name += '&';
-			return name;
+			return name;*/
 		}
 
-		protected string GetNestedTypeName(TypeReference type)
+		protected string GetNestedTypeName(TypeReference type, bool canWriteRefTypePtrSymbol = true)
 		{
-			return GetNestedTypeName(type, "_", '<', '>', ',', !type.IsDefinition, true);
+			void callback(ref string name, TypeReference elementType, out bool useNested)
+			{
+				useNested = true;
+				if (name != null) return;
+
+				name = GetNestedTypeName(elementType, "_", '<', '>', ',', !elementType.IsDefinition, true);
+			}
+
+			return ResolveTypeName(callback, type, true, canWriteRefTypePtrSymbol, false);
+
+			//return GetNestedTypeName(type, "_", '<', '>', ',', !type.IsDefinition, true);
+		}
+
+		protected string GetTypeDefinitionName(TypeDefinition type)
+		{
+			return GetNestedTypeName(type, "_", '#', '#', '#', false, true);
 		}
 
 		protected string GetMemberName(MemberReference member)
 		{
-			return GetMemberName(member, "::", "_", '<', '>', ',', !member.IsDefinition, true);
+			string memberName = GetMemberName(member, "::", "_", '<', '>', ',', !member.IsDefinition, true);
+
+			if (member is MethodDefinition)
+			{
+				var method = (MethodDefinition)member;
+				if (method.IsVirtual)
+				{
+					void callback(ref string name, TypeReference type, out bool useNested)
+					{
+						useNested = true;
+						if (name != null) return;
+
+						name = GetNestedTypeName(type, "_", '_', '_', '_', false, true);
+					}
+
+					memberName += "__" + ResolveTypeName(callback, method.ReturnType, false, false, true);
+
+					//memberName += "__" + GetNestedTypeName(method.ReturnType, "_", '_', '_', '_', true, true);
+				}
+			}
+
+			return memberName;
+		}
+
+		protected override string GetParameterName(ParameterReference parameter)
+		{
+			return $"p_{base.GetParameterName(parameter)}";
 		}
 	}
 }

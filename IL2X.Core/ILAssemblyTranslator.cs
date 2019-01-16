@@ -28,7 +28,7 @@ namespace IL2X.Core
 
 		public abstract void Translate(string outputPath);
 
-		protected abstract string GetFullTypeName(TypeReference type, bool isBaseType);
+		protected abstract string GetFullTypeName(TypeReference type, bool canWriteRefTypePtrSymbol);
 		protected string GetFullTypeName(TypeReference type, string namespaceDelimiter, string nestedDelimiter, char genericOpenBracket, char genericCloseBracket, char genericDelimiter, bool writeGenericParts, bool writeGenericNameUnique)
 		{
 			var value = new StringBuilder();
@@ -111,16 +111,29 @@ namespace IL2X.Core
 			return memberName;
 		}
 
-		private void ParseMemberImplementationDetail(ref string memberName)
+		protected virtual string GetParameterName(ParameterReference parameter)
 		{
-			var match = Regex.Match(memberName, @"<(.*)>(.*)");
+			string parameterName = parameter.Name;
+			ParseMemberImplementationDetail(ref parameterName);
+			return parameterName;
+		}
+
+		private void ParseMemberImplementationDetail(ref string elementName)
+		{
+			/*var match = Regex.Match(elementName, @"<(.*)>(.*)");
 			if (match.Success)
 			{
-				if (string.IsNullOrEmpty(match.Groups[1].Value)) memberName = $"__{match.Groups[2].Value}";
-				else memberName = $"__{match.Groups[1].Value}_{match.Groups[2].Value}";
-				ParseMemberImplementationDetail(ref memberName);
-				if (memberName.Contains('|')) memberName = memberName.Replace('|', '_');
-			}
+				if (string.IsNullOrEmpty(match.Groups[1].Value)) elementName = $"__{match.Groups[2].Value}";
+				else elementName = $"__{match.Groups[1].Value}_{match.Groups[2].Value}";
+				ParseMemberImplementationDetail(ref elementName);
+				if (elementName.Contains('|')) elementName = elementName.Replace('|', '_');
+				if (elementName.Contains('.')) elementName = elementName.Replace('.', '_');
+			}*/
+
+			if (elementName.Contains('<')) elementName = elementName.Replace('<', '_');
+			if (elementName.Contains('>')) elementName = elementName.Replace('>', '_');
+			if (elementName.Contains('|')) elementName = elementName.Replace('|', '_');
+			if (elementName.Contains('.')) elementName = elementName.Replace('.', '_');
 		}
 
 		private string ResolveGenericName<T>(MemberReference member, string memberName, Mono.Collections.Generic.Collection<T> collection, char genericOpenBracket, char genericCloseBracket, char genericDelimiter, bool writeGenericParts, bool writeGenericNameUnique) where T : TypeReference
@@ -165,7 +178,7 @@ namespace IL2X.Core
 				int count = collection.Count;
 				foreach (var item in collection)
 				{
-					name.Append(GetFullTypeName(item, false));
+					name.Append(GetFullTypeName(item, true));
 					++i;
 					if (i != count) name.Append(genericDelimiter);// must check via count as types could match
 				}
