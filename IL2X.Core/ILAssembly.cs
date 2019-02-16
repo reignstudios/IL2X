@@ -4,70 +4,65 @@ using Mono.Cecil.Pdb;
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Text;
-using System.Linq;
 
 namespace IL2X.Core
 {
-	public class ILAssembly : IDisposable
+	public sealed class ILAssembly : IDisposable
 	{
-		internal ISymbolReader symbolReader;
-		internal AssemblyDefinition assemblyDefinition;
-		public Stack<ILAssembly> references { get; private set; }
+		// IL2X types
+		public Stack<ILModule> modules { get; private set; }
 
-		public ILAssembly(Stack<ILAssembly> allAssemblies, string binaryPath, bool loadReferences, string[] searchPaths)
+		// Mono.Cecil types
+		public AssemblyDefinition assemblyDefinition { get; private set; }
+
+		public ILAssembly(Stack<ILAssembly> allAssemblies, string binaryPath, bool loadReferences, DefaultAssemblyResolver assemblyResolver)
 		{
-			// create assembly resolver
-			using (var assemblyResolver = new DefaultAssemblyResolver())
+			// create reader parameters desc
+			var readerParameters = new ReaderParameters();
+			readerParameters.AssemblyResolver = assemblyResolver;
+
+			// check if debug symbol file is avaliable
+			var pdbReaderProvider = new PdbReaderProvider();
+			string symbolsPath = Path.Combine(Path.GetDirectoryName(binaryPath), Path.GetFileNameWithoutExtension(binaryPath) + ".pdb");
+			if (File.Exists(symbolsPath))
 			{
-				foreach (string path in searchPaths) assemblyResolver.AddSearchDirectory(path);
+				readerParameters.SymbolReaderProvider = pdbReaderProvider;
+				readerParameters.ReadSymbols = true;
+			}
+				
+			// read assembly file
+			assemblyDefinition = AssemblyDefinition.ReadAssembly(binaryPath, readerParameters);
 
-				// create reader parameters desc
-				var readerParameters = new ReaderParameters();
-				readerParameters.AssemblyResolver = assemblyResolver;
+			// load assembly modules
+			modules = new Stack<ILModule>();
+			foreach (var moduleDef in assemblyDefinition.Modules)
+			{
+				// read debug symbols for module
+				ISymbolReader symbolReader = null;
+				if (readerParameters.ReadSymbols) symbolReader = pdbReaderProvider.GetSymbolReader(moduleDef, symbolsPath);
 
-				// load assembly with debug symbol file if possible
-				var pdbReaderProvider = new PdbReaderProvider();
-				string symbolsPath = Path.Combine(Path.GetDirectoryName(binaryPath), Path.GetFileNameWithoutExtension(binaryPath) + ".pdb");
-				if (File.Exists(symbolsPath))
-				{
-					readerParameters.SymbolReaderProvider = pdbReaderProvider;
-					readerParameters.ReadSymbols = true;
-				}
-
-				assemblyDefinition = AssemblyDefinition.ReadAssembly(binaryPath, readerParameters);
-				if (readerParameters.ReadSymbols) symbolReader = pdbReaderProvider.GetSymbolReader(assemblyDefinition.MainModule, symbolsPath);
-				allAssemblies.Push(this);
-
-				// load references
-				references = new Stack<ILAssembly>();
-				if (loadReferences)
-				{
-					foreach (var reference in assemblyDefinition.MainModule.AssemblyReferences)
-					{
-						using (var assemblyDefinition = assemblyResolver.Resolve(reference))
-						{
-							if (allAssemblies.Any(x => x.assemblyDefinition.FullName == assemblyDefinition.FullName)) continue;
-							references.Push(new ILAssembly(allAssemblies, assemblyDefinition.MainModule.FileName, loadReferences, searchPaths));
-						}
-					}
-				}
+				// add module
+				var module = new ILModule(allAssemblies, this, loadReferences, moduleDef, symbolReader, assemblyResolver);
+				modules.Push(module);
 			}
 		}
 
 		public void Dispose()
 		{
-			if (references != null)
+			if (modules != null)
 			{
-				foreach (var reference in references)
+				foreach (var module in modules)
 				{
-					reference.Dispose();
-					references = null;
+					module.Dispose();
+					modules = null;
 				}
 			}
-
-			Utils.DisposeInstance(ref symbolReader);
-			Utils.DisposeInstance(ref assemblyDefinition);
+			
+			if (assemblyDefinition != null)
+			{
+				assemblyDefinition.Dispose();
+				assemblyDefinition = null;
+			}
 		}
 	}
 }

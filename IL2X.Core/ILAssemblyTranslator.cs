@@ -18,7 +18,11 @@ namespace IL2X.Core
 		public ILAssemblyTranslator(string binaryPath, bool loadReferences, params string[] searchPaths)
 		{
 			allAssemblies = new Stack<ILAssembly>();
-			assembly = new ILAssembly(allAssemblies, binaryPath, loadReferences, searchPaths);
+			using (var assemblyResolver = new DefaultAssemblyResolver())
+			{
+				foreach (string path in searchPaths) assemblyResolver.AddSearchDirectory(path);
+				assembly = new ILAssembly(allAssemblies, binaryPath, loadReferences, assemblyResolver);
+			}
 		}
 
 		public void Dispose()
@@ -28,7 +32,241 @@ namespace IL2X.Core
 
 		public abstract void Translate(string outputPath);
 
-		protected abstract string GetFullTypeName(TypeReference type, bool canWriteRefTypePtrSymbol);
+		protected virtual string GetTypeDefinitionName(TypeDefinition type)
+		{
+			string result = type.Name;
+			ParseMemberImplementationDetail(ref result);
+			return result;
+		}
+
+		protected virtual string GetTypeReferenceName(TypeReference type)
+		{
+			string result = type.Name;
+			ParseMemberImplementationDetail(ref result);
+			return result;
+		}
+
+		protected virtual string GetTypeDefinitionFullName(TypeDefinition type)
+		{
+			var result = new StringBuilder(type.Name);
+			if (type.DeclaringType != null)
+			{
+				result.Insert(0, GetTypeDefinitionDelimiter());
+				result.Insert(0, GetTypeDefinitionName(type.DeclaringType));
+			}
+			else if (!string.IsNullOrEmpty(type.Namespace))
+			{
+				result.Insert(0, GetTypeDefinitionDelimiter());
+				result.Insert(0, GetMemberDefinitionNamespaceName(type.Namespace));
+			}
+			
+			ParseMemberImplementationDetail(ref result);
+			return result.ToString();
+		}
+
+		protected virtual string GetTypeReferenceFullName(TypeReference type)
+		{
+			var result = new StringBuilder(type.Name);
+			if (type.DeclaringType != null)
+			{
+				result.Insert(0, GetTypeReferenceDelimiter());
+				result.Insert(0, GetTypeReferenceName(type.DeclaringType));
+			}
+			else if (!string.IsNullOrEmpty(type.Namespace))
+			{
+				result.Insert(0, GetTypeReferenceDelimiter());
+				result.Insert(0, GetMemberReferenceNamespaceName(type.Namespace));
+			}
+			
+			ParseMemberImplementationDetail(ref result);
+			return result.ToString();
+		}
+
+		protected virtual string GetTypeDefinitionDelimiter()
+		{
+			return ".";
+		}
+
+		protected virtual string GetTypeReferenceDelimiter()
+		{
+			return ".";
+		}
+
+		protected virtual string GetMethodDefinitionName(MethodDefinition method)
+		{
+			string result = method.Name;
+			ParseMemberImplementationDetail(ref result);
+			return result;
+		}
+
+		protected virtual string GetMethodReferenceName(MethodReference method)
+		{
+			string result = method.Name;
+			ParseMemberImplementationDetail(ref result);
+			return result;
+		}
+
+		protected virtual string GetMethodDefinitionFullName(MethodDefinition method)
+		{
+			var result = new StringBuilder(method.Name);
+			if (method.DeclaringType != null)
+			{
+				result.Insert(0, GetMethodDefinitionDelimiter());
+				result.Insert(0, GetTypeDefinitionFullName(method.DeclaringType));
+			}
+
+			ParseMemberImplementationDetail(ref result);
+			return result.ToString();
+		}
+
+		protected virtual string GetMethodReferenceFullName(MethodReference method)
+		{
+			var result = new StringBuilder(method.Name);
+			if (method.DeclaringType != null)
+			{
+				result.Insert(0, GetMethodReferenceDelimiter());
+				result.Insert(0, GetTypeReferenceFullName(method.DeclaringType));
+			}
+
+			ParseMemberImplementationDetail(ref result);
+			return result.ToString();
+		}
+
+		protected virtual string GetMethodDefinitionDelimiter()
+		{
+			return ".";
+		}
+
+		protected virtual string GetMethodReferenceDelimiter()
+		{
+			return ".";
+		}
+
+		protected virtual string GetMemberDefinitionNamespaceName(in string name)
+		{
+			return name;
+		}
+
+		protected virtual string GetMemberReferenceNamespaceName(in string name)
+		{
+			return name;
+		}
+
+		protected virtual string GetParameterDefinitionName(ParameterDefinition parameter)
+		{
+			string result = parameter.Name;
+			ParseMemberImplementationDetail(ref result);
+			return result;
+		}
+
+		protected virtual string GetParameterReferenceName(ParameterReference parameter)
+		{
+			string result = parameter.Name;
+			ParseMemberImplementationDetail(ref result);
+			return result;
+		}
+
+		protected virtual string GetFieldDefinitionName(FieldDefinition field)
+		{
+			string result = field.Name;
+			ParseMemberImplementationDetail(ref result);
+			return result;
+		}
+
+		protected virtual string GetFieldReferenceName(FieldReference field)
+		{
+			string result = field.Name;
+			ParseMemberImplementationDetail(ref result);
+			return result;
+		}
+
+		protected virtual string GetGenericParameterName(GenericParameter parameter)
+		{
+			return parameter.Name;
+		}
+
+		protected virtual string GetGenericParameters(IGenericParameterProvider generic)
+		{
+			var result = new StringBuilder(GetGenericParameterOpenBracket());
+			var last = generic.GenericParameters.Last();
+			foreach (var parameter in generic.GenericParameters)
+			{
+				result.Append(GetGenericParameterName(parameter));
+				if (parameter != last) result.Append(GetGenericParameterDelimiter());
+			}
+			result.Append(GetGenericParameterCloseBracket());
+
+			return result.ToString();
+		}
+
+		protected virtual char GetGenericParameterOpenBracket()
+		{
+			return '<';
+		}
+
+		protected virtual char GetGenericParameterCloseBracket()
+		{
+			return '>';
+		}
+
+		protected virtual char GetGenericParameterDelimiter()
+		{
+			return ',';
+		}
+
+		protected virtual string GetGenericArgumentTypeName(TypeReference type)
+		{
+			return GetTypeReferenceName(type);
+		}
+
+		protected virtual string GetGenericArguments(IGenericInstance generic)
+		{
+			var result = new StringBuilder(GetGenericArgumentOpenBracket());
+			var last = generic.GenericArguments.Last();
+			foreach (var argument in generic.GenericArguments)
+			{
+				result.Append(GetGenericArgumentTypeName(argument));
+				if (argument != last) result.Append(GetGenericArgumentDelimiter());
+			}
+			result.Append(GetGenericArgumentCloseBracket());
+
+			return result.ToString();
+		}
+
+		protected virtual char GetGenericArgumentOpenBracket()
+		{
+			return '<';
+		}
+
+		protected virtual char GetGenericArgumentCloseBracket()
+		{
+			return '>';
+		}
+
+		protected virtual char GetGenericArgumentDelimiter()
+		{
+			return ',';
+		}
+
+		private void ParseMemberImplementationDetail(ref string elementName)
+		{
+			if (elementName.Contains('<')) elementName = elementName.Replace('<', '_');
+			if (elementName.Contains('>')) elementName = elementName.Replace('>', '_');
+			if (elementName.Contains('|')) elementName = elementName.Replace('|', '_');
+			if (elementName.Contains('.')) elementName = elementName.Replace('.', '_');
+			if (elementName.Contains('`')) elementName = elementName.Replace('`', '_');
+		}
+
+		private void ParseMemberImplementationDetail(ref StringBuilder elementName)
+		{
+			if (elementName.Contains('<')) elementName = elementName.Replace('<', '_');
+			if (elementName.Contains('>')) elementName = elementName.Replace('>', '_');
+			if (elementName.Contains('|')) elementName = elementName.Replace('|', '_');
+			if (elementName.Contains('.')) elementName = elementName.Replace('.', '_');
+			if (elementName.Contains('`')) elementName = elementName.Replace('`', '_');
+		}
+
+		/*protected abstract string GetFullTypeName(TypeReference type, bool canWriteRefTypePtrSymbol);
 		protected string GetFullTypeName(TypeReference type, string namespaceDelimiter, string nestedDelimiter, char genericOpenBracket, char genericCloseBracket, char genericDelimiter, bool writeGenericParts, bool writeGenericNameUnique)
 		{
 			var value = new StringBuilder();
@@ -52,24 +290,16 @@ namespace IL2X.Core
 			if (type.DeclaringType != null)
 			{
 				value.Insert(0, nestedDelimiter);
+				//genericOpenBracket = '_';
+				//genericCloseBracket = '_';
+				//genericDelimiter = '_';
+				writeGenericParts = false;
 				GetQualifiedTypeName(type.DeclaringType, namespaceDelimiter, nestedDelimiter, genericOpenBracket, genericCloseBracket, genericDelimiter, writeGenericParts, writeGenericNameUnique, value, writeNamespace);
 			}
 			else if (writeNamespace && !string.IsNullOrEmpty(type.Namespace))
 			{
 				value.Insert(0, type.Namespace.Replace(".", namespaceDelimiter) + namespaceDelimiter);
 			}
-		}
-
-		protected bool IsFixedBufferType(TypeReference type)
-		{
-			return Regex.IsMatch(type.Name, @"<\w*>e__FixedBuffer");
-		}
-
-		protected TypeReference GetFixedBufferType(TypeDefinition type, out int fixedTypeSize)
-		{
-			var fixedType = type.Fields[0].FieldType;
-			fixedTypeSize = type.ClassSize / GetPrimitiveSize(fixedType.MetadataType);
-			return fixedType;
 		}
 		
 		protected string GetMemberName(MemberReference member, string namespaceDelimiter, string nestedDelimiter, char genericOpenBracket, char genericCloseBracket, char genericDelimiter, bool writeGenericParts, bool writeGenericNameUnique)
@@ -94,9 +324,9 @@ namespace IL2X.Core
 			if (member is IGenericInstance)
 			{
 				var generic = (IGenericInstance)member;
-				if (generic.HasGenericArguments && memberName.Contains('`'))
+				if (generic.HasGenericArguments)// && memberName.Contains('`'))
 				{
-					return ResolveGenericName(member, memberName, generic.GenericArguments, genericOpenBracket, genericCloseBracket, genericDelimiter, writeGenericParts, writeGenericNameUnique);
+					return ResolveGenericName(member, memberName, generic.GenericArguments, genericOpenBracket, genericCloseBracket, genericDelimiter, writeGenericParts, writeGenericNameUnique && memberName.Contains('`'));
 				}
 			}
 			else if (member is IGenericParameterProvider)
@@ -117,30 +347,13 @@ namespace IL2X.Core
 			ParseMemberImplementationDetail(ref parameterName);
 			return parameterName;
 		}
-
-		private void ParseMemberImplementationDetail(ref string elementName)
-		{
-			/*var match = Regex.Match(elementName, @"<(.*)>(.*)");
-			if (match.Success)
-			{
-				if (string.IsNullOrEmpty(match.Groups[1].Value)) elementName = $"__{match.Groups[2].Value}";
-				else elementName = $"__{match.Groups[1].Value}_{match.Groups[2].Value}";
-				ParseMemberImplementationDetail(ref elementName);
-				if (elementName.Contains('|')) elementName = elementName.Replace('|', '_');
-				if (elementName.Contains('.')) elementName = elementName.Replace('.', '_');
-			}*/
-
-			if (elementName.Contains('<')) elementName = elementName.Replace('<', '_');
-			if (elementName.Contains('>')) elementName = elementName.Replace('>', '_');
-			if (elementName.Contains('|')) elementName = elementName.Replace('|', '_');
-			if (elementName.Contains('.')) elementName = elementName.Replace('.', '_');
-		}
-
+		
 		private string ResolveGenericName<T>(MemberReference member, string memberName, Mono.Collections.Generic.Collection<T> collection, char genericOpenBracket, char genericCloseBracket, char genericDelimiter, bool writeGenericParts, bool writeGenericNameUnique) where T : TypeReference
 		{
 			var match = Regex.Match(memberName, @"(\w*)`\d*");
-			if (!match.Success) throw new Exception("Failed to remove generic name tick: " + memberName);
-			var name = new StringBuilder(match.Groups[1].Value);
+			StringBuilder name;
+			if (match.Success) name = new StringBuilder(match.Groups[1].Value);//throw new Exception("Failed to remove generic name tick: " + memberName);
+			else name = new StringBuilder(memberName);
 
 			// append generic name
 			if (writeGenericNameUnique)
@@ -186,6 +399,26 @@ namespace IL2X.Core
 			}
 
 			return name.ToString();
+		}*/
+
+		protected TypeDefinition GetTypeDefinition(TypeReference type)
+		{
+			if (type.IsDefinition) return (TypeDefinition)type;
+			var def = type.Resolve();
+			if (def == null) throw new Exception("Failed to resolve type definition for reference: " + type.Name);
+			return def;
+		}
+
+		protected bool IsFixedBufferType(TypeReference type)
+		{
+			return Regex.IsMatch(type.Name, @"<\w*>e__FixedBuffer");
+		}
+
+		protected TypeReference GetFixedBufferType(TypeDefinition type, out int fixedTypeSize)
+		{
+			var fixedType = type.Fields[0].FieldType;
+			fixedTypeSize = type.ClassSize / GetPrimitiveSize(fixedType.MetadataType);
+			return fixedType;
 		}
 
 		protected int GetPrimitiveSize(MetadataType type)

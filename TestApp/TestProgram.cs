@@ -2,7 +2,28 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
 
-interface Bar
+struct Vec3
+{
+	public float x, y, z;
+}
+
+class MyClass
+{
+	public Vec3 vec;
+}
+
+namespace TestApp
+{
+	static class Program
+	{
+		private static void Main()
+		{
+			
+		}
+	}
+}
+
+/*interface Bar
 {
 	int Foo();
 }
@@ -50,32 +71,37 @@ namespace TestApp
 		void Foo();
 	}
 
-	class BaseProgram<T> : MyInterface
-	{
-		public List<List<T>> nestedT;
-		public T myT;
-		public virtual void Foo() { }
-		public E MyTFoo<E>(E input)
-		{
-			return input;
-		}
+	//class BaseProgram<T> : MyInterface
+	//{
+	//	public List<List<T>> nestedT;
+	//	public T myT;
+	//	public virtual void Foo() { }
+	//	public E MyTFoo<E>(E input)
+	//	{
+	//		return input;
+	//	}
 
-		public T MyTFoo(T input)
-		{
-			return input;
-		}
-	}
+	//	public T MyTFoo(T input)
+	//	{
+	//		return input;
+	//	}
 
-	class Program : BaseProgram<int>
+	//	public class MyNestedInGeneric
+	//	{
+	//		public T i;
+	//	}
+	//}
+
+	class Program// : BaseProgram<int>
 	{
 		int[] array = new int[123];
 		Program[] array2 = new Program[123];
-		List<int> list = new List<int>();
+		//List<int> list = new List<int>();
 
 		static void Main(string[] args)
 		{
 			Console.WriteLine("Hello World!");
-			var b = new BaseProgram<float>();
+			//var b = new BaseProgram<float>();
 		}
 
 		public void Resize(ref int[] array)
@@ -83,11 +109,11 @@ namespace TestApp
 			
 		}
 
-		public override void Foo()
-		{
-			base.Foo();
-			var result = list.Exists(x => x == 0);
-		}
+		//public override void Foo()
+		//{
+		//	base.Foo();
+		//	var result = list.Exists(x => x == 0);
+		//}
 
 		private async Task MyAsyncMethod()
 		{
@@ -99,7 +125,7 @@ namespace TestApp
 	{
 		class MyClass2
 		{
-			
+			MyEnum e;
 		}
 
 		abstract class MyClass : MyClass2
@@ -139,4 +165,4 @@ class A
 class B : A
 {
 
-}
+}*/

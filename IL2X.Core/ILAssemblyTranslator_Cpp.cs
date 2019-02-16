@@ -1,4 +1,4 @@
-﻿using Mono.Cecil;
+﻿/*using Mono.Cecil;
 using System.IO;
 using System;
 using System.Collections.Generic;
@@ -10,7 +10,7 @@ using System.Text;
 
 namespace IL2X.Core
 {
-	public class ILAssemblyTranslator_Cpp : ILAssemblyTranslator
+	public sealed class ILAssemblyTranslator_Cpp : ILAssemblyTranslator
 	{
 		private const string allTypesHeader = "__ALL_TYPES.h";
 
@@ -18,6 +18,7 @@ namespace IL2X.Core
 		private readonly string precompiledHeader;
 		
 		private TypeReference activeType;
+		private bool disableTypePrefix;
 
 		public ILAssemblyTranslator_Cpp(string binaryPath, bool loadReferences, string precompiledHeader = null)
 		: base(binaryPath, loadReferences)
@@ -70,7 +71,10 @@ namespace IL2X.Core
 
 		private string GetTypeFilename(TypeDefinition type)
 		{
-			return GetFullTypeName(type, "_", "_", '[', ']', ',', true, false);
+			disableTypePrefix = true;
+			string result = GetFullTypeName(type, "_", "_", '[', ']', ',', true, false);
+			disableTypePrefix = false;
+			return result;
 		}
 
 		private void WriteAllTypesHeader(ModuleDefinition module, string outputPath)
@@ -325,9 +329,6 @@ namespace IL2X.Core
 			}
 			else
 			{
-				if (type.Name.Contains("CerHashtable"))// TODO: ========================== <<<<<<<<<<<<<<<<<<<<<<<<<<<< Fields generated wrong in this type
-				{ }
-
 				bool membersWritten = false;
 				if (type.HasFields)
 				{
@@ -337,13 +338,13 @@ namespace IL2X.Core
 					foreach (var field in type.Fields) WriteFieldHeader(field);
 				}
 			
-				/*if (type.HasProperties)// TODO: is this needed or will methods do everything?
-				{
-					if (membersWritten) writer.WriteLine();
-					membersWritten = true;
-					writer.WriteLinePrefix("// Properties");
-					foreach (var method in type.Properties) WriteMethodHeader(method);
-				}*/
+				//if (type.HasProperties)// TODO: is this needed or will methods do everything?
+				//{
+				//	if (membersWritten) writer.WriteLine();
+				//	membersWritten = true;
+				//	writer.WriteLinePrefix("// Properties");
+				//	foreach (var method in type.Properties) WriteMethodHeader(method);
+				//}
 
 				if (type.HasMethods)
 				{
@@ -631,83 +632,85 @@ namespace IL2X.Core
 				{
 					//name = GetNestedTypeName(type, canWritePtrSymbol);// remove verbosity if possible
 					name = GetNestedTypeName(elementType, "_", '<', '>', ',', !elementType.IsDefinition, true);
+					if (!disableTypePrefix) name = "t_" + name;
 				}
 				else
 				{
 					if (!elementType.IsGenericParameter) name = "::";
 					else name = string.Empty;
 					name += GetFullTypeName(elementType, "::", "_", '<', '>', ',', !elementType.IsDefinition, true);
+					if (!disableTypePrefix) name = "t_" + name;
 				}
 			}
 
 			return ResolveTypeName(callback, type, true, canWriteRefTypePtrSymbol, false);
 
-			/*// check if is by ref
-			bool isByRef = type.IsByReference;
-			if (isByRef)
-			{
-				var refType = (ByReferenceType)type;
-				type = refType.ElementType;
-			}
+			//// check if is by ref
+			//bool isByRef = type.IsByReference;
+			//if (isByRef)
+			//{
+			//	var refType = (ByReferenceType)type;
+			//	type = refType.ElementType;
+			//}
 
-			// check if required modifier
-			if (type.IsRequiredModifier)
-			{
-				var modType = (RequiredModifierType)type;
-				type = modType.ElementType;
-			}
+			//// check if required modifier
+			//if (type.IsRequiredModifier)
+			//{
+			//	var modType = (RequiredModifierType)type;
+			//	type = modType.ElementType;
+			//}
 
-			// check if is pointer
-			bool isPtr = type.IsPointer;
-			int ptrCount = 0;
-			if (isPtr)
-			{
-				while (type.IsPointer)
-				{
-					var ptrType = (PointerType)type;
-					type = ptrType.ElementType;
-					++ptrCount;
-				}
-			}
+			//// check if is pointer
+			//bool isPtr = type.IsPointer;
+			//int ptrCount = 0;
+			//if (isPtr)
+			//{
+			//	while (type.IsPointer)
+			//	{
+			//		var ptrType = (PointerType)type;
+			//		type = ptrType.ElementType;
+			//		++ptrCount;
+			//	}
+			//}
 
-			// check if type is void
-			string name = type.MetadataType == MetadataType.Void ? "void" : null;
+			//// check if type is void
+			//string name = type.MetadataType == MetadataType.Void ? "void" : null;
 
-			// get non-primitive flattened name
-			if (name == null)
-			{
-				if ((activeType.Namespace == type.Namespace && type.DeclaringType == null) || (activeType == type.DeclaringType && string.IsNullOrEmpty(type.Namespace)))
-				{
-					name = GetNestedTypeName(type);// remove verbosity if possible
-				}
-				else
-				{
-					if (!type.IsGenericParameter) name = "::";
-					else name = string.Empty;
-					name += GetFullTypeName(type, "::", "_", '<', '>', ',', !type.IsDefinition, true);
-				}
-			}
+			//// get non-primitive flattened name
+			//if (name == null)
+			//{
+			//	if ((activeType.Namespace == type.Namespace && type.DeclaringType == null) || (activeType == type.DeclaringType && string.IsNullOrEmpty(type.Namespace)))
+			//	{
+			//		name = GetNestedTypeName(type);// remove verbosity if possible
+			//	}
+			//	else
+			//	{
+			//		if (!type.IsGenericParameter) name = "::";
+			//		else name = string.Empty;
+			//		name += GetFullTypeName(type, "::", "_", '<', '>', ',', !type.IsDefinition, true);
+			//	}
+			//}
 			
-			// box if array type
-			if (type.IsArray)
-			{
-				var arrayType = (ArrayType)type;
-				string elementName = GetFullTypeName(arrayType.ElementType);
-				name = $"IL2X_Array<{elementName}>";
-			}
+			//// box if array type
+			//if (type.IsArray)
+			//{
+			//	var arrayType = (ArrayType)type;
+			//	string elementName = GetFullTypeName(arrayType.ElementType);
+			//	name = $"IL2X_Array<{elementName}>";
+			//}
 			
-			// finish
-			if (isPtr)
-			{
-				for (int i = 0; i != ptrCount; ++i) name += '*';
-			}
-			else if (!isBaseType && !type.IsValueType && !type.IsGenericParameter)
-			{
-				name += '*';
-			}
+			//// finish
+			//if (isPtr)
+			//{
+			//	for (int i = 0; i != ptrCount; ++i) name += '*';
+			//}
+			//else if (!isBaseType && !type.IsValueType && !type.IsGenericParameter)
+			//{
+			//	name += '*';
+			//}
 
-			if (isByRef) name += '&';
-			return name;*/
+			//if (isByRef) name += '&';
+			//return name;
 		}
 
 		protected string GetNestedTypeName(TypeReference type, bool canWriteRefTypePtrSymbol = true)
@@ -718,6 +721,7 @@ namespace IL2X.Core
 				if (name != null) return;
 
 				name = GetNestedTypeName(elementType, "_", '<', '>', ',', !elementType.IsDefinition, true);
+				if (!disableTypePrefix) name = "t_" + name;
 			}
 
 			return ResolveTypeName(callback, type, true, canWriteRefTypePtrSymbol, false);
@@ -727,7 +731,9 @@ namespace IL2X.Core
 
 		protected string GetTypeDefinitionName(TypeDefinition type)
 		{
-			return GetNestedTypeName(type, "_", '#', '#', '#', false, true);
+			string result = GetNestedTypeName(type, "_", '#', '#', '#', false, true);
+			if (!disableTypePrefix) result = "t_" + result;
+			return result;
 		}
 
 		protected string GetMemberName(MemberReference member)
@@ -762,3 +768,4 @@ namespace IL2X.Core
 		}
 	}
 }
+*/
