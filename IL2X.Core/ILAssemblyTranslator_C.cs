@@ -123,7 +123,7 @@ namespace IL2X.Core
 		{
 			if (method.HasGenericParameters || method.DeclaringType.HasGenericParameters) return;// generics are generated per use
 
-			writer.Write($"void {GetMethodDefinitionFullName(method)}(");
+			writer.Write($"{GetTypeReferenceFullName(method.ReturnType)} {GetMethodDefinitionFullName(method)}(");
 			if (method.HasParameters) WriteParameterDefinitions(method.Parameters);
 			else writer.Write("void");
 			writer.Write(')');
@@ -231,8 +231,17 @@ namespace IL2X.Core
 
 		protected override string GetTypeReferenceFullName(TypeReference type)
 		{
-			string result = base.GetTypeReferenceFullName(type);
-			if (!disableTypePrefix) result = "t_" + result;
+			string result;
+			if (type.MetadataType == MetadataType.Void)
+			{
+				result = "void";
+			}
+			else
+			{
+				result = base.GetTypeReferenceFullName(type);
+				if (!disableTypePrefix) result = "t_" + result;
+			}
+			
 			return result;
 		}
 
