@@ -210,7 +210,7 @@ namespace IL2X.Core
 			}
 
 			// write instructions
-			var stack = new Stack<IStack>();
+			var stack = new Stack<IStack>(body.MaxStackSize);
 			foreach (var instruction in body.Instructions)
 			{
 				// check if this instruction can be jumped to
