@@ -160,40 +160,6 @@ namespace IL2X.Core
 			writer.Write($"{GetTypeReferenceFullName(parameter.ParameterType)} {GetParameterDefinitionName(parameter)}");
 		}
 
-		/*protected override string GetTypeDefinitionName(TypeDefinition type)
-		{
-			return "t_" + base.GetTypeDefinitionName(type);
-		}
-
-		protected override string GetTypeReferenceName(TypeReference type)
-		{
-			string result = "t_" + base.GetTypeReferenceName(type);
-			if (!type.IsValueType)
-			{
-				result += '*';
-			}
-			else
-			{
-				var def = GetTypeDefinition(type);
-				if (def.IsEnum)
-				{
-					if (!def.HasFields) throw new Exception("Enum has no fields: " + type.Name);
-					return GetTypeReferenceName(def.Fields[0].FieldType);
-				}
-			}
-			return result;
-		}
-
-		protected override string GetMethodDefinitionName(MethodDefinition method)
-		{
-			return "m_" + base.GetMethodDefinitionName(method);
-		}
-
-		protected override string GetMethodReferenceName(MethodReference method)
-		{
-			return "m_" + base.GetMethodReferenceName(method);
-		}*/
-
 		protected override string GetTypeDefinitionName(TypeDefinition type)
 		{
 			string result = base.GetTypeDefinitionName(type);

@@ -18,7 +18,7 @@ namespace TestApp
 	{
 		private static void Main()
 		{
-			
+			var vec = new Vec3();
 		}
 	}
 }
