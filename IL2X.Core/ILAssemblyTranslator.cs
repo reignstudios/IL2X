@@ -46,7 +46,7 @@ namespace IL2X.Core
 			return result;
 		}
 
-		protected virtual string GetTypeDefinitionFullName(TypeDefinition type)
+		protected virtual string GetTypeDefinitionFullName(TypeDefinition type, bool allowPrefix)
 		{
 			var result = new StringBuilder(type.Name);
 			if (type.DeclaringType != null)
@@ -64,7 +64,7 @@ namespace IL2X.Core
 			return result.ToString();
 		}
 
-		protected virtual string GetTypeReferenceFullName(TypeReference type)
+		protected virtual string GetTypeReferenceFullName(TypeReference type, bool allowPrefix, bool allowSymbols)
 		{
 			var result = new StringBuilder(type.Name);
 			if (type.DeclaringType != null)
@@ -112,7 +112,7 @@ namespace IL2X.Core
 			if (method.DeclaringType != null)
 			{
 				result.Insert(0, GetMethodDefinitionDelimiter());
-				result.Insert(0, GetTypeDefinitionFullName(method.DeclaringType));
+				result.Insert(0, GetTypeDefinitionFullName(method.DeclaringType, false));
 			}
 
 			ParseMemberImplementationDetail(ref result);
@@ -125,7 +125,7 @@ namespace IL2X.Core
 			if (method.DeclaringType != null)
 			{
 				result.Insert(0, GetMethodReferenceDelimiter());
-				result.Insert(0, GetTypeReferenceFullName(method.DeclaringType));
+				result.Insert(0, GetTypeReferenceFullName(method.DeclaringType, false, false));
 			}
 
 			ParseMemberImplementationDetail(ref result);

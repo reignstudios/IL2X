@@ -16,9 +16,15 @@ namespace TestApp
 {
 	static class Program
 	{
-		private static void Main()
+		static Vec3 Foo()
 		{
 			var vec = new Vec3();
+			return vec;
+		}
+
+		private static void Main()
+		{
+			//Foo();
 		}
 	}
 }

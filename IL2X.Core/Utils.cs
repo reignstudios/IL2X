@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Reflection;
 using System.Text;
 
 namespace IL2X.Core
@@ -36,6 +37,11 @@ namespace IL2X.Core
 			}
 
 			return false;
+		}
+
+		public static string GetAssemblyInfoVersion()
+		{
+			return Assembly.GetCallingAssembly().GetCustomAttribute<AssemblyInformationalVersionAttribute>().InformationalVersion;
 		}
 	}
 }
