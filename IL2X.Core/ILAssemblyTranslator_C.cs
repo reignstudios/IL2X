@@ -25,18 +25,22 @@ namespace IL2X.Core
 
 		public override void Translate(string outputPath)
 		{
-			TranslateAssembly(assembly, outputPath);
+			TranslateAssembly(assembly, outputPath, new List<ILAssembly>());
 		}
 
-		private void TranslateAssembly(ILAssembly assembly, string outputPath)
+		private void TranslateAssembly(ILAssembly assembly, string outputPath, List<ILAssembly> translatedAssemblies)
 		{
 			activeAssembly = assembly;
+
+			// validate assembly wasn't already translated
+			if (translatedAssemblies.Exists(x => x.assemblyDefinition.FullName == assembly.assemblyDefinition.FullName)) return;
+			translatedAssemblies.Add(assembly);
 
 			// translate all modules into C assmebly files
 			foreach (var module in assembly.modules)
 			{
 				// translate reference assemblies
-				foreach (var reference in module.references) TranslateAssembly(reference, outputPath);
+				foreach (var reference in module.references) TranslateAssembly(reference, outputPath, translatedAssemblies);
 
 				// create output folder
 				if (!Directory.Exists(outputPath)) Directory.CreateDirectory(outputPath);

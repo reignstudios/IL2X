@@ -49,8 +49,12 @@ namespace IL2X.Core
 					using (var assemblyDefinition = assemblyResolver.Resolve(nameReference))
 					{
 						var ilAssembly = allAssemblies.FirstOrDefault(x => x.assemblyDefinition.FullName == assemblyDefinition.FullName);
-						if (ilAssembly != null) references.Push(ilAssembly);
-						else references.Push(new ILAssembly(allAssemblies, assemblyDefinition.MainModule.FileName, loadReferences, assemblyResolver));
+						if (ilAssembly == null)
+						{
+							ilAssembly = new ILAssembly(allAssemblies, assemblyDefinition.MainModule.FileName, loadReferences, assemblyResolver);
+							allAssemblies.Push(ilAssembly);
+						}
+						references.Push(ilAssembly);
 					}
 				}
 			}
