@@ -401,6 +401,12 @@ namespace IL2X.Core
 			return name.ToString();
 		}*/
 
+		protected int GetBaseTypeCount(TypeDefinition type)
+		{
+			if (type.BaseType == null) return 0;
+			return GetBaseTypeCount(GetTypeDefinition(type.BaseType)) + 1;
+		}
+
 		protected TypeDefinition GetTypeDefinition(TypeReference type)
 		{
 			if (type.IsDefinition) return (TypeDefinition)type;

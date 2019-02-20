@@ -166,12 +166,15 @@ namespace IL2X.Core
 			{
 				writer.WriteLine();
 				writer.WriteLine('{');
-				StreamWriterEx.AddTab();
-				activeMethodDebugInfo = null;
-				if (activeModule.symbolReader != null) activeMethodDebugInfo = activeModule.symbolReader.Read(method);
-				WriteMethodBody(method.Body);
-				activeMethodDebugInfo = null;
-				StreamWriterEx.RemoveTab();
+				if (method.Body != null)
+				{
+					StreamWriterEx.AddTab();
+					activeMethodDebugInfo = null;
+					if (activeModule.symbolReader != null) activeMethodDebugInfo = activeModule.symbolReader.Read(method);
+					WriteMethodBody(method.Body);
+					activeMethodDebugInfo = null;
+					StreamWriterEx.RemoveTab();
+				}
 				writer.WriteLine('}');
 				writer.WriteLine();
 			}
@@ -228,10 +231,66 @@ namespace IL2X.Core
 				{
 					case Code.Nop: continue;
 
+					case Code.Ldnull: stack.Push(new Stack_Null()); break;
+
+					case Code.Ldc_I4_0: stack.Push(new Stack_Int32(0)); break;
+					case Code.Ldc_I4_1: stack.Push(new Stack_Int32(1)); break;
+					case Code.Ldc_I4_2: stack.Push(new Stack_Int32(2)); break;
+					case Code.Ldc_I4_3: stack.Push(new Stack_Int32(3)); break;
+					case Code.Ldc_I4_4: stack.Push(new Stack_Int32(4)); break;
+					case Code.Ldc_I4_5: stack.Push(new Stack_Int32(5)); break;
+					case Code.Ldc_I4_6: stack.Push(new Stack_Int32(6)); break;
+					case Code.Ldc_I4_7: stack.Push(new Stack_Int32(7)); break;
+					case Code.Ldc_I4_8: stack.Push(new Stack_Int32(8)); break;
+
+					case Code.Ldarg_0:
+					{
+						if (body.Method.HasThis) stack.Push(new Stack_ParameterVariable("self"));
+						else throw new NotImplementedException("Ldarg_0 on non-instance objects not supported");
+						break;
+					}
+
+					case Code.Ldarg_1:
+					{
+						var p = body.Method.Parameters[0];
+						stack.Push(new Stack_ParameterVariable(GetParameterDefinitionName(p)));
+						break;
+					}
+
+					case Code.Ldarg_2:
+					{
+						var p = body.Method.Parameters[1];
+						stack.Push(new Stack_ParameterVariable(GetParameterDefinitionName(p)));
+						break;
+					}
+
+					case Code.Ldarg_3:
+					{
+						var p = body.Method.Parameters[2];
+						stack.Push(new Stack_ParameterVariable(GetParameterDefinitionName(p)));
+						break;
+					}
+
 					case Code.Ldloca_S:
 					{
 						var operand = (VariableDefinition)instruction.Operand;
 						stack.Push(new Stack_LocalVariable(variables[operand.Index]));
+						break;
+					}
+
+					case Code.Ldfld:
+					{
+						var field = (FieldDefinition)instruction.Operand;
+						stack.Push(new Stack_FieldVariable("self->" + GetFieldDefinitionName(field)));
+						break;
+					}
+
+					case Code.Stfld:
+					{
+						var itemRight = stack.Pop();
+						stack.Pop();
+						var fieldLeft = (FieldDefinition)instruction.Operand;
+						writer.WriteLinePrefix($"self->{GetFieldDefinitionName(fieldLeft)} = {itemRight.GetValueName()};");
 						break;
 					}
 
@@ -371,10 +430,6 @@ namespace IL2X.Core
 						if (!def.HasFields) throw new Exception("Enum has no fields: " + type.Name);
 						return GetTypeReferenceName(def.Fields[0].FieldType);
 					}
-					else
-					{
-						result = base.GetTypeReferenceName(type);
-					}
 
 					if (type.HasGenericParameters) result += '_' + GetGenericParameters(type);
 					if (!type.IsValueType || type.IsPointer) result += '*';
@@ -433,12 +488,14 @@ namespace IL2X.Core
 
 		protected override string GetFieldDefinitionName(FieldDefinition field)
 		{
-			return "f_" + base.GetFieldDefinitionName(field);
+			int count = GetBaseTypeCount(field.DeclaringType);
+			return $"f_{count}_{base.GetFieldDefinitionName(field)}";
 		}
 
 		protected override string GetFieldReferenceName(FieldReference field)
 		{
-			return "f_" + base.GetFieldReferenceName(field);
+			int count = GetBaseTypeCount(GetTypeDefinition(field.DeclaringType));
+			return $"f_{count}_{base.GetFieldReferenceName(field)}";
 		}
 
 		protected override string GetTypeDefinitionDelimiter()

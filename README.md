@@ -10,7 +10,7 @@ This project will focus on translating .NET IL for non-supported .NET targets.
 * SDCC: Many targets (ColecoVision, etc)
 * Assembly: CP1610 (Intellivision)
 * Retarget: Custom assembly targets via plugin system (FPGA CPU, 16bit bytes, etc)
-* Custom Standard lib(s) for legacy targets.
+* Custom Standard lib(s) for various targets.
 
 ## Project libraries
 * IL2X.Core: .NET IL translator/compiler lib
