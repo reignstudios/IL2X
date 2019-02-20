@@ -1,5 +1,15 @@
 ﻿using System;
 
+class A
+{
+	public int i;
+}
+
+class B : A
+{
+	public int i2;
+}
+
 namespace TestApp.Portable
 {
 	static class Program

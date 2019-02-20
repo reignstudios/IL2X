@@ -121,7 +121,24 @@ namespace IL2X.Core
 				writer.WriteLine(string.Format("struct {0}", GetTypeDefinitionFullName(type)));
 				writer.WriteLine('{');
 				StreamWriterEx.AddTab();
-				foreach (var field in type.Fields) WriteFieldDefinition(field);
+
+				// get all types that should write fields
+				var fieldTypeList = new List<TypeDefinition>();
+				fieldTypeList.Add(type);
+				var baseType = type.BaseType;
+				while (baseType != null)
+				{
+					var baseTypeDef = GetTypeDefinition(baseType);
+					fieldTypeList.Add(baseTypeDef);
+					baseType = baseTypeDef.BaseType;
+				}
+
+				// write all fields starting from last base type
+				for (int i = fieldTypeList.Count - 1; i != -1; --i)
+				{
+					foreach (var field in fieldTypeList[i].Fields) WriteFieldDefinition(field);
+				}
+
 				StreamWriterEx.RemoveTab();
 				writer.WriteLine("};");
 				writer.WriteLine();
@@ -390,6 +407,11 @@ namespace IL2X.Core
 		#endregion
 
 		#region Core name resolution
+		private string AddModulePrefix(in string value)
+		{
+			return $"{activeModule.moduleDefinition.Name.Replace(".", "")}_{value}_";
+		}
+
 		protected override string GetTypeDefinitionName(TypeDefinition type)
 		{
 			string result = base.GetTypeDefinitionName(type);
@@ -407,7 +429,11 @@ namespace IL2X.Core
 		protected override string GetTypeDefinitionFullName(TypeDefinition type, bool allowPrefix = true)
 		{
 			string result = base.GetTypeDefinitionFullName(type, allowPrefix);
-			if (allowPrefix) result = "t_" + result;
+			if (allowPrefix)
+			{
+				result = AddModulePrefix(result);
+				result = "t_" + result;
+			}
 			return result;
 		}
 		
@@ -421,7 +447,11 @@ namespace IL2X.Core
 			else
 			{
 				result = base.GetTypeReferenceFullName(type, allowPrefix, allowSymbols);
-				if (allowPrefix) result = "t_" + result;
+				if (allowPrefix)
+				{
+					result = "t_" + result;
+					result = AddModulePrefix(result);
+				}
 				if (allowSymbols)
 				{
 					var def = GetTypeDefinition(type);
@@ -456,14 +486,16 @@ namespace IL2X.Core
 
 		protected override string GetMethodDefinitionFullName(MethodDefinition method)
 		{
-			string result = "m_" + base.GetMethodDefinitionFullName(method);
-			return result;
+			string result = base.GetMethodDefinitionFullName(method);
+			result = AddModulePrefix(result);
+			return "m_" + result;
 		}
 
 		protected override string GetMethodReferenceFullName(MethodReference method)
 		{
-			string result = "m_" + base.GetMethodReferenceFullName(method);
-			return result;
+			string result = base.GetMethodReferenceFullName(method);
+			result = AddModulePrefix(result);
+			return "m_" + result;
 		}
 
 		protected override string GetGenericParameterName(GenericParameter parameter)
