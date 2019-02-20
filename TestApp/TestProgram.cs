@@ -10,6 +10,7 @@ struct Vec3
 class MyClass
 {
 	public Vec3 vec;
+	System.Byte foo;
 }
 
 namespace TestApp

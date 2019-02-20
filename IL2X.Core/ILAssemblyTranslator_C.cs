@@ -17,8 +17,8 @@ namespace IL2X.Core
 		private MethodDebugInformation activeMethodDebugInfo;
 
 		#region Core dependency resolution
-		public ILAssemblyTranslator_C(string binaryPath, bool loadReferences)
-		: base(binaryPath, loadReferences)
+		public ILAssemblyTranslator_C(string binaryPath, bool loadReferences, params string[] searchPaths)
+		: base(binaryPath, loadReferences, searchPaths)
 		{
 			
 		}
@@ -64,9 +64,9 @@ namespace IL2X.Core
 			using (writer = new StreamWriter(stream))
 			{
 				// write generate info
-				writer.WriteLine("// ===============================");
+				writer.WriteLine("// ###############################");
 				writer.WriteLine($"// Generated with IL2X v{Utils.GetAssemblyInfoVersion()}");
-				writer.WriteLine("// ===============================");
+				writer.WriteLine("// ###############################");
 				writer.WriteLine();
 
 				// write forward declare of types

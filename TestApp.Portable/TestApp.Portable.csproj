@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>netcoreapp2.2</TargetFramework>
+    <LangVersion>latest</LangVersion>
+
+		<!--Disable .NET Core SDK libs-->
+		<NoStdLib>true</NoStdLib>
+		<DisableImplicitFrameworkReferences>true</DisableImplicitFrameworkReferences>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\IL2X.Portable.CoreLib\IL2X.Portable.CoreLib.csproj" />
+  </ItemGroup>
+
+</Project>

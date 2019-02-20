@@ -7,10 +7,15 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "IL2X.Core", "IL2X.Core\IL2X
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TestApp", "TestApp\TestApp.csproj", "{4C08C7DF-B83C-4CC2-922D-7E68D5318B52}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IL2X.Core.Test", "IL2X.Core.Test\IL2X.Core.Test.csproj", "{5B8AFE1C-81D1-4F22-8347-D7E57286244A}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "IL2X.Core.Test", "IL2X.Core.Test\IL2X.Core.Test.csproj", "{5B8AFE1C-81D1-4F22-8347-D7E57286244A}"
 	ProjectSection(ProjectDependencies) = postProject
+		{A77DB9D7-BA7B-4DBF-B478-D50C17C595D1} = {A77DB9D7-BA7B-4DBF-B478-D50C17C595D1}
 		{4C08C7DF-B83C-4CC2-922D-7E68D5318B52} = {4C08C7DF-B83C-4CC2-922D-7E68D5318B52}
 	EndProjectSection
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "IL2X.Portable.CoreLib", "IL2X.Portable.CoreLib\IL2X.Portable.CoreLib.csproj", "{2512AD3C-CE36-45C1-AE93-2D663D9D6FC2}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TestApp.Portable", "TestApp.Portable\TestApp.Portable.csproj", "{A77DB9D7-BA7B-4DBF-B478-D50C17C595D1}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -30,6 +35,14 @@ Global
 		{5B8AFE1C-81D1-4F22-8347-D7E57286244A}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{5B8AFE1C-81D1-4F22-8347-D7E57286244A}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{5B8AFE1C-81D1-4F22-8347-D7E57286244A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{2512AD3C-CE36-45C1-AE93-2D663D9D6FC2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2512AD3C-CE36-45C1-AE93-2D663D9D6FC2}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2512AD3C-CE36-45C1-AE93-2D663D9D6FC2}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2512AD3C-CE36-45C1-AE93-2D663D9D6FC2}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A77DB9D7-BA7B-4DBF-B478-D50C17C595D1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A77DB9D7-BA7B-4DBF-B478-D50C17C595D1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A77DB9D7-BA7B-4DBF-B478-D50C17C595D1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A77DB9D7-BA7B-4DBF-B478-D50C17C595D1}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

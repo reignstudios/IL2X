@@ -17,6 +17,8 @@ namespace IL2X.Core
 
 		public ILAssembly(Stack<ILAssembly> allAssemblies, string binaryPath, bool loadReferences, DefaultAssemblyResolver assemblyResolver)
 		{
+			allAssemblies.Push(this);
+
 			// create reader parameters desc
 			var readerParameters = new ReaderParameters();
 			readerParameters.AssemblyResolver = assemblyResolver;

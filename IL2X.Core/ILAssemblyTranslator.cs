@@ -15,7 +15,7 @@ namespace IL2X.Core
 		protected ILAssembly assembly;
 		protected Stack<ILAssembly> allAssemblies;
 
-		public ILAssemblyTranslator(string binaryPath, bool loadReferences, params string[] searchPaths)
+		public ILAssemblyTranslator(string binaryPath, bool loadReferences, string[] searchPaths)
 		{
 			allAssemblies = new Stack<ILAssembly>();
 			using (var assemblyResolver = new DefaultAssemblyResolver())
