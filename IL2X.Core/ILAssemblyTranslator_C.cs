@@ -73,14 +73,16 @@ namespace IL2X.Core
 				writer.WriteLine("// ===============================");
 				writer.WriteLine("// Type forward declares");
 				writer.WriteLine("// ===============================");
-				foreach (var type in module.moduleDefinition.Types) WriteTypeDefinition(type, false);
+				//foreach (var type in module.moduleDefinition.Types) WriteTypeDefinition(type, false);
+				foreach (var type in module.typesDependencyOrdered) WriteTypeDefinition(type, false);
 				writer.WriteLine();
 
 				// write type definitions
 				writer.WriteLine("// ===============================");
 				writer.WriteLine("// Type definitions");
 				writer.WriteLine("// ===============================");
-				foreach (var type in module.moduleDefinition.Types) WriteTypeDefinition(type, true);
+				//foreach (var type in module.moduleDefinition.Types) WriteTypeDefinition(type, true);
+				foreach (var type in module.typesDependencyOrdered) WriteTypeDefinition(type, true);
 
 				// write forward declare of type methods
 				writer.WriteLine("// ===============================");
@@ -217,8 +219,6 @@ namespace IL2X.Core
 		#region Method Body / IL Instructions
 		private void WriteMethodBody(MethodBody body)
 		{
-			if (body.Method.Name == ".ctor") return;// SKIP FOR TESTING
-
 			// write local stack variables
 			var variables = new List<LocalVariable>();
 			if (body.HasVariables)
@@ -230,7 +230,28 @@ namespace IL2X.Core
 			}
 
 			// write instructions
-			var stack = new Stack<IStack>(body.MaxStackSize);
+			var stack = new Stack<IStack>();
+
+			void Ldarg_X(int index)
+			{
+				if (index == 0 && body.Method.HasThis)
+				{
+					stack.Push(new Stack_ParameterVariable("self"));
+				}
+				else
+				{
+					if (body.Method.HasThis) --index;
+					stack.Push(new Stack_ParameterVariable(GetParameterDefinitionName(body.Method.Parameters[index])));
+				}
+			}
+
+			void Stloc_X(int index)
+			{
+				var item = stack.Pop();
+				var variableLeft = variables[index];
+				writer.WriteLinePrefix($"{variableLeft.name} = {item.GetValueName()};");
+			}
+
 			foreach (var instruction in body.Instructions)
 			{
 				// check if this instruction can be jumped to
@@ -248,6 +269,7 @@ namespace IL2X.Core
 				{
 					case Code.Nop: continue;
 
+					// push to stack
 					case Code.Ldnull: stack.Push(new Stack_Null()); break;
 
 					case Code.Ldc_I4_0: stack.Push(new Stack_Int32(0)); break;
@@ -259,35 +281,17 @@ namespace IL2X.Core
 					case Code.Ldc_I4_6: stack.Push(new Stack_Int32(6)); break;
 					case Code.Ldc_I4_7: stack.Push(new Stack_Int32(7)); break;
 					case Code.Ldc_I4_8: stack.Push(new Stack_Int32(8)); break;
+					case Code.Ldc_I4: stack.Push(new Stack_Int32((int)instruction.Operand)); break;
 
-					case Code.Ldarg_0:
-					{
-						if (body.Method.HasThis) stack.Push(new Stack_ParameterVariable("self"));
-						else throw new NotImplementedException("Ldarg_0 on non-instance objects not supported");
-						break;
-					}
+					case Code.Ldarg_0: Ldarg_X(0); break;
+					case Code.Ldarg_1: Ldarg_X(1); break;
+					case Code.Ldarg_2: Ldarg_X(2); break;
+					case Code.Ldarg_3: Ldarg_X(3); break;
 
-					case Code.Ldarg_1:
-					{
-						var p = body.Method.Parameters[0];
-						stack.Push(new Stack_ParameterVariable(GetParameterDefinitionName(p)));
-						break;
-					}
-
-					case Code.Ldarg_2:
-					{
-						var p = body.Method.Parameters[1];
-						stack.Push(new Stack_ParameterVariable(GetParameterDefinitionName(p)));
-						break;
-					}
-
-					case Code.Ldarg_3:
-					{
-						var p = body.Method.Parameters[2];
-						stack.Push(new Stack_ParameterVariable(GetParameterDefinitionName(p)));
-						break;
-					}
-
+					case Code.Ldloc_0: stack.Push(new Stack_LocalVariable(variables[0])); break;
+					case Code.Ldloc_1: stack.Push(new Stack_LocalVariable(variables[1])); break;
+					case Code.Ldloc_2: stack.Push(new Stack_LocalVariable(variables[2])); break;
+					case Code.Ldloc_3: stack.Push(new Stack_LocalVariable(variables[3])); break;
 					case Code.Ldloca_S:
 					{
 						var operand = (VariableDefinition)instruction.Operand;
@@ -297,10 +301,17 @@ namespace IL2X.Core
 
 					case Code.Ldfld:
 					{
+						stack.Pop();
 						var field = (FieldDefinition)instruction.Operand;
 						stack.Push(new Stack_FieldVariable("self->" + GetFieldDefinitionName(field)));
 						break;
 					}
+
+					// pop from stack and write operation
+					case Code.Stloc_0: Stloc_X(0); break;
+					case Code.Stloc_1: Stloc_X(1); break;
+					case Code.Stloc_2: Stloc_X(2); break;
+					case Code.Stloc_3: Stloc_X(3); break;
 
 					case Code.Stfld:
 					{
@@ -311,43 +322,26 @@ namespace IL2X.Core
 						break;
 					}
 
-					case Code.Ldloc_0: stack.Push(new Stack_LocalVariable(variables[0])); break;
-					case Code.Ldloc_1: stack.Push(new Stack_LocalVariable(variables[1])); break;
-					case Code.Ldloc_2: stack.Push(new Stack_LocalVariable(variables[2])); break;
-					case Code.Ldloc_3: stack.Push(new Stack_LocalVariable(variables[3])); break;
-
-					case Code.Stloc_0:
+					case Code.Initobj:
 					{
-						var item = stack.Pop();
-						var variableLeft = variables[0];
-						writer.WriteLinePrefix($"{variableLeft.name} = {item.GetValueName()};");
+						var item = (Stack_LocalVariable)stack.Pop();
+						var variable = item.variable;
+						var type = variable.definition.VariableType;
+						if (type.IsValueType) writer.WriteLinePrefix($"memset(&{variable.name}, 0, sizeof({GetTypeReferenceFullName(type, true, false)}));");
+						else writer.WriteLinePrefix($"memset({variable.name}, 0, sizeof(0));");
 						break;
 					}
 
-					case Code.Stloc_1:
+					case Code.Call:
 					{
-						var item = stack.Pop();
-						var variableLeft = variables[1];
-						writer.WriteLinePrefix($"{variableLeft.name} = {item.GetValueName()};");
+						var method = (MethodReference)instruction.Operand;
+						if (method.HasThis) stack.Pop();
+						foreach (var item in method.Parameters) stack.Pop();
+						// TODO
 						break;
 					}
 
-					case Code.Stloc_2:
-					{
-						var item = stack.Pop();
-						var variableLeft = variables[2];
-						writer.WriteLinePrefix($"{variableLeft.name} = {item.GetValueName()};");
-						break;
-					}
-
-					case Code.Stloc_3:
-					{
-						var item = stack.Pop();
-						var variableLeft = variables[3];
-						writer.WriteLinePrefix($"{variableLeft.name} = {item.GetValueName()};");
-						break;
-					}
-
+					// flow operations
 					case Code.Br:
 					{	
 						var operand = (Instruction)instruction.Operand;
@@ -359,16 +353,6 @@ namespace IL2X.Core
 					{	
 						var operand = (Instruction)instruction.Operand;
 						writer.WriteLinePrefix($"goto IL_{operand.Offset.ToString("x4")};");
-						break;
-					}
-
-					case Code.Initobj:
-					{
-						var item = (Stack_LocalVariable)stack.Pop();
-						var variable = item.variable;
-						var type = variable.definition.VariableType;
-						if (type.IsValueType) writer.WriteLinePrefix($"memset(&{variable.name}, 0, sizeof({GetTypeReferenceFullName(type, true, false)}));");
-						else writer.WriteLinePrefix($"memset({variable.name}, 0, sizeof(0));");
 						break;
 					}
 
@@ -389,6 +373,8 @@ namespace IL2X.Core
 					default: throw new Exception("Unsuported opcode type: " + instruction.OpCode.Code);
 				}
 			}
+
+			if (stack.Count != 0) throw new Exception("Instruction translation error! Evaluation stack didn't fully unwind: " + stack.Count);
 		}
 
 		private LocalVariable WriteVariableDefinition(VariableDefinition variable)
@@ -407,9 +393,10 @@ namespace IL2X.Core
 		#endregion
 
 		#region Core name resolution
-		private string AddModulePrefix(in string value)
+		private string AddModulePrefix(MemberReference member, in string value)
 		{
-			return $"{activeModule.moduleDefinition.Name.Replace(".", "")}_{value}_";
+			var memberDef = (MemberReference)GetMemberDefinition(member);
+			return $"{memberDef.Module.Name.Replace(".", "")}_{value}";
 		}
 
 		protected override string GetTypeDefinitionName(TypeDefinition type)
@@ -431,7 +418,7 @@ namespace IL2X.Core
 			string result = base.GetTypeDefinitionFullName(type, allowPrefix);
 			if (allowPrefix)
 			{
-				result = AddModulePrefix(result);
+				result = AddModulePrefix(type, result);
 				result = "t_" + result;
 			}
 			return result;
@@ -449,8 +436,8 @@ namespace IL2X.Core
 				result = base.GetTypeReferenceFullName(type, allowPrefix, allowSymbols);
 				if (allowPrefix)
 				{
+					result = AddModulePrefix(type, result);
 					result = "t_" + result;
-					result = AddModulePrefix(result);
 				}
 				if (allowSymbols)
 				{
@@ -458,7 +445,7 @@ namespace IL2X.Core
 					if (def.IsEnum)
 					{
 						if (!def.HasFields) throw new Exception("Enum has no fields: " + type.Name);
-						return GetTypeReferenceName(def.Fields[0].FieldType);
+						return GetTypeReferenceFullName(def.Fields[0].FieldType);
 					}
 
 					if (type.HasGenericParameters) result += '_' + GetGenericParameters(type);
@@ -487,14 +474,14 @@ namespace IL2X.Core
 		protected override string GetMethodDefinitionFullName(MethodDefinition method)
 		{
 			string result = base.GetMethodDefinitionFullName(method);
-			result = AddModulePrefix(result);
+			result = AddModulePrefix(method, result);
 			return "m_" + result;
 		}
 
 		protected override string GetMethodReferenceFullName(MethodReference method)
 		{
 			string result = base.GetMethodReferenceFullName(method);
-			result = AddModulePrefix(result);
+			result = AddModulePrefix(method, result);
 			return "m_" + result;
 		}
 

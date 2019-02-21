@@ -266,141 +266,6 @@ namespace IL2X.Core
 			if (elementName.Contains('`')) elementName = elementName.Replace('`', '_');
 		}
 
-		/*protected abstract string GetFullTypeName(TypeReference type, bool canWriteRefTypePtrSymbol);
-		protected string GetFullTypeName(TypeReference type, string namespaceDelimiter, string nestedDelimiter, char genericOpenBracket, char genericCloseBracket, char genericDelimiter, bool writeGenericParts, bool writeGenericNameUnique)
-		{
-			var value = new StringBuilder();
-			GetQualifiedTypeName(type, namespaceDelimiter, nestedDelimiter, genericOpenBracket, genericCloseBracket, genericDelimiter, writeGenericParts, writeGenericNameUnique, value, true);
-			return value.ToString();
-		}
-		
-		protected string GetNestedTypeName(TypeReference type, string nestedDelimiter, char genericOpenBracket, char genericCloseBracket, char genericDelimiter, bool writeGenericParts, bool writeGenericNameUnique)
-		{
-			if (!type.IsNested) return GetMemberName(type, nestedDelimiter, nestedDelimiter, genericOpenBracket, genericCloseBracket, genericDelimiter, writeGenericParts, writeGenericNameUnique);
-			var value = new StringBuilder();
-			GetQualifiedTypeName(type, nestedDelimiter, nestedDelimiter, genericOpenBracket, genericCloseBracket, genericDelimiter, writeGenericParts, writeGenericNameUnique, value, false);
-			return value.ToString();
-		}
-
-		private void GetQualifiedTypeName(TypeReference type, in string namespaceDelimiter, in string nestedDelimiter, char genericOpenBracket, char genericCloseBracket, char genericDelimiter, bool writeGenericParts, bool writeGenericNameUnique, StringBuilder value, bool writeNamespace)
-		{
-			string name = GetMemberName(type, namespaceDelimiter, nestedDelimiter, genericOpenBracket, genericCloseBracket, genericDelimiter, writeGenericParts, writeGenericNameUnique);
-			value.Insert(0, name);
-			if (type.IsGenericParameter) return;
-			if (type.DeclaringType != null)
-			{
-				value.Insert(0, nestedDelimiter);
-				//genericOpenBracket = '_';
-				//genericCloseBracket = '_';
-				//genericDelimiter = '_';
-				writeGenericParts = false;
-				GetQualifiedTypeName(type.DeclaringType, namespaceDelimiter, nestedDelimiter, genericOpenBracket, genericCloseBracket, genericDelimiter, writeGenericParts, writeGenericNameUnique, value, writeNamespace);
-			}
-			else if (writeNamespace && !string.IsNullOrEmpty(type.Namespace))
-			{
-				value.Insert(0, type.Namespace.Replace(".", namespaceDelimiter) + namespaceDelimiter);
-			}
-		}
-		
-		protected string GetMemberName(MemberReference member, string namespaceDelimiter, string nestedDelimiter, char genericOpenBracket, char genericCloseBracket, char genericDelimiter, bool writeGenericParts, bool writeGenericNameUnique)
-		{
-			string memberName = member.Name;
-
-			// strip method name mangle
-			if (member is MethodDefinition)
-			{
-				var method = (MethodDefinition)member;
-				if (method.IsFinal)
-				{
-					var parts = method.Name.Split('.');
-					memberName = parts[parts.Length - 1];
-				}
-			}
-
-			// handle generated implementation details
-			ParseMemberImplementationDetail(ref memberName);
-
-			// handle generic names
-			if (member is IGenericInstance)
-			{
-				var generic = (IGenericInstance)member;
-				if (generic.HasGenericArguments)// && memberName.Contains('`'))
-				{
-					return ResolveGenericName(member, memberName, generic.GenericArguments, genericOpenBracket, genericCloseBracket, genericDelimiter, writeGenericParts, writeGenericNameUnique && memberName.Contains('`'));
-				}
-			}
-			else if (member is IGenericParameterProvider)
-			{
-				var generic = (IGenericParameterProvider)member;
-				if (generic.HasGenericParameters && memberName.Contains('`'))
-				{
-					return ResolveGenericName(member, memberName, generic.GenericParameters, genericOpenBracket, genericCloseBracket, genericDelimiter, writeGenericParts, writeGenericNameUnique);
-				}
-			}
-
-			return memberName;
-		}
-
-		protected virtual string GetParameterName(ParameterReference parameter)
-		{
-			string parameterName = parameter.Name;
-			ParseMemberImplementationDetail(ref parameterName);
-			return parameterName;
-		}
-		
-		private string ResolveGenericName<T>(MemberReference member, string memberName, Mono.Collections.Generic.Collection<T> collection, char genericOpenBracket, char genericCloseBracket, char genericDelimiter, bool writeGenericParts, bool writeGenericNameUnique) where T : TypeReference
-		{
-			var match = Regex.Match(memberName, @"(\w*)`\d*");
-			StringBuilder name;
-			if (match.Success) name = new StringBuilder(match.Groups[1].Value);//throw new Exception("Failed to remove generic name tick: " + memberName);
-			else name = new StringBuilder(memberName);
-
-			// append generic name
-			if (writeGenericNameUnique)
-			{
-				TypeDefinition type = null;
-				if (member is TypeDefinition)
-				{
-					type = (TypeDefinition)member;
-				}
-				else if (member is TypeReference)
-				{
-					var typeRef = (TypeReference)member;
-					if (!typeRef.IsDefinition)
-					{
-						type = typeRef.Resolve();
-						if (type == null) throw new Exception("Unable to resolve generic type: " + member.Name);
-					}
-				}
-
-				var lastParameter = type.GenericParameters.LastOrDefault();
-				foreach (var argument in type.GenericParameters)
-				{
-					string argName = argument.Name;
-					ParseMemberImplementationDetail(ref argName);
-					name.Append($"_{argName}");
-					if (argument == lastParameter) name.Append('_');
-				}
-			}
-
-			// write generic parts
-			if (writeGenericParts)
-			{
-				name.Append(genericOpenBracket);
-				int i = 0;
-				int count = collection.Count;
-				foreach (var item in collection)
-				{
-					name.Append(GetFullTypeName(item, true));
-					++i;
-					if (i != count) name.Append(genericDelimiter);// must check via count as types could match
-				}
-				name.Append(genericCloseBracket);
-			}
-
-			return name.ToString();
-		}*/
-
 		protected int GetBaseTypeCount(TypeDefinition type)
 		{
 			if (type.BaseType == null) return 0;
@@ -412,6 +277,14 @@ namespace IL2X.Core
 			if (type.IsDefinition) return (TypeDefinition)type;
 			var def = type.Resolve();
 			if (def == null) throw new Exception("Failed to resolve type definition for reference: " + type.Name);
+			return def;
+		}
+
+		protected IMemberDefinition GetMemberDefinition(MemberReference member)
+		{
+			if (member.IsDefinition) return (IMemberDefinition)member;
+			var def = member.Resolve();
+			if (def == null) throw new Exception("Failed to resolve member definition for reference: " + member.Name);
 			return def;
 		}
 
@@ -449,7 +322,7 @@ namespace IL2X.Core
 			throw new Exception("GetPrimitiveSize failed: Invalid primitive type: " + type);
 		}
 
-		protected List<TypeReference> GetAllElementTypes(TypeReference type)
+		/*protected List<TypeReference> GetAllElementTypes(TypeReference type)
 		{
 			var types = new List<TypeReference>();
 			var elementType = type;
@@ -551,6 +424,6 @@ namespace IL2X.Core
 			}
 
 			return false;
-		}
+		}*/
 	}
 }

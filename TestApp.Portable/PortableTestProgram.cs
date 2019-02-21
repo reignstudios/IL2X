@@ -17,7 +17,7 @@ namespace TestApp.Portable
 		static void Main()//string[] args)
 		{
 			//Console.WriteLine("Hello World!");
-			//int i = 0 + 1;
+			int i = 0;
 		}
 	}
 }
