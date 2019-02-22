@@ -7,7 +7,10 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Mono.Cecil" Version="0.10.3" />
+    <Reference Include="Mono.Cecil.CustomCoreLibHack">
+      <HintPath Condition="'$(Configuration)' == 'Debug'">..\3rdParty\Mono.Cecil\Debug\netcoreapp2.2\Mono.Cecil.CustomCoreLibHack.dll</HintPath>
+			<HintPath Condition="'$(Configuration)' == 'Release'">..\3rdParty\Mono.Cecil\Release\netcoreapp2.2\Mono.Cecil.CustomCoreLibHack.dll</HintPath>
+    </Reference>
   </ItemGroup>
 
 </Project>
