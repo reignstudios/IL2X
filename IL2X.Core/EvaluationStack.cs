@@ -11,7 +11,7 @@ namespace IL2X.Core.EvaluationStack
 		string GetValueName();
 	}
 
-	class LocalVariable
+	sealed class LocalVariable
 	{
 		public VariableDefinition definition;
 		public string name;
@@ -70,6 +70,21 @@ namespace IL2X.Core.EvaluationStack
 		}
 	}
 
+	sealed class Stack_SByte : IStack
+	{
+		public readonly string value;
+
+		public Stack_SByte(sbyte value)
+		{
+			this.value = value.ToString();
+		}
+
+		public string GetValueName()
+		{
+			return value;
+		}
+	}
+
 	sealed class Stack_Int32 : IStack
 	{
 		public readonly string value;
@@ -82,6 +97,21 @@ namespace IL2X.Core.EvaluationStack
 		public string GetValueName()
 		{
 			return value;
+		}
+	}
+
+	sealed class Stack_Call : IStack
+	{
+		public readonly string methodInvoke;
+
+		public Stack_Call(string methodInvoke)
+		{
+			this.methodInvoke = methodInvoke;
+		}
+
+		public string GetValueName()
+		{
+			return methodInvoke;
 		}
 	}
 }

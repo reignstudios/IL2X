@@ -8,8 +8,7 @@ namespace IL2X.Core.Test
 		static void Main(string[] args)
 		{
 			MonoCecilUtils.SetCustomCoreLibName("IL2X.Portable.CoreLib");
-
-			//const string testName = "TestApp";
+			
 			const string testName = "TestApp.Portable";
 			//const string testName = "IL2X.Portable.CoreLib";
 
@@ -23,10 +22,6 @@ namespace IL2X.Core.Test
 			{
 				translator.Translate(outputPath);
 			}
-			/*using (var translator = new ILAssemblyTranslator_Cpp(binaryPath, false))//, "stdafx.h"))// stdafx.h || pch.h
-			{
-				translator.Translate(outputPath);
-			}*/
 		}
 	}
 }

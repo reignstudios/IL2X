@@ -267,7 +267,8 @@ namespace IL2X.Core
 				// handle next instruction
 				switch (instruction.OpCode.Code)
 				{
-					case Code.Nop: continue;
+					// evaluation operations
+					case Code.Nop: break;
 
 					// push to stack
 					case Code.Ldnull: stack.Push(new Stack_Null()); break;
@@ -282,6 +283,7 @@ namespace IL2X.Core
 					case Code.Ldc_I4_7: stack.Push(new Stack_Int32(7)); break;
 					case Code.Ldc_I4_8: stack.Push(new Stack_Int32(8)); break;
 					case Code.Ldc_I4: stack.Push(new Stack_Int32((int)instruction.Operand)); break;
+					case Code.Ldc_I4_S: stack.Push(new Stack_SByte((sbyte)instruction.Operand)); break;
 
 					case Code.Ldarg_0: Ldarg_X(0); break;
 					case Code.Ldarg_1: Ldarg_X(1); break;
@@ -307,6 +309,48 @@ namespace IL2X.Core
 						break;
 					}
 
+					case Code.Call:
+					{
+						var method = (MethodReference)instruction.Operand;
+						var methodInvoke = new StringBuilder(GetMethodReferenceFullName(method) + '(');
+						var parameters = new StringBuilder();
+						var lastParameter = method.Parameters.LastOrDefault();
+						foreach (var p in method.Parameters)
+						{
+							var item = stack.Pop();
+							parameters.Append(item.GetValueName());
+							if (p != lastParameter) parameters.Append(", ");
+						}
+						if (method.HasThis)
+						{
+							stack.Pop();// pop "self" ptr
+							methodInvoke.Append("self");
+							if (method.HasParameters) methodInvoke.Append(", ");
+						}
+						if (method.HasParameters) methodInvoke.Append(parameters);
+						methodInvoke.Append(')');
+						stack.Push(new Stack_Call(methodInvoke.ToString()));
+						break;
+					}
+
+					case Code.Newobj:
+					{
+						var method = (MethodReference)instruction.Operand;
+						var methodInvoke = new StringBuilder(GetMethodReferenceFullName(method) + '(');
+						methodInvoke.Append($"IL2X_GC_New(sizeof({GetTypeReferenceFullName(method.DeclaringType, allowSymbols:false)}))");
+						if (method.HasParameters) methodInvoke.Append(", ");
+						var lastParameter = method.Parameters.LastOrDefault();
+						foreach (var p in method.Parameters)
+						{
+							var item = stack.Pop();
+							methodInvoke.Append(item.GetValueName());
+							if (p != lastParameter) methodInvoke.Append(", ");
+						}
+						methodInvoke.Append(')');
+						stack.Push(new Stack_Call(methodInvoke.ToString()));
+						break;
+					}
+
 					// pop from stack and write operation
 					case Code.Stloc_0: Stloc_X(0); break;
 					case Code.Stloc_1: Stloc_X(1); break;
@@ -316,7 +360,7 @@ namespace IL2X.Core
 					case Code.Stfld:
 					{
 						var itemRight = stack.Pop();
-						stack.Pop();
+						stack.Pop();// pop "self" ptr
 						var fieldLeft = (FieldDefinition)instruction.Operand;
 						writer.WriteLinePrefix($"self->{GetFieldDefinitionName(fieldLeft)} = {itemRight.GetValueName()};");
 						break;
@@ -332,12 +376,11 @@ namespace IL2X.Core
 						break;
 					}
 
-					case Code.Call:
+					case Code.Pop:
 					{
-						var method = (MethodReference)instruction.Operand;
-						if (method.HasThis) stack.Pop();
-						foreach (var item in method.Parameters) stack.Pop();
-						// TODO
+						var item = stack.Pop();
+						if (item is Stack_Call) writer.WriteLinePrefix(item.GetValueName() + ';');
+						else throw new NotImplementedException("Unsupported 'pop' operation type: " + item);
 						break;
 					}
 
@@ -360,6 +403,17 @@ namespace IL2X.Core
 					{
 						if (body.Method.ReturnType.MetadataType == MetadataType.Void)
 						{
+							if (stack.Count != 0)
+							{
+								int stackCount = stack.Count;
+								for (int i = 0; i != stackCount; ++i)
+								{
+									var item = stack.Pop();
+									if (!(item is Stack_Call)) throw new NotImplementedException("'ret' instruction has unsupported remaining instruction: " + item); 
+									writer.WriteLinePrefix($"{item.GetValueName()};");
+								}
+							}
+
 							writer.WriteLinePrefix("return;");
 						}
 						else
@@ -374,7 +428,12 @@ namespace IL2X.Core
 				}
 			}
 
-			if (stack.Count != 0) throw new Exception("Instruction translation error! Evaluation stack didn't fully unwind: " + stack.Count);
+			if (stack.Count != 0)
+			{
+				string failedInstructions = string.Empty;
+				foreach (var instruction in body.Instructions) failedInstructions += instruction.ToString() + Environment.NewLine;
+				throw new Exception($"Instruction translation error! Evaluation stack for method {body.Method} didn't fully unwind: {stack.Count}{Environment.NewLine}{failedInstructions}");
+			}
 		}
 
 		private LocalVariable WriteVariableDefinition(VariableDefinition variable)
