@@ -27,11 +27,23 @@ namespace IL2X.Core
 			typesDependencyOrdered = moduleDefinition.Types.ToList();
 			typesDependencyOrdered.Sort(delegate (TypeDefinition x, TypeDefinition y)
 			{
+				if (x == y) return 0;
+
+				// if we're a struct, make sure we are put after any fields we depend on
+				if (x.IsValueType)
+				{
+					foreach (var field in x.Fields)
+					{
+						if (field.FieldType.FullName == y.FullName) return 1;
+					}
+				}
+
+				// validate we are put in front of our base types
 				var baseType = x.BaseType;
 				while (baseType != null)
 				{
-					if (!baseType.IsDefinition) return 0;
-					if (baseType.FullName == y.FullName) return 1;
+					if (!baseType.IsDefinition) return 0;// if our base type lives in a different module, ignore
+					if (baseType.FullName == y.FullName) return 1;// make sure we are put after our base type
 
 					var baseTypeDef = (TypeDefinition)baseType;
 					baseType = baseTypeDef.BaseType;
@@ -39,8 +51,6 @@ namespace IL2X.Core
 
 				return 0;
 			});
-
-			typesDependencyOrdered.Reverse();
 
 			// load references
 			references = new Stack<ILAssembly>();
