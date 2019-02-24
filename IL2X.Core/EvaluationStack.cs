@@ -64,39 +64,46 @@ namespace IL2X.Core.EvaluationStack
 
 	sealed class Stack_Null : IStack
 	{
+		public readonly string value;
+
+		public Stack_Null(string value)
+		{
+			this.value = value;
+		}
+
 		public string GetValueName()
 		{
-			return null;
+			return value;
 		}
 	}
 
 	sealed class Stack_SByte : IStack
 	{
-		public readonly string value;
+		public readonly sbyte value;
 
 		public Stack_SByte(sbyte value)
 		{
-			this.value = value.ToString();
+			this.value = value;
 		}
 
 		public string GetValueName()
 		{
-			return value;
+			return value.ToString();
 		}
 	}
 
 	sealed class Stack_Int32 : IStack
 	{
-		public readonly string value;
+		public readonly int value;
 
 		public Stack_Int32(int value)
 		{
-			this.value = value.ToString();
+			this.value = value;
 		}
 
 		public string GetValueName()
 		{
-			return value;
+			return value.ToString();
 		}
 	}
 

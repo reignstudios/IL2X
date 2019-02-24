@@ -23,22 +23,24 @@ namespace IL2X.Core
 			this.moduleDefinition = moduleDefinition;
 			this.symbolReader = symbolReader;
 
-			// create dependency ordered type list (TODO: is this needed?)
+			// create dependency ordered type list
 			typesDependencyOrdered = moduleDefinition.Types.ToList();
-			//typesDependencyOrdered.Sort(delegate(TypeDefinition x, TypeDefinition y)
-			//{
-			//	var baseType = x.BaseType;
-			//	while (baseType != null)
-			//	{
-			//		if (!baseType.IsDefinition) return 0;
-			//		if (baseType.FullName == y.FullName) return 1;
+			typesDependencyOrdered.Sort(delegate (TypeDefinition x, TypeDefinition y)
+			{
+				var baseType = x.BaseType;
+				while (baseType != null)
+				{
+					if (!baseType.IsDefinition) return 0;
+					if (baseType.FullName == y.FullName) return 1;
 
-			//		var baseTypeDef = (TypeDefinition)baseType;
-			//		baseType = baseTypeDef.BaseType;
-			//	}
+					var baseTypeDef = (TypeDefinition)baseType;
+					baseType = baseTypeDef.BaseType;
+				}
 
-			//	return 0;
-			//});
+				return 0;
+			});
+
+			typesDependencyOrdered.Reverse();
 
 			// load references
 			references = new Stack<ILAssembly>();

@@ -338,6 +338,19 @@ namespace IL2X.Core
 			return true;
 		}
 
+		protected bool IsEmptyType(TypeReference type)
+		{
+			var currentType = GetTypeDefinition(type);
+			while (currentType != null)
+			{
+				if (currentType.HasFields) return false;
+				if (currentType.BaseType != null) currentType = GetTypeDefinition(currentType.BaseType);
+				else currentType = null;
+			}
+
+			return true;
+		}
+
 		/*protected List<TypeReference> GetAllElementTypes(TypeReference type)
 		{
 			var types = new List<TypeReference>();

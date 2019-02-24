@@ -120,7 +120,6 @@ namespace IL2X.Core
 				writer.WriteLine("// ===============================");
 				writer.WriteLine("// Type forward declares");
 				writer.WriteLine("// ===============================");
-				//foreach (var type in module.moduleDefinition.Types) WriteTypeDefinition(type, false);
 				foreach (var type in module.typesDependencyOrdered) WriteTypeDefinition(type, false);
 				writer.WriteLine();
 
@@ -128,7 +127,6 @@ namespace IL2X.Core
 				writer.WriteLine("// ===============================");
 				writer.WriteLine("// Type definitions");
 				writer.WriteLine("// ===============================");
-				//foreach (var type in module.moduleDefinition.Types) WriteTypeDefinition(type, true);
 				foreach (var type in module.typesDependencyOrdered) WriteTypeDefinition(type, true);
 
 				// write forward declare of type methods
@@ -177,10 +175,13 @@ namespace IL2X.Core
 
 			if (!writeBody)
 			{
-				writer.WriteLine(string.Format("typedef struct {0} {0};", GetTypeDefinitionFullName(type)));
+				if (IsEmptyType(type)) writer.WriteLine(string.Format("typedef void* {0};", GetTypeDefinitionFullName(type)));// empty types only function as pointers
+				else writer.WriteLine(string.Format("typedef struct {0} {0};", GetTypeDefinitionFullName(type)));
 			}
 			else
 			{
+				if (IsEmptyType(type)) return;// empty types aren't allowed in C
+
 				writer.WriteLine(string.Format("struct {0}", GetTypeDefinitionFullName(type)));
 				writer.WriteLine('{');
 				StreamWriterEx.AddTab();
@@ -218,10 +219,20 @@ namespace IL2X.Core
 		{
 			if (method.HasGenericParameters || method.DeclaringType.HasGenericParameters) return;// generics are generated per use
 
-			writer.Write($"{GetTypeReferenceFullName(method.ReturnType)} {GetMethodDefinitionFullName(method)}(");
+			if (method.IsConstructor)// force constructors to return a ref of their self
+			{
+				if (method.DeclaringType.IsValueType) writer.Write($"{GetTypeReferenceFullName(method.DeclaringType)}* {GetMethodDefinitionFullName(method)}(");
+				else writer.Write($"{GetTypeReferenceFullName(method.DeclaringType)} {GetMethodDefinitionFullName(method)}(");
+			}
+			else
+			{
+				writer.Write($"{GetTypeReferenceFullName(method.ReturnType)} {GetMethodDefinitionFullName(method)}(");
+			}
 			if (!method.IsStatic)
 			{
-				writer.Write($"{GetTypeReferenceFullName(method.DeclaringType)} self");
+				writer.Write(GetTypeReferenceFullName(method.DeclaringType));
+				if (method.DeclaringType.IsValueType) writer.Write('*');
+				writer.Write(" self");
 				if (method.HasParameters)
 				{
 					writer.Write(", ");
@@ -332,7 +343,7 @@ namespace IL2X.Core
 					case Code.Nop: break;
 
 					// push to stack
-					case Code.Ldnull: stack.Push(new Stack_Null()); break;
+					case Code.Ldnull: stack.Push(new Stack_Null("0")); break;
 
 					case Code.Ldc_I4_0: stack.Push(new Stack_Int32(0)); break;
 					case Code.Ldc_I4_1: stack.Push(new Stack_Int32(1)); break;
@@ -477,7 +488,8 @@ namespace IL2X.Core
 								}
 							}
 
-							writer.WriteLinePrefix("return;");
+							if (body.Method.IsConstructor) writer.WriteLinePrefix("return self;");// force constructors to return a ref of their self
+							else writer.WriteLinePrefix("return;");
 						}
 						else
 						{
