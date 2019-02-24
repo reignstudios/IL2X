@@ -11,16 +11,43 @@ namespace IL2X.Core
 {
 	public sealed class ILAssemblyTranslator_C : ILAssemblyTranslator
 	{
+		public enum GC_Type
+		{
+			/// <summary>
+			/// Modern platforms. Thread safe.
+			/// </summary>
+			Boehm,
+
+			/// <summary>
+			/// Legacy or unsupported Boehm platforms. Not thread safe.
+			/// </summary>
+			Portable,
+
+			/// <summary>
+			/// Super low memory or embedded devices. Not thread safe.
+			/// </summary>
+			Micro
+		}
+
+		public struct Options
+		{
+			public GC_Type gc;
+			public string gcFolderPath;
+		}
+
+		public readonly Options options;
+
 		private StreamWriter writer;
 		private ILAssembly activeAssembly;// current assembly being translated
 		private ILModule activeModule;// current module being translated
 		private MethodDebugInformation activeMethodDebugInfo;
 
 		#region Core dependency resolution
-		public ILAssemblyTranslator_C(string binaryPath, bool loadReferences, params string[] searchPaths)
+		public ILAssemblyTranslator_C(string binaryPath, bool loadReferences, in Options options, params string[] searchPaths)
 		: base(binaryPath, loadReferences, searchPaths)
 		{
-			
+			this.options = options;
+			if (options.gcFolderPath == null) this.options.gcFolderPath = string.Empty;
 		}
 
 		public override void Translate(string outputPath)
@@ -56,7 +83,8 @@ namespace IL2X.Core
 
 			// get module filename
 			string modulePath = Path.Combine(outputPath, module.moduleDefinition.Name.Replace('.', '_'));
-			if (module.moduleDefinition.IsMain && (module.moduleDefinition.Kind == ModuleKind.Console || module.moduleDefinition.Kind == ModuleKind.Windows)) modulePath += ".c";
+			bool isExe = module.moduleDefinition.IsMain && (module.moduleDefinition.Kind == ModuleKind.Console || module.moduleDefinition.Kind == ModuleKind.Windows);
+			if (isExe) modulePath += ".c";
 			else modulePath += ".h";
 
 			// write module
@@ -67,6 +95,25 @@ namespace IL2X.Core
 				writer.WriteLine("// ###############################");
 				writer.WriteLine($"// Generated with IL2X v{Utils.GetAssemblyInfoVersion()}");
 				writer.WriteLine("// ###############################");
+				if (module.assembly.isCoreLib)
+				{
+					string gcFileName;
+					switch (options.gc)
+					{
+						case GC_Type.Boehm: gcFileName = "IL2X.GC.Boehm"; break;
+						case GC_Type.Portable: gcFileName = "IL2X.GC.Portable"; break;
+						case GC_Type.Micro: gcFileName = "IL2X.GC.Micro"; break;
+						default: throw new Exception("Unsupported GC option: " + options.gc);
+					}
+					
+					gcFileName = Path.Combine(Path.GetFullPath(options.gcFolderPath), gcFileName);
+					writer.WriteLine($"#include \"{gcFileName}.h\"");
+				}
+				foreach (var assemblyReference in module.references)
+				foreach (var moduleReference in assemblyReference.modules)
+				{
+					writer.WriteLine($"#include \"{moduleReference.moduleDefinition.Name.Replace('.', '_')}.h\"");
+				}
 				writer.WriteLine();
 
 				// write forward declare of types
@@ -101,6 +148,20 @@ namespace IL2X.Core
 				foreach (var type in module.moduleDefinition.Types)
 				{
 					foreach (var method in type.Methods) WriteMethodDefinition(method, true);
+				}
+
+				// write entry point
+				if (isExe && module.moduleDefinition.EntryPoint != null)
+				{
+					writer.WriteLine("// ===============================");
+					writer.WriteLine("// Entry Point");
+					writer.WriteLine("// ===============================");
+					writer.WriteLine("void main()");
+					writer.WriteLine('{');
+					StreamWriterEx.AddTab();
+					writer.WriteLinePrefix($"{GetMethodDefinitionFullName(module.moduleDefinition.EntryPoint)}();");
+					StreamWriterEx.RemoveTab();
+					writer.WriteLine('}');
 				}
 			}
 
@@ -337,7 +398,9 @@ namespace IL2X.Core
 					{
 						var method = (MethodReference)instruction.Operand;
 						var methodInvoke = new StringBuilder(GetMethodReferenceFullName(method) + '(');
-						methodInvoke.Append($"IL2X_GC_New(sizeof({GetTypeReferenceFullName(method.DeclaringType, allowSymbols:false)}))");
+						if (IsAtomicType(method.DeclaringType)) methodInvoke.Append("IL2X_GC_NewAtomic");
+						else methodInvoke.Append("IL2X_GC_New");
+						methodInvoke.Append($"(sizeof({GetTypeReferenceFullName(method.DeclaringType, allowSymbols:false)}))");
 						if (method.HasParameters) methodInvoke.Append(", ");
 						var lastParameter = method.Parameters.LastOrDefault();
 						foreach (var p in method.Parameters)

@@ -322,6 +322,22 @@ namespace IL2X.Core
 			throw new Exception("GetPrimitiveSize failed: Invalid primitive type: " + type);
 		}
 
+		protected bool IsAtomicType(TypeReference type)
+		{
+			var currentType = GetTypeDefinition(type);
+			while (currentType != null)
+			{
+				foreach (var field in currentType.Fields)
+				{
+					if (!field.FieldType.IsValueType) return false;
+				}
+				if (currentType.BaseType != null) currentType = GetTypeDefinition(currentType.BaseType);
+				else currentType = null;
+			}
+
+			return true;
+		}
+
 		/*protected List<TypeReference> GetAllElementTypes(TypeReference type)
 		{
 			var types = new List<TypeReference>();

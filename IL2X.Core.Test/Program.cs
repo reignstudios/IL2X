@@ -16,9 +16,15 @@ namespace IL2X.Core.Test
 			string binaryPath = Path.Combine(binaryPathFolder, $"{testName}.dll");
 			if (!File.Exists(binaryPath)) throw new Exception($"{testName} doesn't exist");
 
+			var options = new ILAssemblyTranslator_C.Options()
+			{
+				gc = ILAssemblyTranslator_C.GC_Type.Boehm,
+				gcFolderPath = Path.Combine(Environment.CurrentDirectory, @"..\..\..\..\IL2X.Native")
+			};
+
 			string outputPath = $@"..\..\..\..\{testName}\bin\Debug\netcoreapp2.2\TestOutput";
 			if (!Directory.Exists(outputPath)) Directory.CreateDirectory(outputPath);
-			using (var translator = new ILAssemblyTranslator_C(binaryPath, true, Path.Combine(Environment.CurrentDirectory, $@"..\..\..\..\{testName}\bin\Debug\netcoreapp2.2")))
+			using (var translator = new ILAssemblyTranslator_C(binaryPath, true, options, Path.Combine(Environment.CurrentDirectory, $@"..\..\..\..\{testName}\bin\Debug\netcoreapp2.2")))
 			{
 				translator.Translate(outputPath);
 			}

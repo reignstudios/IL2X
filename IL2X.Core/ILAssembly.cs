@@ -11,6 +11,7 @@ namespace IL2X.Core
 	{
 		// IL2X types
 		public Stack<ILModule> modules { get; private set; }
+		public readonly bool isCoreLib;
 
 		// Mono.Cecil types
 		public AssemblyDefinition assemblyDefinition { get; private set; }
@@ -18,6 +19,15 @@ namespace IL2X.Core
 		public ILAssembly(Stack<ILAssembly> allAssemblies, string binaryPath, bool loadReferences, DefaultAssemblyResolver assemblyResolver)
 		{
 			allAssemblies.Push(this);
+
+			// check if core lib
+			string libName = Path.GetFileNameWithoutExtension(binaryPath);
+			isCoreLib =
+				libName == "mscorlib" ||
+				libName == "System.Runtime" ||
+				libName == "System.Private.CoreLib" ||
+				libName == "netstandard" ||
+				(TypeSystem.CustomCoreLibName != null && libName == TypeSystem.CustomCoreLibName);
 
 			// create reader parameters desc
 			var readerParameters = new ReaderParameters();
