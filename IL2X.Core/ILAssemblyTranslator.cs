@@ -266,6 +266,19 @@ namespace IL2X.Core
 			if (elementName.Contains('`')) elementName = elementName.Replace('`', '_');
 		}
 
+		protected int GetMethodOverloadIndex(MethodReference method)
+		{
+			int index = 0;
+			var methodDef = GetMemberDefinition(method);
+			foreach (var typeMethod in methodDef.DeclaringType.Methods)
+			{
+				if (typeMethod == methodDef) return index;
+				++index;
+			}
+
+			throw new Exception("Failed to find method index (this should never happen)");
+		}
+
 		protected int GetBaseTypeCount(TypeDefinition type)
 		{
 			if (type.BaseType == null) return 0;

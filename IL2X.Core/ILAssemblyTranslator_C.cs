@@ -157,7 +157,9 @@ namespace IL2X.Core
 					writer.WriteLine("void main()");
 					writer.WriteLine('{');
 					StreamWriterEx.AddTab();
+					writer.WriteLinePrefix("IL2X_GC_Init();");
 					writer.WriteLinePrefix($"{GetMethodDefinitionFullName(module.moduleDefinition.EntryPoint)}();");
+					writer.WriteLinePrefix("IL2X_GC_Collect();");
 					StreamWriterEx.RemoveTab();
 					writer.WriteLine('}');
 				}
@@ -607,16 +609,20 @@ namespace IL2X.Core
 
 		protected override string GetMethodDefinitionFullName(MethodDefinition method)
 		{
+			int count = GetBaseTypeCount(method.DeclaringType);
+			int methodIndex = GetMethodOverloadIndex(method);
 			string result = base.GetMethodDefinitionFullName(method);
 			result = AddModulePrefix(method, result);
-			return "m_" + result;
+			return $"m_{count}_{result}_{methodIndex}";
 		}
 
 		protected override string GetMethodReferenceFullName(MethodReference method)
 		{
+			int count = GetBaseTypeCount(GetTypeDefinition(method.DeclaringType));
+			int methodIndex = GetMethodOverloadIndex(method);
 			string result = base.GetMethodReferenceFullName(method);
 			result = AddModulePrefix(method, result);
-			return "m_" + result;
+			return $"m_{count}_{result}_{methodIndex}";
 		}
 
 		protected override string GetGenericParameterName(GenericParameter parameter)
