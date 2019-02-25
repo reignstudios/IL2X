@@ -231,7 +231,11 @@ namespace IL2X.Core
 					writer.WriteLine("// ===============================");
 					foreach (var literal in activeStringLiterals)
 					{
-						writer.WriteLine($"{stringTypeName} {literal.Key};");
+						string value = literal.Value;
+						if (value.Contains('\n')) value = value.Replace("\n", "");
+						if (value.Contains('\r')) value = value.Replace("\r", "");
+						if (value.Length > 64) value = value.Substring(0, 64);
+						writer.WriteLine($"{stringTypeName} {literal.Key};// {value}");
 					}
 
 					writer.WriteLine();
