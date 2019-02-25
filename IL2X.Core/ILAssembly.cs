@@ -24,7 +24,7 @@ namespace IL2X.Core
 			string libName = Path.GetFileNameWithoutExtension(binaryPath);
 			isCoreLib =
 				libName == "mscorlib" ||
-				libName == "System.Runtime" ||
+				//libName == "System.Runtime" ||
 				libName == "System.Private.CoreLib" ||
 				libName == "netstandard" ||
 				(TypeSystem.CustomCoreLibName != null && libName == TypeSystem.CustomCoreLibName);

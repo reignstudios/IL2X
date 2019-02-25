@@ -44,7 +44,7 @@ namespace IL2X.Core
 			return Assembly.GetCallingAssembly().GetCustomAttribute<AssemblyInformationalVersionAttribute>().InformationalVersion;
 		}
 
-		public static string ConvertNonWordCharsWith(string value, char replacmentChar)
+		public static string ReplaceNonWordChars(string value, char replacmentChar)
 		{
 			var newValue = new StringBuilder();
 			foreach (char c in value)

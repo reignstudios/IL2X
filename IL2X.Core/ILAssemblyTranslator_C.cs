@@ -360,6 +360,10 @@ namespace IL2X.Core
 					activeMethodDebugInfo = null;
 					StreamWriterEx.RemoveTab();
 				}
+				else if (method.IsRuntime)
+				{
+					throw new NotImplementedException("TODO: handle delegates etc");
+				}
 				writer.WriteLine('}');
 				writer.WriteLine();
 			}
