@@ -26,6 +26,8 @@ namespace TestApp.Portable
 			var b = new B();
 			var m = new MyStruct();
 			int i2 = i;
+
+			string hi = "Hello World!";
 		}
 	}
 }

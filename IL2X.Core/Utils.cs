@@ -43,5 +43,17 @@ namespace IL2X.Core
 		{
 			return Assembly.GetCallingAssembly().GetCustomAttribute<AssemblyInformationalVersionAttribute>().InformationalVersion;
 		}
+
+		public static string ConvertNonWordCharsWith(string value, char replacmentChar)
+		{
+			var newValue = new StringBuilder();
+			foreach (char c in value)
+			{
+				if (!char.IsLetterOrDigit(c)) newValue.Append(replacmentChar);
+				else newValue.Append(c);
+			}
+
+			return newValue.ToString();
+		}
 	}
 }

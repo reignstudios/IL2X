@@ -40,7 +40,9 @@ namespace IL2X.Core
 		private StreamWriter writer;
 		private ILAssembly activeAssembly;// current assembly being translated
 		private ILModule activeModule;// current module being translated
-		private MethodDebugInformation activeMethodDebugInfo;
+		private MethodDebugInformation activeMethodDebugInfo;// current method debug symbols
+		private Dictionary<string, string> activeStringLiterals;// current module string literals
+		private Dictionary<string, string> allStringLitterals;// multi-lib string literal values (active and dependancy lib string literals)
 
 		#region Core dependency resolution
 		public ILAssemblyTranslator_C(string binaryPath, bool loadReferences, in Options options, params string[] searchPaths)
@@ -52,6 +54,7 @@ namespace IL2X.Core
 
 		public override void Translate(string outputPath)
 		{
+			allStringLitterals = new Dictionary<string, string>();
 			TranslateAssembly(assembly, outputPath, new List<ILAssembly>());
 		}
 
@@ -81,11 +84,19 @@ namespace IL2X.Core
 		{
 			activeModule = module;
 
+			if (activeStringLiterals == null) activeStringLiterals = new Dictionary<string, string>();
+			else activeStringLiterals.Clear();
+
 			// get module filename
 			string modulePath = Path.Combine(outputPath, module.moduleDefinition.Name.Replace('.', '_'));
 			bool isExe = module.moduleDefinition.IsMain && (module.moduleDefinition.Kind == ModuleKind.Console || module.moduleDefinition.Kind == ModuleKind.Windows);
 			if (isExe) modulePath += ".c";
 			else modulePath += ".h";
+
+			// get generated members filename
+			string generatedMembersFilename = $"{module.moduleDefinition.Name.Replace('.', '_')}_GeneratedMembers.h";
+			string generatedMembersInitMethod = "IL2X_Init_GeneratedMembers_" + module.moduleDefinition.Name.Replace('.', '_');
+			string initModuleMethod = "IL2X_InitModule_" + module.moduleDefinition.Name.Replace('.', '_');
 
 			// write module
 			using (var stream = new FileStream(modulePath, FileMode.Create, FileAccess.Write, FileShare.Read))
@@ -95,6 +106,9 @@ namespace IL2X.Core
 				writer.WriteLine("// ###############################");
 				writer.WriteLine($"// Generated with IL2X v{Utils.GetAssemblyInfoVersion()}");
 				writer.WriteLine("// ###############################");
+				if (!isExe) writer.WriteLine("#pragma once");
+
+				// write include of gc to be used
 				if (module.assembly.isCoreLib)
 				{
 					string gcFileName;
@@ -109,6 +123,8 @@ namespace IL2X.Core
 					gcFileName = Path.Combine(Path.GetFullPath(options.gcFolderPath), gcFileName);
 					writer.WriteLine($"#include \"{gcFileName}.h\"");
 				}
+
+				// write includes of dependencies
 				foreach (var assemblyReference in module.references)
 				foreach (var moduleReference in assemblyReference.modules)
 				{
@@ -139,6 +155,13 @@ namespace IL2X.Core
 				}
 				writer.WriteLine();
 
+				// write include of IL instruction generated members
+				writer.WriteLine("// ===============================");
+				writer.WriteLine("// Instruction generated members");
+				writer.WriteLine("// ===============================");
+				writer.WriteLine($"#include \"{generatedMembersFilename}\"");
+				writer.WriteLine();
+
 				// write method definitions
 				writer.WriteLine("// ===============================");
 				writer.WriteLine("// Method definitions");
@@ -147,6 +170,25 @@ namespace IL2X.Core
 				{
 					foreach (var method in type.Methods) WriteMethodDefinition(method, true);
 				}
+
+				// write init module
+				writer.WriteLine("// ===============================");
+				writer.WriteLine("// Init module");
+				writer.WriteLine("// ===============================");
+				writer.WriteLine($"void {initModuleMethod}()");
+				writer.WriteLine('{');
+				StreamWriterEx.AddTab();
+				foreach (var reference in module.references)
+				{
+					foreach (var refModule in reference.modules)
+					{
+						writer.WriteLinePrefix($"IL2X_InitModule_{refModule.moduleDefinition.Name.Replace('.', '_')}();");
+					}
+				}
+				writer.WriteLinePrefix($"{generatedMembersInitMethod}();");
+				StreamWriterEx.RemoveTab();
+				writer.WriteLine('}');
+				writer.WriteLine();
 
 				// write entry point
 				if (isExe && module.moduleDefinition.EntryPoint != null)
@@ -158,11 +200,57 @@ namespace IL2X.Core
 					writer.WriteLine('{');
 					StreamWriterEx.AddTab();
 					writer.WriteLinePrefix("IL2X_GC_Init();");
+					writer.WriteLinePrefix($"{initModuleMethod}();");
 					writer.WriteLinePrefix($"{GetMethodDefinitionFullName(module.moduleDefinition.EntryPoint)}();");
 					writer.WriteLinePrefix("IL2X_GC_Collect();");
 					StreamWriterEx.RemoveTab();
 					writer.WriteLine('}');
 				}
+			}
+
+			// write IL instruction generated file
+			using (var stream = new FileStream(Path.Combine(outputPath, generatedMembersFilename), FileMode.Create, FileAccess.Write, FileShare.Read))
+			using (writer = new StreamWriter(stream))
+			{
+				// write generate info
+				writer.WriteLine("// ###############################");
+				writer.WriteLine($"// Generated with IL2X v{Utils.GetAssemblyInfoVersion()}");
+				writer.WriteLine("// ###############################");
+				writer.WriteLine("#pragma once");
+				writer.WriteLine();
+
+				if (activeStringLiterals.Count != 0)
+				{
+					var coreLib = module.GetCoreLib();
+					var stringType = coreLib.assemblyDefinition.MainModule.GetType("System.String");
+					if (stringType == null) throw new Exception("Failed to get 'System.String' from CoreLib");
+					string stringTypeName = GetTypeReferenceFullName(stringType);
+
+					writer.WriteLine("// ===============================");
+					writer.WriteLine("// String literals");
+					writer.WriteLine("// ===============================");
+					foreach (var literal in activeStringLiterals)
+					{
+						writer.WriteLine($"{stringTypeName} {literal.Key};");
+					}
+
+					writer.WriteLine();
+				}
+
+				// write init module
+				writer.WriteLine("// ===============================");
+				writer.WriteLine("// Init method");
+				writer.WriteLine("// ===============================");
+				writer.WriteLine($"void {generatedMembersInitMethod}()");
+				writer.WriteLine('{');
+				StreamWriterEx.AddTab();
+				writer.WriteLinePrefix("// String literals");
+				foreach (var literal in activeStringLiterals)
+				{
+					// TODO
+				}
+				StreamWriterEx.RemoveTab();
+				writer.WriteLine('}');
 			}
 
 			writer = null;
@@ -368,10 +456,29 @@ namespace IL2X.Core
 					case Code.Ldloc_1: stack.Push(new Stack_LocalVariable(variables[1])); break;
 					case Code.Ldloc_2: stack.Push(new Stack_LocalVariable(variables[2])); break;
 					case Code.Ldloc_3: stack.Push(new Stack_LocalVariable(variables[3])); break;
+					case Code.Ldloca:
+					{
+						var operand = (VariableDefinition)instruction.Operand;
+						stack.Push(new Stack_LocalVariable(variables[operand.Index]));
+						break;
+					}
 					case Code.Ldloca_S:
 					{
 						var operand = (VariableDefinition)instruction.Operand;
 						stack.Push(new Stack_LocalVariable(variables[operand.Index]));
+						break;
+					}
+
+					case Code.Ldstr:
+					{
+						string value = (string)instruction.Operand;
+						string valueFormated = $"StringLiteral_{allStringLitterals.Count}";
+						stack.Push(new Stack_String(valueFormated));
+						if (!allStringLitterals.ContainsKey(valueFormated))
+						{
+							allStringLitterals.Add(valueFormated, value);
+							activeStringLiterals.Add(valueFormated, value);
+						}
 						break;
 					}
 
@@ -432,6 +539,18 @@ namespace IL2X.Core
 					case Code.Stloc_1: Stloc_X(1); break;
 					case Code.Stloc_2: Stloc_X(2); break;
 					case Code.Stloc_3: Stloc_X(3); break;
+					case Code.Stloc:
+					{
+						var variable = (VariableDefinition)instruction.Operand;
+						Stloc_X(variable.Index);
+						break;
+					}
+					case Code.Stloc_S:
+					{
+						var variable = (VariableDefinition)instruction.Operand;
+						Stloc_X(variable.Index);
+						break;
+					}
 
 					case Code.Stfld:
 					{

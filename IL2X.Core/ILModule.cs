@@ -85,5 +85,15 @@ namespace IL2X.Core
 				symbolReader = null;
 			}
 		}
+
+		public ILAssembly GetCoreLib()
+		{
+			foreach (var reference in references)
+			{
+				if (reference.isCoreLib) return reference;
+			}
+
+			return null;
+		}
 	}
 }

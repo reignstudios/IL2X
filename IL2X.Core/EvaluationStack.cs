@@ -107,6 +107,21 @@ namespace IL2X.Core.EvaluationStack
 		}
 	}
 
+	sealed class Stack_String : IStack
+	{
+		public readonly string value;
+
+		public Stack_String(string value)
+		{
+			this.value = value;
+		}
+
+		public string GetValueName()
+		{
+			return value;
+		}
+	}
+
 	sealed class Stack_Call : IStack
 	{
 		public readonly string methodInvoke;
