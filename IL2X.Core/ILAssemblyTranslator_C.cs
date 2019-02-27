@@ -235,8 +235,8 @@ namespace IL2X.Core
 						if (value.Contains('\n')) value = value.Replace("\n", "");
 						if (value.Contains('\r')) value = value.Replace("\r", "");
 						if (value.Length > 64) value = value.Substring(0, 64) + "...";
-						writer.WriteLine($"{stringTypeName}* {literal.Key};// {value}");
-						writer.Write($"char {literal.Key}_BUFFER[sizeof(int) + sizeof(wchar_t) + ({literal.Value.Length} * sizeof(wchar_t))] = {{");
+						writer.WriteLine($"// {value}");
+						writer.Write($"char {literal.Key}[sizeof(int) + sizeof(wchar_t) + ({literal.Value.Length} * sizeof(wchar_t))] = {{");
 						foreach(byte b in BitConverter.GetBytes(literal.Value.Length))
 						{
 							writer.Write(b);
@@ -264,13 +264,7 @@ namespace IL2X.Core
 				writer.WriteLine($"void {generatedMembersInitMethod}()");
 				writer.WriteLine('{');
 				StreamWriterEx.AddTab();
-				writer.WriteLinePrefix("// String literals");
-				var stringAllocMethod = stringType.Methods.First(x => x.Name == "FastAllocateString");
-				string stringAllocMethodName = GetMethodDefinitionFullName(stringAllocMethod);
-				foreach (var literal in activeStringLiterals)
-				{
-					writer.WriteLinePrefix($"{literal.Key} = {literal.Key}_BUFFER;");
-				}
+				// TODO
 				StreamWriterEx.RemoveTab();
 				writer.WriteLine('}');
 			}
