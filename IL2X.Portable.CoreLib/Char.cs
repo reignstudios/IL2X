@@ -1,6 +1,6 @@
 namespace System
 {
-	public struct Char
+	public readonly struct Char
 	{
 	}
 }

@@ -1,6 +1,6 @@
 namespace System
 {
-	public struct UInt16
+	public readonly struct UInt16
 	{
 	}
 }

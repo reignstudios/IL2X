@@ -38,7 +38,7 @@ namespace IL2X.Core
 		public readonly Options options;
 
 		private StreamWriter writer;
-		private ILAssembly activeAssembly;// current assembly being translated
+		private ILAssembly activeAssembly, activeCoreAssembly;// current assembly being translated
 		private ILModule activeModule;// current module being translated
 		private MethodDebugInformation activeMethodDebugInfo;// current method debug symbols
 		private Dictionary<string, string> activeStringLiterals;// current module string literals
@@ -83,6 +83,7 @@ namespace IL2X.Core
 		private void TranslateModule(ILModule module, string outputPath)
 		{
 			activeModule = module;
+			activeCoreAssembly = module.GetCoreLib();
 
 			if (activeStringLiterals == null) activeStringLiterals = new Dictionary<string, string>();
 			else activeStringLiterals.Clear();
@@ -219,12 +220,11 @@ namespace IL2X.Core
 				writer.WriteLine("#pragma once");
 				writer.WriteLine();
 
+				var stringType = activeCoreAssembly.assemblyDefinition.MainModule.GetType("System.String");
 				if (activeStringLiterals.Count != 0)
 				{
-					var coreLib = module.GetCoreLib();
-					var stringType = coreLib.assemblyDefinition.MainModule.GetType("System.String");
 					if (stringType == null) throw new Exception("Failed to get 'System.String' from CoreLib");
-					string stringTypeName = GetTypeReferenceFullName(stringType);
+					string stringTypeName = GetTypeDefinitionFullName(stringType);
 
 					writer.WriteLine("// ===============================");
 					writer.WriteLine("// String literals");
@@ -234,8 +234,24 @@ namespace IL2X.Core
 						string value = literal.Value;
 						if (value.Contains('\n')) value = value.Replace("\n", "");
 						if (value.Contains('\r')) value = value.Replace("\r", "");
-						if (value.Length > 64) value = value.Substring(0, 64);
-						writer.WriteLine($"{stringTypeName} {literal.Key};// {value}");
+						if (value.Length > 64) value = value.Substring(0, 64) + "...";
+						writer.WriteLine($"{stringTypeName}* {literal.Key};// {value}");
+						writer.Write($"char {literal.Key}_BUFFER[sizeof(int) + sizeof(wchar_t) + ({literal.Value.Length} * sizeof(wchar_t))] = {{");
+						foreach(byte b in BitConverter.GetBytes(literal.Value.Length))
+						{
+							writer.Write(b);
+							writer.Write(',');
+						}
+						foreach(char c in literal.Value)
+						{
+							foreach (byte b in BitConverter.GetBytes(c))
+							{
+								writer.Write(b);
+								writer.Write(',');
+							}
+						}
+						writer.Write("0,0");// null-terminated char
+						writer.WriteLine("};");
 					}
 
 					writer.WriteLine();
@@ -249,9 +265,11 @@ namespace IL2X.Core
 				writer.WriteLine('{');
 				StreamWriterEx.AddTab();
 				writer.WriteLinePrefix("// String literals");
+				var stringAllocMethod = stringType.Methods.First(x => x.Name == "FastAllocateString");
+				string stringAllocMethodName = GetMethodDefinitionFullName(stringAllocMethod);
 				foreach (var literal in activeStringLiterals)
 				{
-					// TODO
+					writer.WriteLinePrefix($"{literal.Key} = {literal.Key}_BUFFER;");
 				}
 				StreamWriterEx.RemoveTab();
 				writer.WriteLine('}');
@@ -266,6 +284,7 @@ namespace IL2X.Core
 		{
 			if (type.IsEnum) return;// enums are converted to numarics
 			if (type.HasGenericParameters) return;// generics are generated per use
+			if (type.IsPrimitive) return;// primitives
 
 			if (!writeBody)
 			{
@@ -315,6 +334,7 @@ namespace IL2X.Core
 
 			if (method.IsConstructor)// force constructors to return a ref of their self
 			{
+				if (method.DeclaringType.IsPrimitive) throw new Exception("Constructors aren't supported on primitives");
 				if (method.DeclaringType.IsValueType) writer.Write($"{GetTypeReferenceFullName(method.DeclaringType)}* {GetMethodDefinitionFullName(method)}(");
 				else writer.Write($"{GetTypeReferenceFullName(method.DeclaringType)} {GetMethodDefinitionFullName(method)}(");
 			}
@@ -351,19 +371,32 @@ namespace IL2X.Core
 			{
 				writer.WriteLine();
 				writer.WriteLine('{');
+				StreamWriterEx.AddTab();
 				if (method.Body != null)
 				{
-					StreamWriterEx.AddTab();
 					activeMethodDebugInfo = null;
 					if (activeModule.symbolReader != null) activeMethodDebugInfo = activeModule.symbolReader.Read(method);
 					WriteMethodBody(method.Body);
 					activeMethodDebugInfo = null;
-					StreamWriterEx.RemoveTab();
 				}
 				else if (method.IsRuntime)
 				{
 					throw new NotImplementedException("TODO: handle delegates etc");
 				}
+				else if (method.ImplAttributes == MethodImplAttributes.InternalCall)
+				{
+					if (method.DeclaringType.FullName == "System.String")
+					{
+						if (method.Name == "FastAllocateString")
+						{
+							string lengthName = GetParameterDefinitionName(method.Parameters[0]);
+							writer.WriteLinePrefix($"{GetTypeDefinitionFullName(method.DeclaringType)}* result = IL2X_Malloc(sizeof(int) + sizeof(wchar_t) + (sizeof(wchar_t) * {lengthName}));");
+							writer.WriteLinePrefix($"result->{GetFieldDefinitionName(method.DeclaringType.Fields[0])} = {lengthName};");
+							writer.WriteLinePrefix("return result;");
+						}
+					}
+				}
+				StreamWriterEx.RemoveTab();
 				writer.WriteLine('}');
 				writer.WriteLine();
 			}
@@ -459,6 +492,23 @@ namespace IL2X.Core
 					case Code.Ldarg_1: Ldarg_X(1); break;
 					case Code.Ldarg_2: Ldarg_X(2); break;
 					case Code.Ldarg_3: Ldarg_X(3); break;
+					case Code.Ldarg:
+					{
+						Ldarg_X((int)instruction.Operand);
+						break;
+					}
+					case Code.Ldarg_S:
+					{
+						Ldarg_X((short)instruction.Operand);
+						break;
+					}
+
+					case Code.Ldind_I4:
+					{
+						var item = stack.Pop();
+						stack.Push(new Stack_Cast("(int)*" + item.GetValueName()));
+						break;
+					}
 
 					case Code.Ldloc_0: stack.Push(new Stack_LocalVariable(variables[0])); break;
 					case Code.Ldloc_1: stack.Push(new Stack_LocalVariable(variables[1])); break;
@@ -693,6 +743,25 @@ namespace IL2X.Core
 			if (type.MetadataType == MetadataType.Void)
 			{
 				result = "void";
+			}
+			else if (type.IsPrimitive)
+			{
+				switch (type.MetadataType)
+				{
+					case MetadataType.Boolean: return "char";
+					case MetadataType.Char: return "wchar_t";
+					case MetadataType.SByte: return "signed char";
+					case MetadataType.Byte: return "unsigned char";
+					case MetadataType.Int16: return "short";
+					case MetadataType.UInt16: return "unsigned short";
+					case MetadataType.Int32: return "int";
+					case MetadataType.UInt32: return "unsigned int";
+					case MetadataType.Int64: return "long";
+					case MetadataType.UInt64: return "unsigned long";
+					case MetadataType.Single: return "float";
+					case MetadataType.Double: return "double";
+					default: throw new NotImplementedException("Unsupported primitive: " + type.MetadataType);
+				}
 			}
 			else
 			{

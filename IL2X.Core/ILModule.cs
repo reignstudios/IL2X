@@ -88,6 +88,7 @@ namespace IL2X.Core
 
 		public ILAssembly GetCoreLib()
 		{
+			if (assembly.isCoreLib) return assembly;
 			foreach (var reference in references)
 			{
 				if (reference.isCoreLib) return reference;

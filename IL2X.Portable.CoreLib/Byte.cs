@@ -1,6 +1,6 @@
 namespace System
 {
-	public struct Byte
+	public readonly struct Byte
 	{
 	}
 }

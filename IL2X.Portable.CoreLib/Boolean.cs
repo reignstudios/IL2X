@@ -1,6 +1,6 @@
 namespace System
 {
-	public struct Boolean
+	public readonly struct Boolean
 	{
 	}
 }
