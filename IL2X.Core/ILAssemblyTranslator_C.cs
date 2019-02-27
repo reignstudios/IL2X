@@ -236,7 +236,8 @@ namespace IL2X.Core
 						if (value.Contains('\r')) value = value.Replace("\r", "");
 						if (value.Length > 64) value = value.Substring(0, 64) + "...";
 						writer.WriteLine($"// {value}");
-						writer.Write($"char {literal.Key}[sizeof(int) + sizeof(wchar_t) + ({literal.Value.Length} * sizeof(wchar_t))] = {{");
+						int stringMemSize = sizeof(int) + sizeof(char) + (literal.Value.Length * sizeof(char));// TODO: handle non-standard int & char sizes
+						writer.Write($"char {literal.Key}[{stringMemSize}] = {{");
 						foreach(byte b in BitConverter.GetBytes(literal.Value.Length))
 						{
 							writer.Write(b);
