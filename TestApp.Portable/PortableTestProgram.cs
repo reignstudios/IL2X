@@ -27,7 +27,8 @@ namespace TestApp.Portable
 			var m = new MyStruct();
 			int i2 = i;
 
-			string hi = "Hello World!";
+			string hi = "Hello .NET World!";
+			Console.Write(hi);
 		}
 	}
 }

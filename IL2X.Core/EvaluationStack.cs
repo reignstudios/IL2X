@@ -20,14 +20,17 @@ namespace IL2X.Core.EvaluationStack
 	sealed class Stack_LocalVariable : IStack
 	{
 		public readonly LocalVariable variable;
+		public readonly bool isAddress;
 
-		public Stack_LocalVariable(LocalVariable variable)
+		public Stack_LocalVariable(LocalVariable variable, bool isAddress)
 		{
 			this.variable = variable;
+			this.isAddress = isAddress;
 		}
 
 		public string GetValueName()
 		{
+			if (isAddress) return '&' + variable.name;
 			return variable.name;
 		}
 	}
@@ -50,14 +53,17 @@ namespace IL2X.Core.EvaluationStack
 	sealed class Stack_FieldVariable : IStack
 	{
 		public readonly string name;
+		public readonly bool isAddress;
 
-		public Stack_FieldVariable(string name)
+		public Stack_FieldVariable(string name, bool isAddress)
 		{
 			this.name = name;
+			this.isAddress = isAddress;
 		}
 
 		public string GetValueName()
 		{
+			if (isAddress) return '&' + name;
 			return name;
 		}
 	}

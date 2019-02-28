@@ -8,7 +8,7 @@ namespace System
 		private int _stringLength;
 
 		[NonSerialized]
-		private char _firstChar;
+		internal char _firstChar;// TODO: change back to private when Console is implemented correctly
 
 		//[Intrinsic]
         //public static readonly string Empty;
@@ -32,13 +32,45 @@ namespace System
         //        for(int i = 0; i < str.Length; i++) str[i]
         // The actual code generated for this will be one instruction and will be inlined.
         //
-        /*public extern int Length
+        public extern int Length
         {
-            [MethodImplAttribute(MethodImplOptions.InternalCall)]
+            [MethodImpl(MethodImplOptions.InternalCall)]
             get;
-        }*/
+        }
 
 		[MethodImpl(MethodImplOptions.InternalCall)]
         internal static extern string FastAllocateString(int length);
+		
+        /*public static bool IsNullOrEmpty(string value)
+        {
+            return (value == null || 0u >= (uint)value.Length) ? true : false;
+        }*/
+
+		public static string Concat(string str0, string str1)
+        {
+            /*if (IsNullOrEmpty(str0))
+            {
+                if (IsNullOrEmpty(str1))
+                {
+                    return string.Empty;
+                }
+                return str1;
+            }
+
+            if (IsNullOrEmpty(str1))
+            {
+                return str0;
+            }
+
+            int str0Length = str0.Length;
+
+            string result = FastAllocateString(str0Length + str1.Length);
+
+            FillStringChecked(result, 0, str0);
+            FillStringChecked(result, str0Length, str1);
+
+            return result;*/
+			return null;
+        }
 	}
 }

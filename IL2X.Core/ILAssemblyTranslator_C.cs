@@ -109,9 +109,10 @@ namespace IL2X.Core
 				writer.WriteLine("// ###############################");
 				if (!isExe) writer.WriteLine("#pragma once");
 
-				// write include of gc to be used
+				// write includes of core lib
 				if (module.assembly.isCoreLib)
 				{
+					// write include of gc to be used
 					string gcFileName;
 					switch (options.gc)
 					{
@@ -123,6 +124,9 @@ namespace IL2X.Core
 					
 					gcFileName = Path.Combine(Path.GetFullPath(options.gcFolderPath), gcFileName);
 					writer.WriteLine($"#include \"{gcFileName}.h\"");
+
+					// include std libraries
+					writer.WriteLine("#include <stdio.h>");
 				}
 
 				// write includes of dependencies
@@ -326,6 +330,7 @@ namespace IL2X.Core
 		private void WriteMethodDefinition(MethodDefinition method, bool writeBody)
 		{
 			if (method.HasGenericParameters || method.DeclaringType.HasGenericParameters) return;// generics are generated per use
+			if (method.HasCustomAttributes && method.CustomAttributes.Any(x => x.AttributeType.FullName == "IL2X.NativeExternCAttribute")) return;// skip native C methods
 
 			if (method.IsConstructor)// force constructors to return a ref of their self
 			{
@@ -337,6 +342,7 @@ namespace IL2X.Core
 			{
 				writer.Write($"{GetTypeReferenceFullName(method.ReturnType)} {GetMethodDefinitionFullName(method)}(");
 			}
+
 			if (!method.IsStatic)
 			{
 				writer.Write(GetTypeReferenceFullName(method.DeclaringType));
@@ -374,6 +380,10 @@ namespace IL2X.Core
 					WriteMethodBody(method.Body);
 					activeMethodDebugInfo = null;
 				}
+				else if (method.IsAbstract)
+				{
+					// TODO: interface methods etc
+				}
 				else if (method.IsRuntime)
 				{
 					throw new NotImplementedException("TODO: handle delegates etc");
@@ -389,7 +399,38 @@ namespace IL2X.Core
 							writer.WriteLinePrefix($"result->{GetFieldDefinitionName(method.DeclaringType.Fields[0])} = {lengthName};");
 							writer.WriteLinePrefix("return result;");
 						}
+						else if (method.Name == "get_Length")
+						{
+							writer.WriteLinePrefix($"return self->{GetFieldDefinitionName(method.DeclaringType.Fields[0])};");
+						}
+						else
+						{
+							throw new NotImplementedException("Unsupported internal runtime String method: " + method.Name);
+						}
 					}
+					else if (method.DeclaringType.FullName == "System.Array")
+					{
+						if (method.Name == "get_Length")
+						{
+							writer.WriteLinePrefix($"return *(int*)self;");
+						}
+						else if (method.Name == "get_LongLength")
+						{
+							writer.WriteLinePrefix($"return *(long*)self;");
+						}
+						else
+						{
+							throw new NotImplementedException("Unsupported internal runtime Array method: " + method.Name);
+						}
+					}
+					else
+					{
+						throw new NotImplementedException("Unsupported internal runtime method: " + method.Name);
+					}
+				}
+				else
+				{
+					throw new NotImplementedException("Unsupported empty method type: " + method.Name);
 				}
 				StreamWriterEx.RemoveTab();
 				writer.WriteLine('}');
@@ -505,20 +546,27 @@ namespace IL2X.Core
 						break;
 					}
 
-					case Code.Ldloc_0: stack.Push(new Stack_LocalVariable(variables[0])); break;
-					case Code.Ldloc_1: stack.Push(new Stack_LocalVariable(variables[1])); break;
-					case Code.Ldloc_2: stack.Push(new Stack_LocalVariable(variables[2])); break;
-					case Code.Ldloc_3: stack.Push(new Stack_LocalVariable(variables[3])); break;
+					case Code.Ldloc_0: stack.Push(new Stack_LocalVariable(variables[0], false)); break;
+					case Code.Ldloc_1: stack.Push(new Stack_LocalVariable(variables[1], false)); break;
+					case Code.Ldloc_2: stack.Push(new Stack_LocalVariable(variables[2], false)); break;
+					case Code.Ldloc_3: stack.Push(new Stack_LocalVariable(variables[3], false)); break;
+					case Code.Ldloc_S:
+					{
+						var operand = (VariableDefinition)instruction.Operand;
+						stack.Push(new Stack_LocalVariable(variables[operand.Index], false));
+						break;
+					}
+
 					case Code.Ldloca:
 					{
 						var operand = (VariableDefinition)instruction.Operand;
-						stack.Push(new Stack_LocalVariable(variables[operand.Index]));
+						stack.Push(new Stack_LocalVariable(variables[operand.Index], true));
 						break;
 					}
 					case Code.Ldloca_S:
 					{
 						var operand = (VariableDefinition)instruction.Operand;
-						stack.Push(new Stack_LocalVariable(variables[operand.Index]));
+						stack.Push(new Stack_LocalVariable(variables[operand.Index], true));
 						break;
 					}
 
@@ -537,16 +585,66 @@ namespace IL2X.Core
 
 					case Code.Ldfld:
 					{
-						stack.Pop();
+						var self = stack.Pop();
 						var field = (FieldDefinition)instruction.Operand;
-						stack.Push(new Stack_FieldVariable("self->" + GetFieldDefinitionName(field)));
+						stack.Push(new Stack_FieldVariable($"{self.GetValueName()}->" + GetFieldDefinitionName(field), false));
+						break;
+					}
+
+					case Code.Ldflda:
+					{
+						var self = stack.Pop();
+						var field = (FieldDefinition)instruction.Operand;
+						stack.Push(new Stack_FieldVariable($"{self.GetValueName()}->" + GetFieldDefinitionName(field), true));
+						break;
+					}
+
+					case Code.Conv_U:
+					{
+						var item = stack.Pop();
+						stack.Push(new Stack_Cast($"(void*){item.GetValueName()}"));
+						break;
+					}
+					case Code.Conv_U1:
+					{
+						var item = stack.Pop();
+						stack.Push(new Stack_Cast($"(char){item.GetValueName()}"));
+						break;
+					}
+					case Code.Conv_U2:
+					{
+						var item = stack.Pop();
+						stack.Push(new Stack_Cast($"(short){item.GetValueName()}"));
+						break;
+					}
+					case Code.Conv_U4:
+					{
+						var item = stack.Pop();
+						stack.Push(new Stack_Cast($"(int){item.GetValueName()}"));
+						break;
+					}
+					case Code.Conv_U8:
+					{
+						var item = stack.Pop();
+						stack.Push(new Stack_Cast($"(long){item.GetValueName()}"));
 						break;
 					}
 
 					case Code.Call:
 					{
 						var method = (MethodReference)instruction.Operand;
-						var methodInvoke = new StringBuilder(GetMethodReferenceFullName(method) + '(');
+
+						string methodName = null;
+						var methodDef = GetMemberDefinition(method) as MethodDefinition;
+						var attr = methodDef.CustomAttributes.FirstOrDefault(x => x.AttributeType.FullName == "IL2X.NativeExternCAttribute");
+						if (attr != null)
+						{
+							methodName = attr.ConstructorArguments[0].Value as string;
+							if (methodName == null) methodName = method.Name;
+						}
+						if (methodName == null) methodName = GetMethodReferenceFullName(method);
+
+						var methodInvoke = new StringBuilder(methodName + '(');
 						var parameters = new StringBuilder();
 						var lastParameter = method.Parameters.LastOrDefault();
 						foreach (var p in method.Parameters)
@@ -557,8 +655,8 @@ namespace IL2X.Core
 						}
 						if (method.HasThis)
 						{
-							stack.Pop();// pop "self" ptr
-							methodInvoke.Append("self");
+							var self = stack.Pop();
+							methodInvoke.Append(self.GetValueName());
 							if (method.HasParameters) methodInvoke.Append(", ");
 						}
 						if (method.HasParameters) methodInvoke.Append(parameters);
@@ -608,19 +706,19 @@ namespace IL2X.Core
 					case Code.Stfld:
 					{
 						var itemRight = stack.Pop();
-						stack.Pop();// pop "self" ptr
+						var self = stack.Pop();
 						var fieldLeft = (FieldDefinition)instruction.Operand;
-						writer.WriteLinePrefix($"self->{GetFieldDefinitionName(fieldLeft)} = {itemRight.GetValueName()};");
+						writer.WriteLinePrefix($"{self.GetValueName()}->{GetFieldDefinitionName(fieldLeft)} = {itemRight.GetValueName()};");
 						break;
 					}
 
 					case Code.Initobj:
 					{
 						var item = (Stack_LocalVariable)stack.Pop();
+						if (!item.isAddress) throw new Exception("Init obj must be address");
 						var variable = item.variable;
 						var type = variable.definition.VariableType;
-						if (type.IsValueType) writer.WriteLinePrefix($"memset(&{variable.name}, 0, sizeof({GetTypeReferenceFullName(type, true, false)}));");
-						else writer.WriteLinePrefix($"memset({variable.name}, 0, sizeof(0));");
+						writer.WriteLinePrefix($"memset({item.GetValueName()}, 0, sizeof({GetTypeReferenceFullName(type, true, false)}));");
 						break;
 					}
 
@@ -731,32 +829,67 @@ namespace IL2X.Core
 			}
 			return result;
 		}
+
+		private string GetPrimitiveName(TypeReference type)
+		{
+			switch (type.MetadataType)
+			{
+				case MetadataType.Boolean: return "char";
+				case MetadataType.Char: return "wchar_t";
+				case MetadataType.SByte: return "signed char";
+				case MetadataType.Byte: return "unsigned char";
+				case MetadataType.Int16: return "short";
+				case MetadataType.UInt16: return "unsigned short";
+				case MetadataType.Int32: return "int";
+				case MetadataType.UInt32: return "unsigned int";
+				case MetadataType.Int64: return "long";
+				case MetadataType.UInt64: return "unsigned long";
+				case MetadataType.Single: return "float";
+				case MetadataType.Double: return "double";
+				default: throw new NotImplementedException("Unsupported primitive: " + type.MetadataType);
+			}
+		}
 		
 		protected override string GetTypeReferenceFullName(TypeReference type, bool allowPrefix = true, bool allowSymbols = true)
 		{
 			string result;
+
+			// resolve referencing
+			string refSuffix = string.Empty;
+			if (allowSymbols)
+			{
+				while (type.IsByReference || type.IsPointer || type.IsPinned)
+				{
+					if (type.IsPointer)
+					{
+						refSuffix += '*';
+						var ptrType = (PointerType)type;
+						type = ptrType.ElementType;
+					}
+					else if (type.IsByReference)
+					{
+						refSuffix += '*';
+						var refType = (ByReferenceType)type;
+						type = refType.ElementType;
+					}
+					else if (type.IsPinned)
+					{
+						var pinType = (PinnedType)type;
+						type = pinType.ElementType;
+					}
+				}
+
+				if (!type.IsValueType) refSuffix += '*';
+			}
+
+			// resolve type name
 			if (type.MetadataType == MetadataType.Void)
 			{
 				result = "void";
 			}
 			else if (type.IsPrimitive)
 			{
-				switch (type.MetadataType)
-				{
-					case MetadataType.Boolean: return "char";
-					case MetadataType.Char: return "wchar_t";
-					case MetadataType.SByte: return "signed char";
-					case MetadataType.Byte: return "unsigned char";
-					case MetadataType.Int16: return "short";
-					case MetadataType.UInt16: return "unsigned short";
-					case MetadataType.Int32: return "int";
-					case MetadataType.UInt32: return "unsigned int";
-					case MetadataType.Int64: return "long";
-					case MetadataType.UInt64: return "unsigned long";
-					case MetadataType.Single: return "float";
-					case MetadataType.Double: return "double";
-					default: throw new NotImplementedException("Unsupported primitive: " + type.MetadataType);
-				}
+				result = GetPrimitiveName(type);
 			}
 			else
 			{
@@ -772,16 +905,16 @@ namespace IL2X.Core
 					if (def.IsEnum)
 					{
 						if (!def.HasFields) throw new Exception("Enum has no fields: " + type.Name);
-						return GetTypeReferenceFullName(def.Fields[0].FieldType);
+						result = GetTypeReferenceFullName(def.Fields[0].FieldType);
 					}
-
-					if (type.HasGenericParameters) result += '_' + GetGenericParameters(type);
-					if (!type.IsValueType || type.IsPointer) result += '*';
-					if (type.IsByReference) result += '*';
+					else
+					{
+						if (type.HasGenericParameters) result += '_' + GetGenericParameters(type);
+					}
 				}
 			}
 			
-			return result;
+			return result + refSuffix;
 		}
 
 		protected override string GetMethodDefinitionName(MethodDefinition method)
