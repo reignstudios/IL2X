@@ -41,10 +41,10 @@ namespace System
 		[MethodImpl(MethodImplOptions.InternalCall)]
         internal static extern string FastAllocateString(int length);
 		
-        /*public static bool IsNullOrEmpty(string value)
+        public static bool IsNullOrEmpty(string value)
         {
             return (value == null || 0u >= (uint)value.Length) ? true : false;
-        }*/
+        }
 
 		public static string Concat(string str0, string str1)
         {

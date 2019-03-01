@@ -392,7 +392,7 @@ namespace IL2X.Core
 				{
 					throw new NotImplementedException("TODO: handle delegates etc");
 				}
-				else if (method.ImplAttributes == MethodImplAttributes.InternalCall)
+				else if (method.ImplAttributes.HasFlag(MethodImplAttributes.InternalCall))
 				{
 					if (method.DeclaringType.FullName == "System.String")
 					{
@@ -515,11 +515,11 @@ namespace IL2X.Core
 			foreach (var instruction in body.Instructions)
 			{
 				// check if this instruction can be jumped to
-				if (body.Instructions.Any(x => x.OpCode.Code == Code.Br_S && ((Instruction)x.Operand).Offset == instruction.Offset))
+				if (body.Instructions.Any(x => (x.OpCode.Code == Code.Br_S || x.OpCode.Code == Code.Brfalse_S || x.OpCode.Code == Code.Brtrue_S) && ((Instruction)x.Operand).Offset == instruction.Offset))
 				{
 					writer.WriteLinePrefix($"IL_{instruction.Offset.ToString("x4")}:");// write goto jump label short form
 				}
-				else if (body.Instructions.Any(x => x.OpCode.Code == Code.Br && ((Instruction)x.Operand).Offset == instruction.Offset))
+				else if (body.Instructions.Any(x => (x.OpCode.Code == Code.Br || x.OpCode.Code == Code.Brfalse || x.OpCode.Code == Code.Brtrue) && ((Instruction)x.Operand).Offset == instruction.Offset))
 				{
 					writer.WriteLinePrefix($"IL_{instruction.Offset.ToString("x8")}:");// write goto jump label long form
 				}
@@ -664,6 +664,7 @@ namespace IL2X.Core
 					}
 
 					case Code.Call:
+					case Code.Callvirt:
 					{
 						var method = (MethodReference)instruction.Operand;
 
@@ -795,6 +796,31 @@ namespace IL2X.Core
 						break;
 					}
 
+					case Code.Brfalse:
+					{
+						var value = stack.Pop();
+						var operand = (Instruction)instruction.Operand;
+						writer.WriteLinePrefix($"if ({value.GetValueName()}) goto IL_{operand.Offset.ToString("x8")};");
+						break;
+					}
+
+					case Code.Brfalse_S:
+					{
+						var value = stack.Pop();
+						var operand = (Instruction)instruction.Operand;
+						writer.WriteLinePrefix($"if ({value.GetValueName()}) goto IL_{operand.Offset.ToString("x4")};");
+						break;
+					}
+
+					case Code.Bge_Un_S:
+					{
+						var value2 = stack.Pop();
+						var value1 = stack.Pop();
+						var operand = (Instruction)instruction.Operand;
+						writer.WriteLinePrefix($"if ({value1.GetValueName()} >= {value2.GetValueName()}) goto IL_{operand.Offset.ToString("x4")};");
+						break;
+					}
+
 					case Code.Ret:
 					{
 						if (body.Method.ReturnType.MetadataType == MetadataType.Void)
@@ -824,7 +850,7 @@ namespace IL2X.Core
 					default: throw new Exception("Unsuported opcode type: " + instruction.OpCode.Code);
 				}
 			}
-
+			
 			if (stack.Count != 0)
 			{
 				string failedInstructions = string.Empty;
