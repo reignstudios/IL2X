@@ -10,9 +10,13 @@ namespace IL2X.Core.Test
 			MonoCecilUtils.SetCustomCoreLibName("IL2X.Portable.CoreLib");
 			
 			const string testName = "TestApp.Portable";
-			//const string testName = "IL2X.Portable.CoreLib";
+			#if DEBUG
+			const string target = "Debug";
+			#else
+			const string target = "Release";
+			#endif
 
-			string binaryPathFolder = Path.Combine(Environment.CurrentDirectory, $@"..\..\..\..\{testName}\bin\Debug\netcoreapp2.2");
+			string binaryPathFolder = Path.Combine(Environment.CurrentDirectory, $@"..\..\..\..\{testName}\bin\{target}\netcoreapp2.2");
 			string binaryPath = Path.Combine(binaryPathFolder, $"{testName}.dll");
 			if (!File.Exists(binaryPath)) throw new Exception($"{testName} doesn't exist");
 
@@ -22,9 +26,9 @@ namespace IL2X.Core.Test
 				gcFolderPath = Path.Combine(Environment.CurrentDirectory, @"..\..\..\..\IL2X.Native")
 			};
 
-			string outputPath = $@"..\..\..\..\{testName}\bin\Debug\netcoreapp2.2\TestOutput";
+			string outputPath = $@"..\..\..\..\{testName}\bin\{target}\netcoreapp2.2\TestOutput";
 			if (!Directory.Exists(outputPath)) Directory.CreateDirectory(outputPath);
-			using (var translator = new ILAssemblyTranslator_C(binaryPath, true, options, Path.Combine(Environment.CurrentDirectory, $@"..\..\..\..\{testName}\bin\Debug\netcoreapp2.2")))
+			using (var translator = new ILAssemblyTranslator_C(binaryPath, true, options, Path.Combine(Environment.CurrentDirectory, $@"..\..\..\..\{testName}\bin\{target}\netcoreapp2.2")))
 			{
 				translator.Translate(outputPath);
 			}
