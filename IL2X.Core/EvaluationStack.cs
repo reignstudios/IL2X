@@ -50,6 +50,21 @@ namespace IL2X.Core.EvaluationStack
 		}
 	}
 
+	sealed class Stack_ArrayElement : IStack
+	{
+		public readonly string expression;
+
+		public Stack_ArrayElement(string expression)
+		{
+			this.expression = expression;
+		}
+
+		public string GetValueName()
+		{
+			return expression;
+		}
+	}
+
 	sealed class Stack_FieldVariable : IStack
 	{
 		public readonly string name;

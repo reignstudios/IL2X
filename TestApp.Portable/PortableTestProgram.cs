@@ -26,6 +26,9 @@ namespace TestApp.Portable
 			var b = new B();
 			var m = new MyStruct();
 			int i2 = i;
+			var array = new int[128];
+			array[0] = 33;
+			i2 = array[0];
 
 			string hi = "Hello .NET World!";
 			Console.Write(hi);

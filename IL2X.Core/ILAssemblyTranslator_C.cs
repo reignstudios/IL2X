@@ -287,7 +287,11 @@ namespace IL2X.Core
 
 			if (!writeBody)
 			{
-				if (IsEmptyType(type)) writer.WriteLine(string.Format("typedef void* {0};", GetTypeDefinitionFullName(type)));// empty types only function as pointers
+				if (IsEmptyType(type))
+				{
+					if (type.IsValueType) writer.WriteLine(string.Format("typedef void* {0};", GetTypeDefinitionFullName(type)));// empty value types only function as pointers
+					else writer.WriteLine(string.Format("typedef void {0};", GetTypeDefinitionFullName(type)));// empty reference types only function as 'void' as ptrs will be added
+				}
 				else writer.WriteLine(string.Format("typedef struct {0} {0};", GetTypeDefinitionFullName(type)));
 			}
 			else
@@ -412,11 +416,11 @@ namespace IL2X.Core
 					{
 						if (method.Name == "get_Length")
 						{
-							writer.WriteLinePrefix($"return *(int*)self;");
+							writer.WriteLinePrefix($"return (int)(*(size_t*)self);");
 						}
 						else if (method.Name == "get_LongLength")
 						{
-							writer.WriteLinePrefix($"return *(long*)self;");
+							writer.WriteLinePrefix($"return (long)(*(size_t*)self);");
 						}
 						else
 						{
@@ -491,6 +495,23 @@ namespace IL2X.Core
 				writer.WriteLinePrefix($"{variableLeft.name} = {item.GetValueName()};");
 			}
 
+			void Ldelem_X(Instruction instruction)
+			{
+				var index = stack.Pop();
+				var array = (Stack_LocalVariable)stack.Pop();
+				var arrayType = (ArrayType)array.variable.definition.VariableType;
+				stack.Push(new Stack_ArrayElement($"(({GetTypeReferenceFullName(arrayType.ElementType)}*)((char*){array.GetValueName()} + sizeof(size_t)))[{index.GetValueName()}]"));
+			}
+
+			void Stelem_X(Instruction instruction)
+			{
+				var value = stack.Pop();
+				var index = stack.Pop();
+				var array = (Stack_LocalVariable)stack.Pop();
+				var arrayType = (ArrayType)array.variable.definition.VariableType;
+				writer.WriteLinePrefix($"(({GetTypeReferenceFullName(arrayType.ElementType)}*)((char*){array.GetValueName()} + sizeof(size_t)))[{index.GetValueName()}] = {value.GetValueName()};");
+			}
+
 			foreach (var instruction in body.Instructions)
 			{
 				// check if this instruction can be jumped to
@@ -538,6 +559,18 @@ namespace IL2X.Core
 						Ldarg_X((short)instruction.Operand);
 						break;
 					}
+
+					//case Code.Ldelem_I: Ldelem_X(instruction); break;// as void* (native int)
+					case Code.Ldelem_I1: Ldelem_X(instruction); break;
+					case Code.Ldelem_I2: Ldelem_X(instruction); break;
+					case Code.Ldelem_I4: Ldelem_X(instruction); break;
+					case Code.Ldelem_I8: Ldelem_X(instruction); break;
+					case Code.Ldelem_U1: Ldelem_X(instruction); break;
+					case Code.Ldelem_U2: Ldelem_X(instruction); break;
+					case Code.Ldelem_U4: Ldelem_X(instruction); break;
+					case Code.Ldelem_R4: Ldelem_X(instruction); break;
+					case Code.Ldelem_R8: Ldelem_X(instruction); break;
+					//case Code.Ldelem_Ref: Ldelem_X(instruction); break;// as System.Object
 
 					case Code.Ldind_I4:
 					{
@@ -685,6 +718,15 @@ namespace IL2X.Core
 						break;
 					}
 
+					case Code.Newarr:
+					{
+						var type = (TypeReference)instruction.Operand;
+						var size = stack.Pop();
+						if (type.IsValueType) stack.Push(new Stack_Call($"IL2X_GC_NewArrayAtomic(sizeof({GetTypeReferenceFullName(type)}) * {size.GetValueName()})"));
+						else stack.Push(new Stack_Call($"IL2X_GC_NewArray(sizeof({GetTypeReferenceFullName(type)}) * {size.GetValueName()})"));
+						break;
+					}
+
 					// pop from stack and write operation
 					case Code.Stloc_0: Stloc_X(0); break;
 					case Code.Stloc_1: Stloc_X(1); break;
@@ -711,6 +753,14 @@ namespace IL2X.Core
 						writer.WriteLinePrefix($"{self.GetValueName()}->{GetFieldDefinitionName(fieldLeft)} = {itemRight.GetValueName()};");
 						break;
 					}
+
+					//case Code.Stelem_I: Stelem_X(instruction); break;// as void* (native int)
+					case Code.Stelem_I1: Stelem_X(instruction); break;
+					case Code.Stelem_I2: Stelem_X(instruction); break;
+					case Code.Stelem_I4: Stelem_X(instruction); break;
+					case Code.Stelem_I8: Stelem_X(instruction); break;
+					case Code.Stelem_R4: Stelem_X(instruction); break;
+					case Code.Stelem_R8: Stelem_X(instruction); break;
 
 					case Code.Initobj:
 					{
@@ -858,7 +908,7 @@ namespace IL2X.Core
 			string refSuffix = string.Empty;
 			if (allowSymbols)
 			{
-				while (type.IsByReference || type.IsPointer || type.IsPinned)
+				while (type.IsByReference || type.IsPointer || type.IsArray || type.IsPinned)
 				{
 					if (type.IsPointer)
 					{
@@ -871,6 +921,12 @@ namespace IL2X.Core
 						refSuffix += '*';
 						var refType = (ByReferenceType)type;
 						type = refType.ElementType;
+					}
+					else if (type.IsArray)
+					{
+						refSuffix += '*';
+						var arrayType = (ArrayType)type;
+						type = arrayType.ElementType;
 					}
 					else if (type.IsPinned)
 					{
