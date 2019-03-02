@@ -536,17 +536,19 @@ namespace IL2X.Core
 				// check if this instruction can be jumped to
 				if (writeBrJumps)
 				{
-					if (body.Instructions.Any(x =>
-						(x.OpCode.Code == Code.Br_S || x.OpCode.Code == Code.Brfalse_S || x.OpCode.Code == Code.Brtrue_S) &&// if short hand br
-						((((Instruction)x.Operand).Offset == instruction.Offset && !instructionJumpModify.ContainsKey(x)) ||// if instruction jumps to me and no br jmp overrides
-						(instructionJumpModify.ContainsKey(x) && instructionJumpModify[x].Offset == instruction.Offset))))// or instruction br jmp override jumps to me
+					bool CanBeJumpedTo(params Code[] codes)
+					{
+						return body.Instructions.Any(x =>
+						x.OpCode.HasAnyCodes(codes) &&// has branch code
+						((((Instruction)x.Operand).Offset == instruction.Offset && !instructionJumpModify.ContainsKey(x)) ||// if instruction jumps to me and no branch overrides
+						(instructionJumpModify.ContainsKey(x) && instructionJumpModify[x].Offset == instruction.Offset)));// or instruction has branch override and jumps to me
+					}
+
+					if (CanBeJumpedTo(Code.Br_S, Code.Brfalse_S, Code.Brtrue_S, Code.Bge_Un_S, Code.Beq_S))
 					{
 						writer.WriteLinePrefix($"IL_{instruction.Offset.ToString("x4")}:;");// write goto jump label short form
 					}
-					else if (body.Instructions.Any(x =>
-						(x.OpCode.Code == Code.Br || x.OpCode.Code == Code.Brfalse || x.OpCode.Code == Code.Brtrue) &&// if long hand br
-						((((Instruction)x.Operand).Offset == instruction.Offset && !instructionJumpModify.ContainsKey(x)) ||// if instruction jumps to me and no br jmp overrides
-						(instructionJumpModify.ContainsKey(x) && instructionJumpModify[x].Offset == instruction.Offset))))// or instruction br jmp override jumps to me
+					else if (CanBeJumpedTo(Code.Br, Code.Brfalse, Code.Brtrue, Code.Bge_Un, Code.Beq))
 					{
 						writer.WriteLinePrefix($"IL_{instruction.Offset.ToString("x8")}:;");// write goto jump label long form
 					}
@@ -868,6 +870,26 @@ namespace IL2X.Core
 						var operand = (Instruction)instruction.Operand;
 						operand = Br_ForwardResolveStack(instruction, operand);
 						writer.WriteLinePrefix($"if ({value.GetValueName()}) goto IL_{operand.Offset.ToString("x4")};");
+						break;
+					}
+
+					case Code.Beq:
+					{
+						var value2 = stack.Pop();
+						var value1 = stack.Pop();
+						var operand = (Instruction)instruction.Operand;
+						operand = Br_ForwardResolveStack(instruction, operand);
+						writer.WriteLinePrefix($"if ({value1.GetValueName()} == {value2.GetValueName()}) goto IL_{operand.Offset.ToString("x8")};");
+						break;
+					}
+
+					case Code.Beq_S:
+					{
+						var value2 = stack.Pop();
+						var value1 = stack.Pop();
+						var operand = (Instruction)instruction.Operand;
+						operand = Br_ForwardResolveStack(instruction, operand);
+						writer.WriteLinePrefix($"if ({value1.GetValueName()} == {value2.GetValueName()}) goto IL_{operand.Offset.ToString("x4")};");
 						break;
 					}
 

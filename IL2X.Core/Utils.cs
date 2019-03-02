@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Mono.Cecil.Cil;
+using System;
 using System.Collections.Generic;
 using System.Reflection;
 using System.Text;
@@ -54,6 +55,16 @@ namespace IL2X.Core
 			}
 
 			return newValue.ToString();
+		}
+
+		public static bool HasAnyCodes(this OpCode opCode, params Code[] codes)
+		{
+			foreach (var code in codes)
+			{
+				if (opCode.Code == code) return true;
+			}
+
+			return false;
 		}
 	}
 }
