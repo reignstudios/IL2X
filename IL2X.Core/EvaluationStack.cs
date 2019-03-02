@@ -175,10 +175,12 @@ namespace IL2X.Core.EvaluationStack
 
 	sealed class Stack_Call : IStack
 	{
+		public readonly MethodReference method;
 		public readonly string methodInvoke;
 
-		public Stack_Call(string methodInvoke)
+		public Stack_Call(MethodReference method, string methodInvoke)
 		{
+			this.method = method;
 			this.methodInvoke = methodInvoke;
 		}
 

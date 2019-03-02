@@ -732,7 +732,7 @@ namespace IL2X.Core
 						if (method.HasParameters) methodInvoke.Append(parameters);
 						methodInvoke.Append(')');
 						if (method.ReturnType.MetadataType == MetadataType.Void) writer.WriteLinePrefix(methodInvoke.Append(';').ToString());
-						else stack.Push(new Stack_Call(methodInvoke.ToString()));
+						else stack.Push(new Stack_Call(method, methodInvoke.ToString()));
 						break;
 					}
 
@@ -752,7 +752,7 @@ namespace IL2X.Core
 							if (p != lastParameter) methodInvoke.Append(", ");
 						}
 						methodInvoke.Append(')');
-						stack.Push(new Stack_Call(methodInvoke.ToString()));
+						stack.Push(new Stack_Call(method, methodInvoke.ToString()));
 						break;
 					}
 
@@ -760,8 +760,8 @@ namespace IL2X.Core
 					{
 						var type = (TypeReference)instruction.Operand;
 						var size = stack.Pop();
-						if (type.IsValueType) stack.Push(new Stack_Call($"IL2X_GC_NewArrayAtomic(sizeof({GetTypeReferenceFullName(type)}) * {size.GetValueName()})"));
-						else stack.Push(new Stack_Call($"IL2X_GC_NewArray(sizeof({GetTypeReferenceFullName(type)}) * {size.GetValueName()})"));
+						if (type.IsValueType) stack.Push(new Stack_Call(null, $"IL2X_GC_NewArrayAtomic(sizeof({GetTypeReferenceFullName(type)}) * {size.GetValueName()})"));
+						else stack.Push(new Stack_Call(null, $"IL2X_GC_NewArray(sizeof({GetTypeReferenceFullName(type)}) * {size.GetValueName()})"));
 						break;
 					}
 
@@ -881,7 +881,30 @@ namespace IL2X.Core
 						void WriteValue(IStack value)
 						{
 							if (value is Stack_Int32) writer.Write($"{value.GetValueName()}u");
-							else writer.Write($"(unsigned int){value.GetValueName()}");
+							else if (value is Stack_Call)
+							{
+								var call = (Stack_Call)value;
+								if (call.method != null && call.method.ReturnType.IsPrimitive)
+								{
+									switch (call.method.ReturnType.MetadataType)
+									{
+										case MetadataType.SByte: writer.Write($"(unsigned char){value.GetValueName()}"); break;
+										case MetadataType.Int16: writer.Write($"(unsigned short){value.GetValueName()}"); break;
+										case MetadataType.Int32: writer.Write($"(unsigned int){value.GetValueName()}"); break;
+										case MetadataType.Int64: writer.Write($"(unsigned long){value.GetValueName()}"); break;
+										case MetadataType.IntPtr: writer.Write($"(size_t){value.GetValueName()}"); break;
+										default: writer.Write(value.GetValueName()); break;
+									}
+								}
+								else
+								{
+									writer.Write(value.GetValueName());
+								}
+							}
+							else
+							{
+								throw new NotImplementedException("Bge_Un_S failed to unsigne value: " + value.GetValueName());
+							}
 						}
 						WriteValue(value1);
 						writer.Write(" >= ");
