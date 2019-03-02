@@ -474,6 +474,7 @@ namespace IL2X.Core
 
 			// write instructions
 			var stack = new Stack<IStack>();
+			var instructionJumpModify = new Dictionary<Instruction, Instruction>();
 
 			void Ldarg_X(int index)
 			{
@@ -512,16 +513,43 @@ namespace IL2X.Core
 				writer.WriteLinePrefix($"(({GetTypeReferenceFullName(arrayType.ElementType)}*)((char*){array.GetValueName()} + sizeof(size_t)))[{index.GetValueName()}] = {value.GetValueName()};");
 			}
 
+			Instruction Br_ForwardResolveStack(Instruction brInstruction, Instruction jmpInstruction)
+			{
+				var origJmpInstruction = jmpInstruction;
+				while (stack.Count != 0)
+				{
+					ProcessInstruction(jmpInstruction, false);
+					jmpInstruction = jmpInstruction.Next;
+				}
+
+				if (origJmpInstruction != jmpInstruction) instructionJumpModify.Add(brInstruction, jmpInstruction);
+				return jmpInstruction;
+			}
+
 			foreach (var instruction in body.Instructions)
 			{
+				ProcessInstruction(instruction, true);
+			}
+
+			void ProcessInstruction(Instruction instruction, bool writeBrJumps)
+			{
 				// check if this instruction can be jumped to
-				if (body.Instructions.Any(x => (x.OpCode.Code == Code.Br_S || x.OpCode.Code == Code.Brfalse_S || x.OpCode.Code == Code.Brtrue_S) && ((Instruction)x.Operand).Offset == instruction.Offset))
+				if (writeBrJumps)
 				{
-					writer.WriteLinePrefix($"IL_{instruction.Offset.ToString("x4")}:");// write goto jump label short form
-				}
-				else if (body.Instructions.Any(x => (x.OpCode.Code == Code.Br || x.OpCode.Code == Code.Brfalse || x.OpCode.Code == Code.Brtrue) && ((Instruction)x.Operand).Offset == instruction.Offset))
-				{
-					writer.WriteLinePrefix($"IL_{instruction.Offset.ToString("x8")}:");// write goto jump label long form
+					if (body.Instructions.Any(x =>
+						(x.OpCode.Code == Code.Br_S || x.OpCode.Code == Code.Brfalse_S || x.OpCode.Code == Code.Brtrue_S) &&// if short hand br
+						((((Instruction)x.Operand).Offset == instruction.Offset && !instructionJumpModify.ContainsKey(x)) ||// if instruction jumps to me and no br jmp overrides
+						(instructionJumpModify.ContainsKey(x) && instructionJumpModify[x].Offset == instruction.Offset))))// or instruction br jmp override jumps to me
+					{
+						writer.WriteLinePrefix($"IL_{instruction.Offset.ToString("x4")}:;");// write goto jump label short form
+					}
+					else if (body.Instructions.Any(x =>
+						(x.OpCode.Code == Code.Br || x.OpCode.Code == Code.Brfalse || x.OpCode.Code == Code.Brtrue) &&// if long hand br
+						((((Instruction)x.Operand).Offset == instruction.Offset && !instructionJumpModify.ContainsKey(x)) ||// if instruction jumps to me and no br jmp overrides
+						(instructionJumpModify.ContainsKey(x) && instructionJumpModify[x].Offset == instruction.Offset))))// or instruction br jmp override jumps to me
+					{
+						writer.WriteLinePrefix($"IL_{instruction.Offset.ToString("x8")}:;");// write goto jump label long form
+					}
 				}
 
 				// handle next instruction
@@ -663,6 +691,14 @@ namespace IL2X.Core
 						break;
 					}
 
+					case Code.Ceq:
+					{
+						var value2 = stack.Pop();
+						var value1 = stack.Pop();
+						stack.Push(new Stack_ConditionalExpression($"(({value1.GetValueName()} == {value2.GetValueName()}) ? 1 : 0)"));
+						break;
+					}
+
 					case Code.Call:
 					case Code.Callvirt:
 					{
@@ -695,7 +731,8 @@ namespace IL2X.Core
 						}
 						if (method.HasParameters) methodInvoke.Append(parameters);
 						methodInvoke.Append(')');
-						stack.Push(new Stack_Call(methodInvoke.ToString()));
+						if (method.ReturnType.MetadataType == MetadataType.Void) writer.WriteLinePrefix(methodInvoke.Append(';').ToString());
+						else stack.Push(new Stack_Call(methodInvoke.ToString()));
 						break;
 					}
 
@@ -783,15 +820,17 @@ namespace IL2X.Core
 
 					// flow operations
 					case Code.Br:
-					{	
+					{
 						var operand = (Instruction)instruction.Operand;
+						operand = Br_ForwardResolveStack(instruction, operand);
 						writer.WriteLinePrefix($"goto IL_{operand.Offset.ToString("x8")};");
 						break;
 					}
 
 					case Code.Br_S:
-					{	
+					{
 						var operand = (Instruction)instruction.Operand;
+						operand = Br_ForwardResolveStack(instruction, operand);
 						writer.WriteLinePrefix($"goto IL_{operand.Offset.ToString("x4")};");
 						break;
 					}
@@ -800,7 +839,8 @@ namespace IL2X.Core
 					{
 						var value = stack.Pop();
 						var operand = (Instruction)instruction.Operand;
-						writer.WriteLinePrefix($"if ({value.GetValueName()}) goto IL_{operand.Offset.ToString("x8")};");
+						operand = Br_ForwardResolveStack(instruction, operand);
+						writer.WriteLinePrefix($"if (!{value.GetValueName()}) goto IL_{operand.Offset.ToString("x8")};");
 						break;
 					}
 
@@ -808,6 +848,25 @@ namespace IL2X.Core
 					{
 						var value = stack.Pop();
 						var operand = (Instruction)instruction.Operand;
+						operand = Br_ForwardResolveStack(instruction, operand);
+						writer.WriteLinePrefix($"if (!{value.GetValueName()}) goto IL_{operand.Offset.ToString("x4")};");
+						break;
+					}
+
+					case Code.Brtrue:
+					{
+						var value = stack.Pop();
+						var operand = (Instruction)instruction.Operand;
+						operand = Br_ForwardResolveStack(instruction, operand);
+						writer.WriteLinePrefix($"if ({value.GetValueName()}) goto IL_{operand.Offset.ToString("x8")};");
+						break;
+					}
+
+					case Code.Brtrue_S:
+					{
+						var value = stack.Pop();
+						var operand = (Instruction)instruction.Operand;
+						operand = Br_ForwardResolveStack(instruction, operand);
 						writer.WriteLinePrefix($"if ({value.GetValueName()}) goto IL_{operand.Offset.ToString("x4")};");
 						break;
 					}
@@ -817,29 +876,23 @@ namespace IL2X.Core
 						var value2 = stack.Pop();
 						var value1 = stack.Pop();
 						var operand = (Instruction)instruction.Operand;
-						writer.WriteLinePrefix($"if ({value1.GetValueName()} >= {value2.GetValueName()}) goto IL_{operand.Offset.ToString("x4")};");
+						operand = Br_ForwardResolveStack(instruction, operand);
+						writer.WritePrefix("if (");
+						void WriteValue(IStack value)
+						{
+							if (value is Stack_Int32) writer.Write($"{value.GetValueName()}u");
+							else writer.Write($"(unsigned int){value.GetValueName()}");
+						}
+						WriteValue(value1);
+						writer.Write(" >= ");
+						WriteValue(value2);
+						writer.WriteLine($") goto IL_{operand.Offset.ToString("x4")};");
 						break;
 					}
 
 					case Code.Ret:
 					{
-						if (body.Method.ReturnType.MetadataType == MetadataType.Void)
-						{
-							if (stack.Count != 0)
-							{
-								int stackCount = stack.Count;
-								for (int i = 0; i != stackCount; ++i)
-								{
-									var item = stack.Pop();
-									if (!(item is Stack_Call)) throw new NotImplementedException("'ret' instruction has unsupported remaining instruction: " + item); 
-									writer.WriteLinePrefix($"{item.GetValueName()};");
-								}
-							}
-
-							if (body.Method.IsConstructor) writer.WriteLinePrefix("return self;");// force constructors to return a ref of their self
-							else writer.WriteLinePrefix("return;");
-						}
-						else
+						if (body.Method.ReturnType.MetadataType != MetadataType.Void)
 						{
 							var item = stack.Pop();
 							writer.WriteLinePrefix($"return {item.GetValueName()};");

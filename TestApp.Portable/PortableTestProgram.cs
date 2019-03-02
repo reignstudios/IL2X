@@ -31,7 +31,7 @@ namespace TestApp.Portable
 			i2 = array[0];
 
 			string hi = "Hello .NET World!";
-			Console.Write(hi);
+			if (!string.IsNullOrEmpty(hi)) Console.Write(hi);
 		}
 	}
 }
