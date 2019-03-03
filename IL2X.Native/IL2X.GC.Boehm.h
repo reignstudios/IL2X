@@ -14,14 +14,14 @@ void IL2X_GC_Collect()
 void* IL2X_GC_New(size_t size)
 {
 	void* ptr = GC_malloc(size);
-	memset(ptr, 0, size);
+	//memset(ptr, 0, size);// GC_malloc will null memory
 	return ptr;
 }
 
 void* IL2X_GC_NewAtomic(size_t size)
 {
 	void* ptr = GC_malloc_atomic(size);
-	memset(ptr, 0, size);
+	//memset(ptr, 0, size);// GC_malloc will null memory
 	return ptr;
 }
 

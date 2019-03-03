@@ -9,6 +9,7 @@ namespace IL2X.Core.EvaluationStack
 	interface IStack
 	{
 		string GetValueName();
+		string GetAccessToken();
 	}
 
 	sealed class LocalVariable
@@ -33,20 +34,34 @@ namespace IL2X.Core.EvaluationStack
 			if (isAddress) return '&' + variable.name;
 			return variable.name;
 		}
+
+		public string GetAccessToken()
+		{
+			return (variable.definition.VariableType.IsValueType && !isAddress) ? "." : "->";
+		}
 	}
 
 	sealed class Stack_ParameterVariable : IStack
 	{
 		public readonly string name;
+		public readonly bool isSelf;
+		public readonly string accessToken;
 
-		public Stack_ParameterVariable(string name)
+		public Stack_ParameterVariable(string name, bool isSelf, string accessToken)
 		{
 			this.name = name;
+			this.isSelf = isSelf;
+			this.accessToken = accessToken;
 		}
 
 		public string GetValueName()
 		{
 			return name;
+		}
+
+		public string GetAccessToken()
+		{
+			return accessToken;
 		}
 	}
 
@@ -63,6 +78,11 @@ namespace IL2X.Core.EvaluationStack
 		{
 			return expression;
 		}
+
+		public string GetAccessToken()
+		{
+			return "->";
+		}
 	}
 
 	sealed class Stack_ConditionalExpression : IStack
@@ -78,15 +98,42 @@ namespace IL2X.Core.EvaluationStack
 		{
 			return expression;
 		}
+
+		public string GetAccessToken()
+		{
+			return ".";
+		}
+	}
+
+	sealed class Stack_PrimitiveOperation : IStack
+	{
+		public readonly string expression;
+
+		public Stack_PrimitiveOperation(string expression)
+		{
+			this.expression = expression;
+		}
+
+		public string GetValueName()
+		{
+			return expression;
+		}
+
+		public string GetAccessToken()
+		{
+			return ".";
+		}
 	}
 
 	sealed class Stack_FieldVariable : IStack
 	{
+		public readonly FieldDefinition field;
 		public readonly string name;
 		public readonly bool isAddress;
 
-		public Stack_FieldVariable(string name, bool isAddress)
+		public Stack_FieldVariable(FieldDefinition field, string name, bool isAddress)
 		{
+			this.field = field;
 			this.name = name;
 			this.isAddress = isAddress;
 		}
@@ -95,6 +142,11 @@ namespace IL2X.Core.EvaluationStack
 		{
 			if (isAddress) return '&' + name;
 			return name;
+		}
+
+		public string GetAccessToken()
+		{
+			return (field.FieldType.IsValueType && !isAddress) ? "." : "->";
 		}
 	}
 
@@ -111,6 +163,11 @@ namespace IL2X.Core.EvaluationStack
 		{
 			return value;
 		}
+
+		public string GetAccessToken()
+		{
+			throw new NotImplementedException("Null access token not supported");
+		}
 	}
 
 	sealed class Stack_SByte : IStack
@@ -125,6 +182,31 @@ namespace IL2X.Core.EvaluationStack
 		public string GetValueName()
 		{
 			return value.ToString();
+		}
+
+		public string GetAccessToken()
+		{
+			return ".";
+		}
+	}
+
+	sealed class Stack_Int16 : IStack
+	{
+		public readonly short value;
+
+		public Stack_Int16(short value)
+		{
+			this.value = value;
+		}
+
+		public string GetValueName()
+		{
+			return value.ToString();
+		}
+
+		public string GetAccessToken()
+		{
+			return ".";
 		}
 	}
 
@@ -141,6 +223,74 @@ namespace IL2X.Core.EvaluationStack
 		{
 			return value.ToString();
 		}
+
+		public string GetAccessToken()
+		{
+			return ".";
+		}
+	}
+
+	sealed class Stack_Int64 : IStack
+	{
+		public readonly long value;
+
+		public Stack_Int64(long value)
+		{
+			this.value = value;
+		}
+
+		public string GetValueName()
+		{
+			return value.ToString();
+		}
+
+		public string GetAccessToken()
+		{
+			return ".";
+		}
+	}
+
+	sealed class Stack_Float : IStack
+	{
+		public readonly float value;
+
+		public Stack_Float(float value)
+		{
+			this.value = value;
+		}
+
+		public string GetValueName()
+		{
+			string result = value.ToString();
+			if (!result.Contains('.')) return result + ".0f";
+			return result;
+		}
+
+		public string GetAccessToken()
+		{
+			return ".";
+		}
+	}
+
+	sealed class Stack_Double : IStack
+	{
+		public readonly double value;
+
+		public Stack_Double(double value)
+		{
+			this.value = value;
+		}
+
+		public string GetValueName()
+		{
+			if (value == 0.0) return value.ToString() + ".0";
+			return value.ToString();
+		}
+
+		public string GetAccessToken()
+		{
+			return ".";
+		}
 	}
 
 	sealed class Stack_String : IStack
@@ -156,6 +306,11 @@ namespace IL2X.Core.EvaluationStack
 		{
 			return value;
 		}
+
+		public string GetAccessToken()
+		{
+			return "->";
+		}
 	}
 
 	sealed class Stack_Cast : IStack
@@ -170,6 +325,11 @@ namespace IL2X.Core.EvaluationStack
 		public string GetValueName()
 		{
 			return value;
+		}
+
+		public string GetAccessToken()
+		{
+			return "->";
 		}
 	}
 
@@ -187,6 +347,11 @@ namespace IL2X.Core.EvaluationStack
 		public string GetValueName()
 		{
 			return methodInvoke;
+		}
+
+		public string GetAccessToken()
+		{
+			return method.ReturnType.IsValueType ? "." : "->";
 		}
 	}
 }

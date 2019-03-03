@@ -339,8 +339,7 @@ namespace IL2X.Core
 			if (method.IsConstructor)// force constructors to return a ref of their self
 			{
 				if (method.DeclaringType.IsPrimitive) throw new Exception("Constructors aren't supported on primitives");
-				if (method.DeclaringType.IsValueType) writer.Write($"{GetTypeReferenceFullName(method.DeclaringType)}* {GetMethodDefinitionFullName(method)}(");
-				else writer.Write($"{GetTypeReferenceFullName(method.DeclaringType)} {GetMethodDefinitionFullName(method)}(");
+				writer.Write($"{GetTypeReferenceFullName(method.DeclaringType)} {GetMethodDefinitionFullName(method)}(");
 			}
 			else
 			{
@@ -349,14 +348,14 @@ namespace IL2X.Core
 
 			if (!method.IsStatic)
 			{
-				writer.Write(GetTypeReferenceFullName(method.DeclaringType));
-				if (method.DeclaringType.IsValueType) writer.Write('*');
-				writer.Write(" self");
-				if (method.HasParameters)
+				if (!method.IsConstructor || (method.IsConstructor && !method.DeclaringType.IsValueType))
 				{
-					writer.Write(", ");
-					WriteParameterDefinitions(method.Parameters);
+					writer.Write(GetTypeReferenceFullName(method.DeclaringType));
+					if (method.DeclaringType.IsValueType) writer.Write('*');
+					writer.Write(" self");
+					if (method.HasParameters) writer.Write(", ");
 				}
+				if (method.HasParameters) WriteParameterDefinitions(method.Parameters);
 			}
 			else if (method.HasParameters)
 			{
@@ -379,10 +378,12 @@ namespace IL2X.Core
 				StreamWriterEx.AddTab();
 				if (method.Body != null)
 				{
+					if (method.IsConstructor && method.DeclaringType.IsValueType) writer.WriteLinePrefix($"{GetTypeReferenceFullName(method.DeclaringType)} self;");
 					activeMethodDebugInfo = null;
 					if (activeModule.symbolReader != null) activeMethodDebugInfo = activeModule.symbolReader.Read(method);
 					WriteMethodBody(method.Body);
 					activeMethodDebugInfo = null;
+					if (method.IsConstructor) writer.WriteLinePrefix("return self;");
 				}
 				else if (method.IsAbstract)
 				{
@@ -480,12 +481,13 @@ namespace IL2X.Core
 			{
 				if (index == 0 && body.Method.HasThis)
 				{
-					stack.Push(new Stack_ParameterVariable("self"));
+					stack.Push(new Stack_ParameterVariable("self", true, (body.Method.IsConstructor && body.Method.DeclaringType.IsValueType) ? "." : "->"));
 				}
 				else
 				{
 					if (body.Method.HasThis) --index;
-					stack.Push(new Stack_ParameterVariable(GetParameterDefinitionName(body.Method.Parameters[index])));
+					var p = body.Method.Parameters[index];
+					stack.Push(new Stack_ParameterVariable(GetParameterDefinitionName(p), false, p.ParameterType.IsValueType ? "." : "->"));
 				}
 			}
 
@@ -511,6 +513,66 @@ namespace IL2X.Core
 				var array = (Stack_LocalVariable)stack.Pop();
 				var arrayType = (ArrayType)array.variable.definition.VariableType;
 				writer.WriteLinePrefix($"(({GetTypeReferenceFullName(arrayType.ElementType)}*)((char*){array.GetValueName()} + sizeof(size_t)))[{index.GetValueName()}] = {value.GetValueName()};");
+			}
+
+			void BranchCondition(Instruction instruction, string condition, string form, bool unsignedCmp)
+			{
+				var value2 = stack.Pop();
+				var value1 = stack.Pop();
+				var operand = (Instruction)instruction.Operand;
+				operand = Br_ForwardResolveStack(instruction, operand);
+				writer.WritePrefix("if (");
+				void WriteValue(IStack value)
+				{
+					if (unsignedCmp)
+					{
+						void UnsignPrimitiveType(TypeReference type)
+						{
+							switch (type.MetadataType)
+							{
+								case MetadataType.SByte: writer.Write($"((unsigned char){value.GetValueName()})"); break;
+								case MetadataType.Int16: writer.Write($"((unsigned short){value.GetValueName()})"); break;
+								case MetadataType.Int32: writer.Write($"((unsigned int){value.GetValueName()})"); break;
+								case MetadataType.Int64: writer.Write($"((unsigned long){value.GetValueName()})"); break;
+								case MetadataType.Single:
+								case MetadataType.Double:
+									writer.Write(value.GetValueName());
+									break;
+								default: throw new NotImplementedException("Failed to unsign primitive type: " + type.FullName);
+							}
+						}
+
+						if (value is Stack_SByte) writer.Write($"((unsigned char){value.GetValueName()})");
+						else if (value is Stack_Int16) writer.Write($"((unsigned short){value.GetValueName()})");
+						else if (value is Stack_Int32) writer.Write($"((unsigned int){value.GetValueName()})");
+						else if (value is Stack_Int64) writer.Write($"((unsigned long){value.GetValueName()})");
+						else if (value is Stack_Float || value is Stack_Double) writer.Write(value.GetValueName());
+						else if (value is Stack_Call)
+						{
+							var call = (Stack_Call)value;
+							if (call.method != null && call.method.ReturnType.IsPrimitive) UnsignPrimitiveType(call.method.ReturnType);
+							else writer.Write(value.GetValueName());
+						}
+						else if (value is Stack_FieldVariable)
+						{
+							var field = (Stack_FieldVariable)value;
+							if (field.field.FieldType.IsPrimitive) UnsignPrimitiveType(field.field.FieldType);
+							else writer.Write(value.GetValueName());
+						}
+						else
+						{
+							throw new NotImplementedException("BranchCondition failed to unsign value: " + value.GetValueName());
+						}
+					}
+					else
+					{
+						writer.Write(value.GetValueName());
+					}
+				}
+				WriteValue(value1);
+				writer.Write($" {condition} ");
+				WriteValue(value2);
+				writer.WriteLine($") goto IL_{operand.Offset.ToString(form)};");
 			}
 
 			Instruction Br_ForwardResolveStack(Instruction brInstruction, Instruction jmpInstruction)
@@ -544,11 +606,29 @@ namespace IL2X.Core
 						(instructionJumpModify.ContainsKey(x) && instructionJumpModify[x].Offset == instruction.Offset)));// or instruction has branch override and jumps to me
 					}
 
-					if (CanBeJumpedTo(Code.Br_S, Code.Brfalse_S, Code.Brtrue_S, Code.Bge_Un_S, Code.Beq_S))
+					if (CanBeJumpedTo
+					(
+						Code.Br_S, Code.Brfalse_S, Code.Brtrue_S,
+						Code.Bge_Un_S,
+						Code.Bge_S, Code.Bne_Un_S,
+						Code.Bgt_S, Code.Bgt_Un_S,
+						Code.Beq_S,
+						Code.Blt_S, Code.Blt_Un_S,
+						Code.Ble_S, Code.Ble_Un_S
+					))
 					{
 						writer.WriteLinePrefix($"IL_{instruction.Offset.ToString("x4")}:;");// write goto jump label short form
 					}
-					else if (CanBeJumpedTo(Code.Br, Code.Brfalse, Code.Brtrue, Code.Bge_Un, Code.Beq))
+					else if (CanBeJumpedTo
+					(
+						Code.Br, Code.Brfalse, Code.Brtrue,
+						Code.Bge, Code.Bge_Un,
+						Code.Bgt, Code.Bgt_Un,
+						Code.Bne_Un,
+						Code.Beq,
+						Code.Blt, Code.Blt_Un,
+						Code.Ble, Code.Ble_Un
+					))
 					{
 						writer.WriteLinePrefix($"IL_{instruction.Offset.ToString("x8")}:;");// write goto jump label long form
 					}
@@ -563,6 +643,7 @@ namespace IL2X.Core
 					// push to stack
 					case Code.Ldnull: stack.Push(new Stack_Null("0")); break;
 
+					case Code.Ldc_I4_M1: stack.Push(new Stack_Int32(-1)); break;
 					case Code.Ldc_I4_0: stack.Push(new Stack_Int32(0)); break;
 					case Code.Ldc_I4_1: stack.Push(new Stack_Int32(1)); break;
 					case Code.Ldc_I4_2: stack.Push(new Stack_Int32(2)); break;
@@ -573,7 +654,10 @@ namespace IL2X.Core
 					case Code.Ldc_I4_7: stack.Push(new Stack_Int32(7)); break;
 					case Code.Ldc_I4_8: stack.Push(new Stack_Int32(8)); break;
 					case Code.Ldc_I4: stack.Push(new Stack_Int32((int)instruction.Operand)); break;
-					case Code.Ldc_I4_S: stack.Push(new Stack_SByte((sbyte)instruction.Operand)); break;
+					case Code.Ldc_I4_S: stack.Push(new Stack_Int32((sbyte)instruction.Operand)); break;
+					case Code.Ldc_I8: stack.Push(new Stack_Int64((long)instruction.Operand)); break;
+					case Code.Ldc_R4: stack.Push(new Stack_Float((float)instruction.Operand)); break;
+					case Code.Ldc_R8: stack.Push(new Stack_Double((double)instruction.Operand)); break;
 
 					case Code.Ldarg_0: Ldarg_X(0); break;
 					case Code.Ldarg_1: Ldarg_X(1); break;
@@ -605,7 +689,7 @@ namespace IL2X.Core
 					case Code.Ldind_I4:
 					{
 						var item = stack.Pop();
-						stack.Push(new Stack_Cast("(int)*" + item.GetValueName()));
+						stack.Push(new Stack_Cast($"((int)*{item.GetValueName()})"));
 						break;
 					}
 
@@ -650,7 +734,7 @@ namespace IL2X.Core
 					{
 						var self = stack.Pop();
 						var field = (FieldDefinition)instruction.Operand;
-						stack.Push(new Stack_FieldVariable($"{self.GetValueName()}->" + GetFieldDefinitionName(field), false));
+						stack.Push(new Stack_FieldVariable(field, self.GetValueName() + self.GetAccessToken() + GetFieldDefinitionName(field), false));
 						break;
 					}
 
@@ -658,7 +742,7 @@ namespace IL2X.Core
 					{
 						var self = stack.Pop();
 						var field = (FieldDefinition)instruction.Operand;
-						stack.Push(new Stack_FieldVariable($"{self.GetValueName()}->" + GetFieldDefinitionName(field), true));
+						stack.Push(new Stack_FieldVariable(field, self.GetValueName() + self.GetAccessToken() + GetFieldDefinitionName(field), true));
 						break;
 					}
 
@@ -701,6 +785,14 @@ namespace IL2X.Core
 						break;
 					}
 
+					case Code.Add:
+					{
+						var value2 = stack.Pop();
+						var value1 = stack.Pop();
+						stack.Push(new Stack_PrimitiveOperation($"({value1.GetValueName()} + {value2.GetValueName()})"));
+						break;
+					}
+
 					case Code.Call:
 					case Code.Callvirt:
 					{
@@ -718,16 +810,17 @@ namespace IL2X.Core
 
 						var methodInvoke = new StringBuilder(methodName + '(');
 						var parameters = new StringBuilder();
-						var lastParameter = method.Parameters.LastOrDefault();
+						var firstParameter = method.Parameters.FirstOrDefault();
 						foreach (var p in method.Parameters)
 						{
 							var item = stack.Pop();
-							parameters.Append(item.GetValueName());
-							if (p != lastParameter) parameters.Append(", ");
+							if (p != firstParameter) parameters.Insert(0, ", ");
+							parameters.Insert(0, item.GetValueName());
 						}
 						if (method.HasThis)
 						{
 							var self = stack.Pop();
+							if (self.GetAccessToken() == ".") methodInvoke.Append('&');
 							methodInvoke.Append(self.GetValueName());
 							if (method.HasParameters) methodInvoke.Append(", ");
 						}
@@ -742,10 +835,13 @@ namespace IL2X.Core
 					{
 						var method = (MethodReference)instruction.Operand;
 						var methodInvoke = new StringBuilder(GetMethodReferenceFullName(method) + '(');
-						if (IsAtomicType(method.DeclaringType)) methodInvoke.Append("IL2X_GC_NewAtomic");
-						else methodInvoke.Append("IL2X_GC_New");
-						methodInvoke.Append($"(sizeof({GetTypeReferenceFullName(method.DeclaringType, allowSymbols:false)}))");
-						if (method.HasParameters) methodInvoke.Append(", ");
+						if (!method.DeclaringType.IsValueType)
+						{
+							if (IsAtomicType(method.DeclaringType)) methodInvoke.Append("IL2X_GC_NewAtomic");
+							else methodInvoke.Append("IL2X_GC_New");
+							methodInvoke.Append($"(sizeof({GetTypeReferenceFullName(method.DeclaringType, allowSymbols:false)}))");
+							if (method.HasParameters) methodInvoke.Append(", ");
+						}
 						var lastParameter = method.Parameters.LastOrDefault();
 						foreach (var p in method.Parameters)
 						{
@@ -790,7 +886,7 @@ namespace IL2X.Core
 						var itemRight = stack.Pop();
 						var self = stack.Pop();
 						var fieldLeft = (FieldDefinition)instruction.Operand;
-						writer.WriteLinePrefix($"{self.GetValueName()}->{GetFieldDefinitionName(fieldLeft)} = {itemRight.GetValueName()};");
+						writer.WriteLinePrefix($"{self.GetValueName()}{self.GetAccessToken()}{GetFieldDefinitionName(fieldLeft)} = {itemRight.GetValueName()};");
 						break;
 					}
 
@@ -893,47 +989,24 @@ namespace IL2X.Core
 						break;
 					}
 
-					case Code.Bge_Un_S:
-					{
-						var value2 = stack.Pop();
-						var value1 = stack.Pop();
-						var operand = (Instruction)instruction.Operand;
-						operand = Br_ForwardResolveStack(instruction, operand);
-						writer.WritePrefix("if (");
-						void WriteValue(IStack value)
-						{
-							if (value is Stack_Int32) writer.Write($"{value.GetValueName()}u");
-							else if (value is Stack_Call)
-							{
-								var call = (Stack_Call)value;
-								if (call.method != null && call.method.ReturnType.IsPrimitive)
-								{
-									switch (call.method.ReturnType.MetadataType)
-									{
-										case MetadataType.SByte: writer.Write($"(unsigned char){value.GetValueName()}"); break;
-										case MetadataType.Int16: writer.Write($"(unsigned short){value.GetValueName()}"); break;
-										case MetadataType.Int32: writer.Write($"(unsigned int){value.GetValueName()}"); break;
-										case MetadataType.Int64: writer.Write($"(unsigned long){value.GetValueName()}"); break;
-										case MetadataType.IntPtr: writer.Write($"(size_t){value.GetValueName()}"); break;
-										default: writer.Write(value.GetValueName()); break;
-									}
-								}
-								else
-								{
-									writer.Write(value.GetValueName());
-								}
-							}
-							else
-							{
-								throw new NotImplementedException("Bge_Un_S failed to unsigne value: " + value.GetValueName());
-							}
-						}
-						WriteValue(value1);
-						writer.Write(" >= ");
-						WriteValue(value2);
-						writer.WriteLine($") goto IL_{operand.Offset.ToString("x4")};");
-						break;
-					}
+					case Code.Bge: BranchCondition(instruction, ">=", "x8", false); break;
+					case Code.Bge_S: BranchCondition(instruction, ">=", "x4", false); break;
+					case Code.Bge_Un: BranchCondition(instruction, ">=", "x8", true); break;
+					case Code.Bge_Un_S: BranchCondition(instruction, ">=", "x4", true); break;
+					case Code.Bgt: BranchCondition(instruction, ">", "x8", false); break;
+					case Code.Bgt_S: BranchCondition(instruction, ">", "x4", false); break;
+					case Code.Bgt_Un: BranchCondition(instruction, ">", "x8", true); break;
+					case Code.Bgt_Un_S: BranchCondition(instruction, ">", "x4", true); break;
+					case Code.Ble: BranchCondition(instruction, "<=", "x8", false); break;
+					case Code.Ble_S: BranchCondition(instruction, "<=", "x4", false); break;
+					case Code.Ble_Un: BranchCondition(instruction, "<=", "x8", true); break;
+					case Code.Ble_Un_S: BranchCondition(instruction, "<=", "x4", true); break;
+					case Code.Blt: BranchCondition(instruction, "<", "x8", false); break;
+					case Code.Blt_S: BranchCondition(instruction, "<", "x4", false); break;
+					case Code.Blt_Un: BranchCondition(instruction, "<", "x8", true); break;
+					case Code.Blt_Un_S: BranchCondition(instruction, "<", "x4", true); break;
+					case Code.Bne_Un: BranchCondition(instruction, "!=", "x8", true); break;
+					case Code.Bne_Un_S: BranchCondition(instruction, "!=", "x4", true); break;
 
 					case Code.Ret:
 					{
