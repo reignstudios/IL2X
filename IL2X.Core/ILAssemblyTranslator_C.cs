@@ -617,6 +617,11 @@ namespace IL2X.Core
 					var type = (Stack_LocalVariable)value;
 					return type.variable.definition.VariableType.MetadataType;
 				}
+				else if (value is Stack_PrimitiveOperation)
+				{
+					var type = (Stack_PrimitiveOperation)value;
+					return type.primitiveType;
+				}
 				else throw new NotImplementedException("GetPrimitiveResult failed to result: " + value.GetType());
 			}
 
@@ -629,6 +634,15 @@ namespace IL2X.Core
 				}
 
 				return result;
+			}
+
+			void PrimitiveOperator(string op)
+			{
+				var value2 = stack.Pop();
+				var value1 = stack.Pop();
+				var primitiveType1 = GetPrimitiveResult(value1);
+				var primitiveType2 = GetPrimitiveResult(value2);
+				stack.Push(new Stack_PrimitiveOperation($"({value1.GetValueName()} {op} {value2.GetValueName()})", GetPrimitiveOperationResultType(primitiveType1, primitiveType2)));
 			}
 
 			Instruction Br_ForwardResolveStack(Instruction brInstruction, Instruction jmpInstruction)
@@ -841,14 +855,16 @@ namespace IL2X.Core
 						break;
 					}
 
-					case Code.Add:
+					case Code.Add: PrimitiveOperator("+"); break;
+					case Code.Sub: PrimitiveOperator("-"); break;
+					case Code.Mul: PrimitiveOperator("*"); break;
+					case Code.Div: PrimitiveOperator("/"); break;
+
+					case Code.Add_Ovf:
+					case Code.Add_Ovf_Un:
 					{
-						var value2 = stack.Pop();
-						var value1 = stack.Pop();
-						var primitiveType1 = GetPrimitiveResult(value1);
-						var primitiveType2 = GetPrimitiveResult(value2);
-						stack.Push(new Stack_PrimitiveOperation($"({value1.GetValueName()} + {value2.GetValueName()})", GetPrimitiveOperationResultType(primitiveType1, primitiveType2)));
-						break;
+						// https://www.geeksforgeeks.org/check-for-integer-overflow/
+						throw new NotImplementedException("TODO: need ability to throw Overflow exceptions");
 					}
 
 					case Code.Call:

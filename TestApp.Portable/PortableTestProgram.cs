@@ -44,7 +44,7 @@ namespace TestApp.Portable
 			var y = new Vec2();
 			//var z = x + new Vec2(22, 33);
 			//var z2 = x.x + y.y;
-			var z = (x.x == (y.y + 5.0f) && Vec2.Foo(new Vec2(0, 0))) ? x : y;
+			var z = (x.x == (y.y + 5.0f * y.x) && Vec2.Foo(new Vec2(0, 0))) ? x : y;
 			//var z = (Vec2.Foo(new Vec2(0, 0))) ? x : y;
 			int i2 = i;
 			var array = new int[128];
