@@ -108,10 +108,12 @@ namespace IL2X.Core.EvaluationStack
 	sealed class Stack_PrimitiveOperation : IStack
 	{
 		public readonly string expression;
+		public readonly MetadataType primitiveType;
 
-		public Stack_PrimitiveOperation(string expression)
+		public Stack_PrimitiveOperation(string expression, MetadataType primitiveType)
 		{
 			this.expression = expression;
+			this.primitiveType = primitiveType;
 		}
 
 		public string GetValueName()
@@ -190,11 +192,51 @@ namespace IL2X.Core.EvaluationStack
 		}
 	}
 
+	sealed class Stack_Byte : IStack
+	{
+		public readonly byte value;
+
+		public Stack_Byte(byte value)
+		{
+			this.value = value;
+		}
+
+		public string GetValueName()
+		{
+			return value.ToString();
+		}
+
+		public string GetAccessToken()
+		{
+			return ".";
+		}
+	}
+
 	sealed class Stack_Int16 : IStack
 	{
 		public readonly short value;
 
 		public Stack_Int16(short value)
+		{
+			this.value = value;
+		}
+
+		public string GetValueName()
+		{
+			return value.ToString();
+		}
+
+		public string GetAccessToken()
+		{
+			return ".";
+		}
+	}
+
+	sealed class Stack_UInt16 : IStack
+	{
+		public readonly ushort value;
+
+		public Stack_UInt16(ushort value)
 		{
 			this.value = value;
 		}
@@ -230,6 +272,26 @@ namespace IL2X.Core.EvaluationStack
 		}
 	}
 
+	sealed class Stack_UInt32 : IStack
+	{
+		public readonly uint value;
+
+		public Stack_UInt32(uint value)
+		{
+			this.value = value;
+		}
+
+		public string GetValueName()
+		{
+			return value.ToString();
+		}
+
+		public string GetAccessToken()
+		{
+			return ".";
+		}
+	}
+
 	sealed class Stack_Int64 : IStack
 	{
 		public readonly long value;
@@ -250,11 +312,31 @@ namespace IL2X.Core.EvaluationStack
 		}
 	}
 
-	sealed class Stack_Float : IStack
+	sealed class Stack_UInt64 : IStack
+	{
+		public readonly ulong value;
+
+		public Stack_UInt64(ulong value)
+		{
+			this.value = value;
+		}
+
+		public string GetValueName()
+		{
+			return value.ToString();
+		}
+
+		public string GetAccessToken()
+		{
+			return ".";
+		}
+	}
+
+	sealed class Stack_Single : IStack
 	{
 		public readonly float value;
 
-		public Stack_Float(float value)
+		public Stack_Single(float value)
 		{
 			this.value = value;
 		}
@@ -316,10 +398,12 @@ namespace IL2X.Core.EvaluationStack
 	sealed class Stack_Cast : IStack
 	{
 		public readonly string value;
+		public readonly MetadataType type;
 
-		public Stack_Cast(string value)
+		public Stack_Cast(string value, MetadataType type)
 		{
 			this.value = value;
+			this.type = type;
 		}
 
 		public string GetValueName()

@@ -526,9 +526,9 @@ namespace IL2X.Core
 				{
 					if (unsignedCmp)
 					{
-						void UnsignPrimitiveType(TypeReference type)
+						void UnsignPrimitiveType(MetadataType type)
 						{
-							switch (type.MetadataType)
+							switch (type)
 							{
 								case MetadataType.SByte: writer.Write($"((unsigned char){value.GetValueName()})"); break;
 								case MetadataType.Int16: writer.Write($"((unsigned short){value.GetValueName()})"); break;
@@ -538,7 +538,7 @@ namespace IL2X.Core
 								case MetadataType.Double:
 									writer.Write(value.GetValueName());
 									break;
-								default: throw new NotImplementedException("Failed to unsign primitive type: " + type.FullName);
+								default: throw new NotImplementedException("Failed to unsign primitive type: " + type);
 							}
 						}
 
@@ -546,18 +546,28 @@ namespace IL2X.Core
 						else if (value is Stack_Int16) writer.Write($"((unsigned short){value.GetValueName()})");
 						else if (value is Stack_Int32) writer.Write($"((unsigned int){value.GetValueName()})");
 						else if (value is Stack_Int64) writer.Write($"((unsigned long){value.GetValueName()})");
-						else if (value is Stack_Float || value is Stack_Double) writer.Write(value.GetValueName());
+						else if (value is Stack_Single || value is Stack_Double) writer.Write(value.GetValueName());
 						else if (value is Stack_Call)
 						{
 							var call = (Stack_Call)value;
-							if (call.method != null && call.method.ReturnType.IsPrimitive) UnsignPrimitiveType(call.method.ReturnType);
+							if (call.method != null && call.method.ReturnType.IsPrimitive) UnsignPrimitiveType(call.method.ReturnType.MetadataType);
 							else writer.Write(value.GetValueName());
 						}
 						else if (value is Stack_FieldVariable)
 						{
 							var field = (Stack_FieldVariable)value;
-							if (field.field.FieldType.IsPrimitive) UnsignPrimitiveType(field.field.FieldType);
+							if (field.field.FieldType.IsPrimitive) UnsignPrimitiveType(field.field.FieldType.MetadataType);
 							else writer.Write(value.GetValueName());
+						}
+						else if (value is Stack_LocalVariable)
+						{
+							var local = (Stack_LocalVariable)value;
+							UnsignPrimitiveType(local.variable.definition.VariableType.MetadataType);
+						}
+						else if (value is Stack_PrimitiveOperation)
+						{
+							var op = (Stack_PrimitiveOperation)value;
+							UnsignPrimitiveType(op.primitiveType);
 						}
 						else
 						{
@@ -573,6 +583,52 @@ namespace IL2X.Core
 				writer.Write($" {condition} ");
 				WriteValue(value2);
 				writer.WriteLine($") goto IL_{operand.Offset.ToString(form)};");
+			}
+
+			MetadataType GetPrimitiveResult(IStack value)
+			{
+				if (value is Stack_SByte) return MetadataType.SByte;
+				else if (value is Stack_Byte) return MetadataType.Byte;
+				else if (value is Stack_Int16) return MetadataType.Int16;
+				else if (value is Stack_UInt16) return MetadataType.UInt16;
+				else if (value is Stack_Int32) return MetadataType.Int32;
+				else if (value is Stack_UInt32) return MetadataType.UInt32;
+				else if (value is Stack_Int64) return MetadataType.Int64;
+				else if (value is Stack_UInt64) return MetadataType.UInt64;
+				else if (value is Stack_Single) return MetadataType.Single;
+				else if (value is Stack_Double) return MetadataType.Double;
+				else if (value is Stack_Call)
+				{
+					var type = (Stack_Call)value;
+					return type.method.ReturnType.MetadataType;
+				}
+				else if (value is Stack_Cast)
+				{
+					var type = (Stack_Cast)value;
+					return type.type;
+				}
+				else if (value is Stack_FieldVariable)
+				{
+					var type = (Stack_FieldVariable)value;
+					return type.field.FieldType.MetadataType;
+				}
+				else if (value is Stack_LocalVariable)
+				{
+					var type = (Stack_LocalVariable)value;
+					return type.variable.definition.VariableType.MetadataType;
+				}
+				else throw new NotImplementedException("GetPrimitiveResult failed to result: " + value.GetType());
+			}
+
+			MetadataType GetPrimitiveOperationResultType(MetadataType value1, MetadataType value2)
+			{
+				var result = (value1 >= value2) ? value1 : value2;
+				if (result == MetadataType.SByte || result == MetadataType.Byte || result == MetadataType.Int16 || result == MetadataType.UInt16)
+				{
+					result = MetadataType.Int32;
+				}
+
+				return result;
 			}
 
 			Instruction Br_ForwardResolveStack(Instruction brInstruction, Instruction jmpInstruction)
@@ -656,7 +712,7 @@ namespace IL2X.Core
 					case Code.Ldc_I4: stack.Push(new Stack_Int32((int)instruction.Operand)); break;
 					case Code.Ldc_I4_S: stack.Push(new Stack_Int32((sbyte)instruction.Operand)); break;
 					case Code.Ldc_I8: stack.Push(new Stack_Int64((long)instruction.Operand)); break;
-					case Code.Ldc_R4: stack.Push(new Stack_Float((float)instruction.Operand)); break;
+					case Code.Ldc_R4: stack.Push(new Stack_Single((float)instruction.Operand)); break;
 					case Code.Ldc_R8: stack.Push(new Stack_Double((double)instruction.Operand)); break;
 
 					case Code.Ldarg_0: Ldarg_X(0); break;
@@ -689,7 +745,7 @@ namespace IL2X.Core
 					case Code.Ldind_I4:
 					{
 						var item = stack.Pop();
-						stack.Push(new Stack_Cast($"((int)*{item.GetValueName()})"));
+						stack.Push(new Stack_Cast($"((int)*{item.GetValueName()})", MetadataType.Int32));
 						break;
 					}
 
@@ -749,31 +805,31 @@ namespace IL2X.Core
 					case Code.Conv_U:
 					{
 						var item = stack.Pop();
-						stack.Push(new Stack_Cast($"(void*){item.GetValueName()}"));
+						stack.Push(new Stack_Cast($"((void*){item.GetValueName()})", MetadataType.IntPtr));
 						break;
 					}
 					case Code.Conv_U1:
 					{
 						var item = stack.Pop();
-						stack.Push(new Stack_Cast($"(char){item.GetValueName()}"));
+						stack.Push(new Stack_Cast($"((char){item.GetValueName()})", MetadataType.Byte));
 						break;
 					}
 					case Code.Conv_U2:
 					{
 						var item = stack.Pop();
-						stack.Push(new Stack_Cast($"(short){item.GetValueName()}"));
+						stack.Push(new Stack_Cast($"((short){item.GetValueName()})", MetadataType.Int16));
 						break;
 					}
 					case Code.Conv_U4:
 					{
 						var item = stack.Pop();
-						stack.Push(new Stack_Cast($"(int){item.GetValueName()}"));
+						stack.Push(new Stack_Cast($"((int){item.GetValueName()})", MetadataType.Int32));
 						break;
 					}
 					case Code.Conv_U8:
 					{
 						var item = stack.Pop();
-						stack.Push(new Stack_Cast($"(long){item.GetValueName()}"));
+						stack.Push(new Stack_Cast($"((long){item.GetValueName()})", MetadataType.Int64));
 						break;
 					}
 
@@ -789,7 +845,9 @@ namespace IL2X.Core
 					{
 						var value2 = stack.Pop();
 						var value1 = stack.Pop();
-						stack.Push(new Stack_PrimitiveOperation($"({value1.GetValueName()} + {value2.GetValueName()})"));
+						var primitiveType1 = GetPrimitiveResult(value1);
+						var primitiveType2 = GetPrimitiveResult(value2);
+						stack.Push(new Stack_PrimitiveOperation($"({value1.GetValueName()} + {value2.GetValueName()})", GetPrimitiveOperationResultType(primitiveType1, primitiveType2)));
 						break;
 					}
 
