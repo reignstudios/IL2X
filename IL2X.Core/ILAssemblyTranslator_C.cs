@@ -37,7 +37,7 @@ namespace IL2X.Core
 
 		public readonly Options options;
 
-		private StreamWriter writer;
+		private StreamWriterEx writer;
 		private ILAssembly activeAssembly, activeCoreAssembly;// current assembly being translated
 		private ILModule activeModule;// current module being translated
 		private MethodDebugInformation activeMethodDebugInfo;// current method debug symbols
@@ -101,7 +101,7 @@ namespace IL2X.Core
 
 			// write module
 			using (var stream = new FileStream(modulePath, FileMode.Create, FileAccess.Write, FileShare.Read))
-			using (writer = new StreamWriter(stream))
+			using (writer = new StreamWriterEx(stream))
 			{
 				// write generate info
 				writer.WriteLine("// ###############################");
@@ -127,6 +127,7 @@ namespace IL2X.Core
 
 					// include std libraries
 					writer.WriteLine("#include <stdio.h>");
+					writer.WriteLine("#include <math.h>");
 				}
 
 				// write includes of dependencies
@@ -154,7 +155,7 @@ namespace IL2X.Core
 				writer.WriteLine("// ===============================");
 				writer.WriteLine("// Method forward declares");
 				writer.WriteLine("// ===============================");
-				foreach (var type in module.moduleDefinition.Types)
+				foreach (var type in module.typesDependencyOrdered)
 				{
 					foreach (var method in type.Methods) WriteMethodDefinition(method, false);
 				}
@@ -171,7 +172,7 @@ namespace IL2X.Core
 				writer.WriteLine("// ===============================");
 				writer.WriteLine("// Method definitions");
 				writer.WriteLine("// ===============================");
-				foreach (var type in module.moduleDefinition.Types)
+				foreach (var type in module.typesDependencyOrdered)
 				{
 					foreach (var method in type.Methods) WriteMethodDefinition(method, true);
 				}
@@ -182,7 +183,8 @@ namespace IL2X.Core
 				writer.WriteLine("// ===============================");
 				writer.WriteLine($"void {initModuleMethod}()");
 				writer.WriteLine('{');
-				StreamWriterEx.AddTab();
+				writer.AddTab();
+				writer.WriteLinePrefix("// Init references");
 				foreach (var reference in module.references)
 				{
 					foreach (var refModule in reference.modules)
@@ -190,8 +192,20 @@ namespace IL2X.Core
 						writer.WriteLinePrefix($"IL2X_InitModule_{refModule.moduleDefinition.Name.Replace('.', '_')}();");
 					}
 				}
+				writer.WriteLine();
+				writer.WriteLinePrefix("// Init generated members");
 				writer.WriteLinePrefix($"{generatedMembersInitMethod}();");
-				StreamWriterEx.RemoveTab();
+				writer.WriteLine();
+				writer.WriteLinePrefix("// Init static methods");
+				foreach (var type in module.typesDependencyOrdered)
+				{
+					foreach (var method in type.Methods)
+					{
+						if (!method.IsConstructor || !method.IsStatic) continue;
+						writer.WriteLinePrefix($"{GetMethodDefinitionFullName(method)}();");
+					}
+				}
+				writer.RemoveTab();
 				writer.WriteLine('}');
 				writer.WriteLine();
 
@@ -203,19 +217,19 @@ namespace IL2X.Core
 					writer.WriteLine("// ===============================");
 					writer.WriteLine("void main()");
 					writer.WriteLine('{');
-					StreamWriterEx.AddTab();
+					writer.AddTab();
 					writer.WriteLinePrefix("IL2X_GC_Init();");
 					writer.WriteLinePrefix($"{initModuleMethod}();");
 					writer.WriteLinePrefix($"{GetMethodDefinitionFullName(module.moduleDefinition.EntryPoint)}();");
 					writer.WriteLinePrefix("IL2X_GC_Collect();");
-					StreamWriterEx.RemoveTab();
+					writer.RemoveTab();
 					writer.WriteLine('}');
 				}
 			}
 
 			// write IL instruction generated file
 			using (var stream = new FileStream(Path.Combine(outputPath, generatedMembersFilename), FileMode.Create, FileAccess.Write, FileShare.Read))
-			using (writer = new StreamWriter(stream))
+			using (writer = new StreamWriterEx(stream))
 			{
 				// write generate info
 				writer.WriteLine("// ###############################");
@@ -235,6 +249,7 @@ namespace IL2X.Core
 					writer.WriteLine("// ===============================");
 					foreach (var literal in activeStringLiterals)
 					{
+						//WriteStringLiteralValue(literal.Key, literal.Value);
 						string value = literal.Value;
 						if (value.Contains('\n')) value = value.Replace("\n", "");
 						if (value.Contains('\r')) value = value.Replace("\r", "");
@@ -268,9 +283,9 @@ namespace IL2X.Core
 				writer.WriteLine("// ===============================");
 				writer.WriteLine($"void {generatedMembersInitMethod}()");
 				writer.WriteLine('{');
-				StreamWriterEx.AddTab();
+				writer.AddTab();
 				// TODO
-				StreamWriterEx.RemoveTab();
+				writer.RemoveTab();
 				writer.WriteLine('}');
 			}
 
@@ -292,16 +307,13 @@ namespace IL2X.Core
 					if (type.IsValueType) writer.WriteLine(string.Format("typedef void* {0};", GetTypeDefinitionFullName(type)));// empty value types only function as pointers
 					else writer.WriteLine(string.Format("typedef void {0};", GetTypeDefinitionFullName(type)));// empty reference types only function as 'void' as ptrs will be added
 				}
-				else writer.WriteLine(string.Format("typedef struct {0} {0};", GetTypeDefinitionFullName(type)));
+				else
+				{
+					writer.WriteLine(string.Format("typedef struct {0} {0};", GetTypeDefinitionFullName(type)));
+				}
 			}
 			else
 			{
-				if (IsEmptyType(type)) return;// empty types aren't allowed in C
-
-				writer.WriteLine(string.Format("struct {0}", GetTypeDefinitionFullName(type)));
-				writer.WriteLine('{');
-				StreamWriterEx.AddTab();
-
 				// get all types that should write fields
 				var fieldTypeList = new List<TypeDefinition>();
 				fieldTypeList.Add(type);
@@ -313,14 +325,35 @@ namespace IL2X.Core
 					baseType = baseTypeDef.BaseType;
 				}
 
-				// write all fields starting from last base type
-				for (int i = fieldTypeList.Count - 1; i != -1; --i)
+				// empty types aren't allowed in C (so only write if applicable)
+				if (!IsEmptyType(type))
 				{
-					foreach (var field in fieldTypeList[i].Fields) WriteFieldDefinition(field);
+					writer.WriteLine(string.Format("struct {0}", GetTypeDefinitionFullName(type)));
+					writer.WriteLine('{');
+					writer.AddTab();
+
+					// write all non-static fields starting from last base type
+					for (int i = fieldTypeList.Count - 1; i != -1; --i)
+					{
+						foreach (var field in fieldTypeList[i].Fields)
+						{
+							if (!field.IsStatic) WriteFieldDefinition(field);
+						}
+					}
+
+					writer.RemoveTab();
+					writer.WriteLine("};");
 				}
 
-				StreamWriterEx.RemoveTab();
-				writer.WriteLine("};");
+				// write all statics
+				for (int i = fieldTypeList.Count - 1; i != -1; --i)
+				{
+					foreach (var field in fieldTypeList[i].Fields)
+					{
+						if (field.IsStatic && !field.HasConstant) WriteFieldDefinition(field);
+					}
+				}
+
 				writer.WriteLine();
 			}
 		}
@@ -339,7 +372,8 @@ namespace IL2X.Core
 			if (method.IsConstructor)// force constructors to return a ref of their self
 			{
 				if (method.DeclaringType.IsPrimitive) throw new Exception("Constructors aren't supported on primitives");
-				writer.Write($"{GetTypeReferenceFullName(method.DeclaringType)} {GetMethodDefinitionFullName(method)}(");
+				if (method.IsStatic) writer.Write($"void {GetMethodDefinitionFullName(method)}(");
+				else writer.Write($"{GetTypeReferenceFullName(method.DeclaringType)} {GetMethodDefinitionFullName(method)}(");
 			}
 			else
 			{
@@ -375,7 +409,7 @@ namespace IL2X.Core
 			{
 				writer.WriteLine();
 				writer.WriteLine('{');
-				StreamWriterEx.AddTab();
+				writer.AddTab();
 				if (method.Body != null)
 				{
 					if (method.IsConstructor && method.DeclaringType.IsValueType) writer.WriteLinePrefix($"{GetTypeReferenceFullName(method.DeclaringType)} self;");
@@ -383,7 +417,7 @@ namespace IL2X.Core
 					if (activeModule.symbolReader != null) activeMethodDebugInfo = activeModule.symbolReader.Read(method);
 					WriteMethodBody(method.Body);
 					activeMethodDebugInfo = null;
-					if (method.IsConstructor) writer.WriteLinePrefix("return self;");
+					if (method.IsConstructor && !method.IsStatic) writer.WriteLinePrefix("return self;");
 				}
 				else if (method.IsAbstract)
 				{
@@ -437,7 +471,7 @@ namespace IL2X.Core
 				{
 					throw new NotImplementedException("Unsupported empty method type: " + method.Name);
 				}
-				StreamWriterEx.RemoveTab();
+				writer.RemoveTab();
 				writer.WriteLine('}');
 				writer.WriteLine();
 			}
@@ -477,18 +511,23 @@ namespace IL2X.Core
 			var stack = new Stack<IStack>();
 			var instructionJumpModify = new Dictionary<Instruction, Instruction>();
 
-			void Ldarg_X(int index)
+			void Ldarg_X(int index, bool isAddress, bool indexCanThisOffset)
 			{
 				if (index == 0 && body.Method.HasThis)
 				{
-					stack.Push(new Stack_ParameterVariable("self", true, (body.Method.IsConstructor && body.Method.DeclaringType.IsValueType) ? "." : "->"));
+					stack.Push(new Stack_ParameterVariable(null, "self", true, isAddress, (body.Method.IsConstructor && body.Method.DeclaringType.IsValueType) ? "." : "->"));
 				}
 				else
 				{
-					if (body.Method.HasThis) --index;
+					if (indexCanThisOffset && body.Method.HasThis) --index;
 					var p = body.Method.Parameters[index];
-					stack.Push(new Stack_ParameterVariable(GetParameterDefinitionName(p), false, p.ParameterType.IsValueType ? "." : "->"));
+					stack.Push(new Stack_ParameterVariable(p, GetParameterDefinitionName(p), false, isAddress, p.ParameterType.IsValueType ? "." : "->"));
 				}
+			}
+
+			void Ldarga_X(ParameterDefinition parameter)
+			{
+				Ldarg_X(parameter.Index, true, false);
 			}
 
 			void Stloc_X(int index)
@@ -515,12 +554,24 @@ namespace IL2X.Core
 				writer.WriteLinePrefix($"(({GetTypeReferenceFullName(arrayType.ElementType)}*)((char*){array.GetValueName()} + sizeof(size_t)))[{index.GetValueName()}] = {value.GetValueName()};");
 			}
 
+			void Ldind_X(string nativeType, MetadataType primitiveType)
+			{
+				var item = stack.Pop();
+				stack.Push(new Stack_Cast($"(*({nativeType}*){item.GetValueName()})", primitiveType));
+			}
+
+			void Conv_X(string nativeType, MetadataType primitiveType)
+			{
+				var item = stack.Pop();
+				stack.Push(new Stack_Cast($"(({nativeType}){item.GetValueName()})", primitiveType));
+			}
+
 			void BranchCondition(Instruction instruction, string condition, string form, bool unsignedCmp)
 			{
 				var value2 = stack.Pop();
 				var value1 = stack.Pop();
 				var operand = (Instruction)instruction.Operand;
-				operand = Br_ForwardResolveStack(instruction, operand);
+				operand = Br_ForwardResolveStack(instruction, operand, true);
 				writer.WritePrefix("if (");
 				void WriteValue(IStack value)
 				{
@@ -563,6 +614,11 @@ namespace IL2X.Core
 						{
 							var local = (Stack_LocalVariable)value;
 							UnsignPrimitiveType(local.variable.definition.VariableType.MetadataType);
+						}
+						else if (value is Stack_ParameterVariable)
+						{
+							var local = (Stack_ParameterVariable)value;
+							UnsignPrimitiveType(local.definition.ParameterType.MetadataType);
 						}
 						else if (value is Stack_PrimitiveOperation)
 						{
@@ -617,6 +673,12 @@ namespace IL2X.Core
 					var type = (Stack_LocalVariable)value;
 					return type.variable.definition.VariableType.MetadataType;
 				}
+				else if (value is Stack_ParameterVariable)
+				{
+					var type = (Stack_ParameterVariable)value;
+					if (type.definition == null) return MetadataType.Object;
+					return type.definition.ParameterType.MetadataType;
+				}
 				else if (value is Stack_PrimitiveOperation)
 				{
 					var type = (Stack_PrimitiveOperation)value;
@@ -645,8 +707,29 @@ namespace IL2X.Core
 				stack.Push(new Stack_PrimitiveOperation($"({value1.GetValueName()} {op} {value2.GetValueName()})", GetPrimitiveOperationResultType(primitiveType1, primitiveType2)));
 			}
 
-			Instruction Br_ForwardResolveStack(Instruction brInstruction, Instruction jmpInstruction)
+			void ConditionalExpression(string condition)
 			{
+				var value2 = stack.Pop();
+				var value1 = stack.Pop();
+				stack.Push(new Stack_ConditionalExpression($"(({value1.GetValueName()} {condition} {value2.GetValueName()}) ? 1 : 0)"));
+			}
+
+			void BitwiseOperation(string op)
+			{
+				var value2 = stack.Pop();
+				var value1 = stack.Pop();
+				stack.Push(new Stack_BitwiseOperation($"({value1.GetValueName()} {op} {value2.GetValueName()})"));
+			}
+
+			Instruction Br_ForwardResolveStack(Instruction brInstruction, Instruction jmpInstruction, bool keepExistingStack)
+			{
+				Stack<IStack> existingStack = null;
+				if (keepExistingStack && stack.Count != 0)
+				{
+					existingStack = new Stack<IStack>(stack);
+					writer.disableWrite = true;
+				}
+
 				var origJmpInstruction = jmpInstruction;
 				while (stack.Count != 0)
 				{
@@ -655,12 +738,21 @@ namespace IL2X.Core
 				}
 
 				if (origJmpInstruction != jmpInstruction) instructionJumpModify.Add(brInstruction, jmpInstruction);
+				if (keepExistingStack && existingStack != null)
+				{
+					stack = new Stack<IStack>(existingStack);
+					writer.disableWrite = false;
+				}
 				return jmpInstruction;
 			}
-
+			
 			foreach (var instruction in body.Instructions)
 			{
+				if (instruction.Offset == 0x0085)// DEBUG
+				{ }
 				ProcessInstruction(instruction, true);
+				// DEBUG
+				writer.Flush();writer.BaseStream.Flush();
 			}
 
 			void ProcessInstruction(Instruction instruction, bool writeBrJumps)
@@ -713,6 +805,14 @@ namespace IL2X.Core
 					// push to stack
 					case Code.Ldnull: stack.Push(new Stack_Null("0")); break;
 
+					case Code.Dup:
+					{
+						var item = stack.Pop();
+						stack.Push(item);
+						stack.Push(item);
+						break;
+					}
+
 					case Code.Ldc_I4_M1: stack.Push(new Stack_Int32(-1)); break;
 					case Code.Ldc_I4_0: stack.Push(new Stack_Int32(0)); break;
 					case Code.Ldc_I4_1: stack.Push(new Stack_Int32(1)); break;
@@ -729,20 +829,28 @@ namespace IL2X.Core
 					case Code.Ldc_R4: stack.Push(new Stack_Single((float)instruction.Operand)); break;
 					case Code.Ldc_R8: stack.Push(new Stack_Double((double)instruction.Operand)); break;
 
-					case Code.Ldarg_0: Ldarg_X(0); break;
-					case Code.Ldarg_1: Ldarg_X(1); break;
-					case Code.Ldarg_2: Ldarg_X(2); break;
-					case Code.Ldarg_3: Ldarg_X(3); break;
+					case Code.Ldarg_0: Ldarg_X(0, false, true); break;
+					case Code.Ldarg_1: Ldarg_X(1, false, true); break;
+					case Code.Ldarg_2: Ldarg_X(2, false, true); break;
+					case Code.Ldarg_3: Ldarg_X(3, false, true); break;
 					case Code.Ldarg:
 					{
-						Ldarg_X((int)instruction.Operand);
+						if (instruction.Operand is int) Ldarg_X((int)instruction.Operand, false, true);
+						else if (instruction.Operand is ParameterDefinition) Ldarg_X(((ParameterDefinition)instruction.Operand).Index, false, false);
+						else throw new NotImplementedException("Ldarg unsupported operand: " + instruction.Operand.GetType());
 						break;
 					}
 					case Code.Ldarg_S:
 					{
-						Ldarg_X((short)instruction.Operand);
+						if (instruction.Operand is short) Ldarg_X((short)instruction.Operand, false, true);
+						else if (instruction.Operand is int) Ldarg_X((int)instruction.Operand, false, true);
+						else if (instruction.Operand is ParameterDefinition) Ldarg_X(((ParameterDefinition)instruction.Operand).Index, false, false);
+						else throw new NotImplementedException("Ldarg_S unsupported operand: " + instruction.Operand.GetType());
 						break;
 					}
+
+					case Code.Ldarga: Ldarga_X((ParameterDefinition)instruction.Operand); break;
+					case Code.Ldarga_S: Ldarga_X((ParameterDefinition)instruction.Operand); break;
 
 					//case Code.Ldelem_I: Ldelem_X(instruction); break;// as void* (native int)
 					case Code.Ldelem_I1: Ldelem_X(instruction); break;
@@ -756,17 +864,23 @@ namespace IL2X.Core
 					case Code.Ldelem_R8: Ldelem_X(instruction); break;
 					//case Code.Ldelem_Ref: Ldelem_X(instruction); break;// as System.Object
 
-					case Code.Ldind_I4:
-					{
-						var item = stack.Pop();
-						stack.Push(new Stack_Cast($"((int)*{item.GetValueName()})", MetadataType.Int32));
-						break;
-					}
+					case Code.Ldind_I: Ldind_X("void*", MetadataType.IntPtr); break;
+					case Code.Ldind_I2: Ldind_X("char", MetadataType.Byte); break;
+					case Code.Ldind_I4: Ldind_X("short", MetadataType.Int16); break;
+					case Code.Ldind_I8: Ldind_X("int", MetadataType.Int32); break;
+					case Code.Ldind_R4: Ldind_X("float", MetadataType.Single); break;
+					case Code.Ldind_R8: Ldind_X("double", MetadataType.Double); break;
 
 					case Code.Ldloc_0: stack.Push(new Stack_LocalVariable(variables[0], false)); break;
 					case Code.Ldloc_1: stack.Push(new Stack_LocalVariable(variables[1], false)); break;
 					case Code.Ldloc_2: stack.Push(new Stack_LocalVariable(variables[2], false)); break;
 					case Code.Ldloc_3: stack.Push(new Stack_LocalVariable(variables[3], false)); break;
+					case Code.Ldloc:
+					{
+						var operand = (VariableDefinition)instruction.Operand;
+						stack.Push(new Stack_LocalVariable(variables[operand.Index], false));
+						break;
+					}
 					case Code.Ldloc_S:
 					{
 						var operand = (VariableDefinition)instruction.Operand;
@@ -800,6 +914,20 @@ namespace IL2X.Core
 						break;
 					}
 
+					case Code.Ldsfld:
+					{
+						var field = (FieldDefinition)instruction.Operand;
+						stack.Push(new Stack_FieldVariable(field, GetFieldDefinitionName(field), false));
+						break;
+					}
+
+					case Code.Ldsflda:
+					{
+						var field = (FieldDefinition)instruction.Operand;
+						stack.Push(new Stack_FieldVariable(field, GetFieldDefinitionName(field), true));
+						break;
+					}
+
 					case Code.Ldfld:
 					{
 						var self = stack.Pop();
@@ -816,44 +944,20 @@ namespace IL2X.Core
 						break;
 					}
 
-					case Code.Conv_U:
-					{
-						var item = stack.Pop();
-						stack.Push(new Stack_Cast($"((void*){item.GetValueName()})", MetadataType.IntPtr));
-						break;
-					}
-					case Code.Conv_U1:
-					{
-						var item = stack.Pop();
-						stack.Push(new Stack_Cast($"((char){item.GetValueName()})", MetadataType.Byte));
-						break;
-					}
-					case Code.Conv_U2:
-					{
-						var item = stack.Pop();
-						stack.Push(new Stack_Cast($"((short){item.GetValueName()})", MetadataType.Int16));
-						break;
-					}
-					case Code.Conv_U4:
-					{
-						var item = stack.Pop();
-						stack.Push(new Stack_Cast($"((int){item.GetValueName()})", MetadataType.Int32));
-						break;
-					}
-					case Code.Conv_U8:
-					{
-						var item = stack.Pop();
-						stack.Push(new Stack_Cast($"((long){item.GetValueName()})", MetadataType.Int64));
-						break;
-					}
+					case Code.Conv_U: Conv_X("void*", MetadataType.IntPtr); break;
+					case Code.Conv_U1: Conv_X("char", MetadataType.Byte); break;
+					case Code.Conv_U2: Conv_X("short", MetadataType.Int16); break;
+					case Code.Conv_U4: Conv_X("int", MetadataType.Int32); break;
+					case Code.Conv_U8: Conv_X("long", MetadataType.Int64); break;
+					case Code.Conv_R4: Conv_X("float", MetadataType.Single); break;
+					case Code.Conv_R8: Conv_X("double", MetadataType.Double); break;
 
-					case Code.Ceq:
-					{
-						var value2 = stack.Pop();
-						var value1 = stack.Pop();
-						stack.Push(new Stack_ConditionalExpression($"(({value1.GetValueName()} == {value2.GetValueName()}) ? 1 : 0)"));
-						break;
-					}
+					case Code.Ceq: ConditionalExpression("=="); break;
+					case Code.Cgt: ConditionalExpression(">"); break;
+					case Code.Clt: ConditionalExpression("<"); break;
+
+					case Code.And: BitwiseOperation("&"); break;
+					case Code.Or: BitwiseOperation("|"); break;
 
 					case Code.Add: PrimitiveOperator("+"); break;
 					case Code.Sub: PrimitiveOperator("-"); break;
@@ -865,6 +969,13 @@ namespace IL2X.Core
 					{
 						// https://www.geeksforgeeks.org/check-for-integer-overflow/
 						throw new NotImplementedException("TODO: need ability to throw Overflow exceptions");
+					}
+
+					case Code.Neg:
+					{
+						var value = stack.Pop();
+						stack.Push(new Stack_Negate('!' + value.GetValueName()));
+						break;
 					}
 
 					case Code.Call:
@@ -964,6 +1075,30 @@ namespace IL2X.Core
 						break;
 					}
 
+					case Code.Stsfld:
+					{
+						var item = stack.Pop();
+						var field = (FieldDefinition)instruction.Operand;
+						writer.WriteLinePrefix($"{GetFieldDefinitionName(field)} = {item.GetValueName()};");
+						break;
+					}
+
+					case Code.Stind_R4:
+					{
+						// DEBUG
+						writer.Flush();writer.BaseStream.Flush();
+
+						var value = stack.Pop();
+						if (stack.Count == 0)
+						{
+							writer.WriteLinePrefix($"(*????) = {value.GetValueName()};");
+							break;
+						}
+						var address = stack.Pop();
+						writer.WriteLinePrefix($"(*{address.GetValueName()}) = {value.GetValueName()};");
+						break;
+					}
+
 					//case Code.Stelem_I: Stelem_X(instruction); break;// as void* (native int)
 					case Code.Stelem_I1: Stelem_X(instruction); break;
 					case Code.Stelem_I2: Stelem_X(instruction); break;
@@ -974,10 +1109,31 @@ namespace IL2X.Core
 
 					case Code.Initobj:
 					{
-						var item = (Stack_LocalVariable)stack.Pop();
-						if (!item.isAddress) throw new Exception("Init obj must be address");
-						var variable = item.variable;
-						var type = variable.definition.VariableType;
+						var item = stack.Pop();
+						TypeReference type;
+						if (item is Stack_LocalVariable)
+						{
+							var itemType = (Stack_LocalVariable)item;
+							if (!itemType.isAddress) throw new Exception("Init obj must be address");
+							type = itemType.variable.definition.VariableType;
+						}
+						else if (item is Stack_FieldVariable)
+						{
+							var itemType = (Stack_FieldVariable)item;
+							if (!itemType.isAddress) throw new Exception("Init obj must be address");
+							type = itemType.field.FieldType;
+						}
+						else if (item is Stack_ParameterVariable)
+						{
+							var itemType = (Stack_ParameterVariable)item;
+							if (!itemType.isAddress) throw new Exception("Init obj must be address");
+							if (itemType.definition == null) throw new Exception("Initobj parameter def is null (this shouldn't happen)");
+							type = itemType.definition.ParameterType;
+						}
+						else
+						{
+							throw new NotImplementedException("Unsupported init obj type: " + item.GetType());
+						}
 						writer.WriteLinePrefix($"memset({item.GetValueName()}, 0, sizeof({GetTypeReferenceFullName(type, true, false)}));");
 						break;
 					}
@@ -994,7 +1150,7 @@ namespace IL2X.Core
 					case Code.Br:
 					{
 						var operand = (Instruction)instruction.Operand;
-						operand = Br_ForwardResolveStack(instruction, operand);
+						operand = Br_ForwardResolveStack(instruction, operand, false);
 						writer.WriteLinePrefix($"goto IL_{operand.Offset.ToString("x8")};");
 						break;
 					}
@@ -1002,7 +1158,7 @@ namespace IL2X.Core
 					case Code.Br_S:
 					{
 						var operand = (Instruction)instruction.Operand;
-						operand = Br_ForwardResolveStack(instruction, operand);
+						operand = Br_ForwardResolveStack(instruction, operand, false);
 						writer.WriteLinePrefix($"goto IL_{operand.Offset.ToString("x4")};");
 						break;
 					}
@@ -1011,7 +1167,7 @@ namespace IL2X.Core
 					{
 						var value = stack.Pop();
 						var operand = (Instruction)instruction.Operand;
-						operand = Br_ForwardResolveStack(instruction, operand);
+						operand = Br_ForwardResolveStack(instruction, operand, true);
 						writer.WriteLinePrefix($"if (!{value.GetValueName()}) goto IL_{operand.Offset.ToString("x8")};");
 						break;
 					}
@@ -1020,7 +1176,7 @@ namespace IL2X.Core
 					{
 						var value = stack.Pop();
 						var operand = (Instruction)instruction.Operand;
-						operand = Br_ForwardResolveStack(instruction, operand);
+						operand = Br_ForwardResolveStack(instruction, operand, true);
 						writer.WriteLinePrefix($"if (!{value.GetValueName()}) goto IL_{operand.Offset.ToString("x4")};");
 						break;
 					}
@@ -1029,7 +1185,7 @@ namespace IL2X.Core
 					{
 						var value = stack.Pop();
 						var operand = (Instruction)instruction.Operand;
-						operand = Br_ForwardResolveStack(instruction, operand);
+						operand = Br_ForwardResolveStack(instruction, operand, true);
 						writer.WriteLinePrefix($"if ({value.GetValueName()}) goto IL_{operand.Offset.ToString("x8")};");
 						break;
 					}
@@ -1038,7 +1194,7 @@ namespace IL2X.Core
 					{
 						var value = stack.Pop();
 						var operand = (Instruction)instruction.Operand;
-						operand = Br_ForwardResolveStack(instruction, operand);
+						operand = Br_ForwardResolveStack(instruction, operand, true);
 						writer.WriteLinePrefix($"if ({value.GetValueName()}) goto IL_{operand.Offset.ToString("x4")};");
 						break;
 					}
@@ -1048,7 +1204,7 @@ namespace IL2X.Core
 						var value2 = stack.Pop();
 						var value1 = stack.Pop();
 						var operand = (Instruction)instruction.Operand;
-						operand = Br_ForwardResolveStack(instruction, operand);
+						operand = Br_ForwardResolveStack(instruction, operand, true);
 						writer.WriteLinePrefix($"if ({value1.GetValueName()} == {value2.GetValueName()}) goto IL_{operand.Offset.ToString("x8")};");
 						break;
 					}
@@ -1058,7 +1214,7 @@ namespace IL2X.Core
 						var value2 = stack.Pop();
 						var value1 = stack.Pop();
 						var operand = (Instruction)instruction.Operand;
-						operand = Br_ForwardResolveStack(instruction, operand);
+						operand = Br_ForwardResolveStack(instruction, operand, true);
 						writer.WriteLinePrefix($"if ({value1.GetValueName()} == {value2.GetValueName()}) goto IL_{operand.Offset.ToString("x4")};");
 						break;
 					}
@@ -1216,7 +1372,8 @@ namespace IL2X.Core
 			}
 			else if (type.IsPrimitive)
 			{
-				result = GetPrimitiveName(type);
+				if (allowSymbols) result = GetPrimitiveName(type);
+				else result = base.GetTypeReferenceFullName(type, allowPrefix, allowSymbols);
 			}
 			else
 			{
@@ -1299,7 +1456,9 @@ namespace IL2X.Core
 		protected override string GetFieldDefinitionName(FieldDefinition field)
 		{
 			int count = GetBaseTypeCount(field.DeclaringType);
-			return $"f_{count}_{base.GetFieldDefinitionName(field)}";
+			string typeFullName = string.Empty;
+			if (field.IsStatic) typeFullName = GetTypeDefinitionFullName(field.DeclaringType) + '_';
+			return $"f_{count}_{typeFullName}{base.GetFieldDefinitionName(field)}";
 		}
 
 		protected override string GetFieldReferenceName(FieldReference field)

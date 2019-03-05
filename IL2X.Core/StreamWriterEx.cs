@@ -7,49 +7,66 @@ using System.Threading.Tasks;
 
 namespace System.IO
 {
-	static class StreamWriterEx
+	public class StreamWriterEx : StreamWriter
 	{
-		public static string prefix = string.Empty;
+		public string prefix = string.Empty;
+		public bool disableWrite;
 
-		public static void AddTab()
+		public StreamWriterEx(Stream stream)
+		: base(stream)
+		{
+			
+		}
+
+		public void AddTab()
 		{
 			prefix += '\t';
 		}
 
-		public static void RemoveTab()
+		public void RemoveTab()
 		{
 			if (!prefix.EndsWith("\t")) return;
 			prefix = prefix.Substring(0, prefix.Length - 1);
 		}
 
-		public static void WritePrefix(this StreamWriter self)
+		public override void Write(string value)
 		{
-			WritePrefix(self, string.Empty);
+			if (!disableWrite) base.Write(value);
 		}
 
-		public static void WritePrefix(this StreamWriter self, string value)
+		public override void WriteLine(string value)
 		{
-			self.Write(prefix + value);
+			if (!disableWrite) base.WriteLine(value);
 		}
 
-		public static void WritePrefix(this StreamWriter self, char value)
+		public void WritePrefix()
 		{
-			self.Write(prefix + value);
+			WritePrefix(string.Empty);
 		}
 
-		public static void WriteLinePrefix(this StreamWriter self)
+		public void WritePrefix(string value)
 		{
-			WriteLinePrefix(self, string.Empty);
+			Write(prefix + value);
 		}
 
-		public static void WriteLinePrefix(this StreamWriter self, string value)
+		public void WritePrefix(char value)
 		{
-			self.WriteLine(prefix + value);
+			Write(prefix + value);
 		}
 
-		public static void WriteLinePrefix(this StreamWriter self, char value)
+		public void WriteLinePrefix()
 		{
-			self.WriteLine(prefix + value);
+			WriteLinePrefix(string.Empty);
+		}
+
+		public void WriteLinePrefix(string value)
+		{
+			WriteLine(prefix + value);
+		}
+
+		public void WriteLinePrefix(char value)
+		{
+			WriteLine(prefix + value);
 		}
 	}
 }

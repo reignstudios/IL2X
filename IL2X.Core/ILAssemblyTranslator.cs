@@ -351,12 +351,22 @@ namespace IL2X.Core
 			return true;
 		}
 
-		protected bool IsEmptyType(TypeReference type)
+		protected bool IsEmptyType(TypeReference type, bool staticsDontCount = true)
 		{
 			var currentType = GetTypeDefinition(type);
 			while (currentType != null)
 			{
-				if (currentType.HasFields) return false;
+				if (currentType.HasFields)
+				{
+					if (staticsDontCount)
+					{
+						if (!currentType.Fields.All(x => x.IsStatic)) return false;
+					}
+					else
+					{
+						return false;
+					}
+				}
 				if (currentType.BaseType != null) currentType = GetTypeDefinition(currentType.BaseType);
 				else currentType = null;
 			}

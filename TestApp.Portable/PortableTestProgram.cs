@@ -1,4 +1,4 @@
-﻿using System;
+﻿/*using System;
 
 class A
 {
@@ -35,6 +35,14 @@ namespace TestApp.Portable
 {
 	static class Program
 	{
+		const int myInt = 55;
+		static string myString = "Wow";
+
+		static Program()
+		{
+			myString = "Wow2";
+		}
+
 		static void Main()//string[] args)
 		{
 			//Console.WriteLine("Hello World!");
@@ -52,7 +60,9 @@ namespace TestApp.Portable
 			i2 = array[0];
 
 			string hi = "Hello .NET World!";
+			hi = myString;
 			if (!string.IsNullOrEmpty(hi)) Console.Write(hi);
 		}
 	}
 }
+*/

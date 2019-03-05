@@ -43,19 +43,23 @@ namespace IL2X.Core.EvaluationStack
 
 	sealed class Stack_ParameterVariable : IStack
 	{
+		public readonly ParameterDefinition definition;
 		public readonly string name;
-		public readonly bool isSelf;
+		public readonly bool isSelf, isAddress;
 		public readonly string accessToken;
 
-		public Stack_ParameterVariable(string name, bool isSelf, string accessToken)
+		public Stack_ParameterVariable(ParameterDefinition definition, string name, bool isSelf, bool isAddress, string accessToken)
 		{
+			this.definition = definition;
 			this.name = name;
 			this.isSelf = isSelf;
+			this.isAddress = isAddress;
 			this.accessToken = accessToken;
 		}
 
 		public string GetValueName()
 		{
+			if (isAddress) return '&' + name;
 			return name;
 		}
 
@@ -90,6 +94,26 @@ namespace IL2X.Core.EvaluationStack
 		public readonly string expression;
 
 		public Stack_ConditionalExpression(string expression)
+		{
+			this.expression = expression;
+		}
+
+		public string GetValueName()
+		{
+			return expression;
+		}
+
+		public string GetAccessToken()
+		{
+			return ".";
+		}
+	}
+
+	sealed class Stack_BitwiseOperation : IStack
+	{
+		public readonly string expression;
+
+		public Stack_BitwiseOperation(string expression)
 		{
 			this.expression = expression;
 		}
@@ -157,6 +181,26 @@ namespace IL2X.Core.EvaluationStack
 		public readonly string value;
 
 		public Stack_Null(string value)
+		{
+			this.value = value;
+		}
+
+		public string GetValueName()
+		{
+			return value;
+		}
+
+		public string GetAccessToken()
+		{
+			throw new NotImplementedException("Null access token not supported");
+		}
+	}
+
+	sealed class Stack_Negate : IStack
+	{
+		public readonly string value;
+
+		public Stack_Negate(string value)
 		{
 			this.value = value;
 		}
