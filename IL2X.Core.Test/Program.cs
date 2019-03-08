@@ -30,7 +30,7 @@ namespace IL2X.Core.Test
 			if (!Directory.Exists(outputPath)) Directory.CreateDirectory(outputPath);
 			using (var translator = new ILAssemblyTranslator_C(binaryPath, true, options, Path.Combine(Environment.CurrentDirectory, $@"..\..\..\..\{testName}\bin\{target}\netcoreapp2.2")))
 			{
-				translator.Translate(outputPath);
+				translator.Translate(outputPath, true);
 			}
 		}
 	}

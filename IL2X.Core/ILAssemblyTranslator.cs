@@ -30,7 +30,7 @@ namespace IL2X.Core
 			Utils.DisposeInstance(ref assembly);
 		}
 
-		public abstract void Translate(string outputPath);
+		public abstract void Translate(string outputPath, bool translateReferences);
 
 		protected virtual string GetTypeDefinitionName(TypeDefinition type)
 		{

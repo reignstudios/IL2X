@@ -61,7 +61,11 @@ namespace TestApp.Portable
 
 			string hi = "Hello .NET World!";
 			hi = myString;
-			if (!string.IsNullOrEmpty(hi)) Console.Write(hi);
+			while (true)
+			{
+				if (!string.IsNullOrEmpty(hi)) Console.Write(hi);
+				//Console.Write("Hello");
+			}
 		}
 	}
 }

@@ -52,13 +52,13 @@ namespace IL2X.Core
 			if (options.gcFolderPath == null) this.options.gcFolderPath = string.Empty;
 		}
 
-		public override void Translate(string outputPath)
+		public override void Translate(string outputPath, bool translateReferences)
 		{
 			allStringLitterals = new Dictionary<string, string>();
-			TranslateAssembly(assembly, outputPath, new List<ILAssembly>());
+			TranslateAssembly(assembly, outputPath, translateReferences, new List<ILAssembly>());
 		}
 
-		private void TranslateAssembly(ILAssembly assembly, string outputPath, List<ILAssembly> translatedAssemblies)
+		private void TranslateAssembly(ILAssembly assembly, string outputPath, bool translateReferences, List<ILAssembly> translatedAssemblies)
 		{
 			activeAssembly = assembly;
 
@@ -70,7 +70,10 @@ namespace IL2X.Core
 			foreach (var module in assembly.modules)
 			{
 				// translate reference assemblies
-				foreach (var reference in module.references) TranslateAssembly(reference, outputPath, translatedAssemblies);
+				if (translateReferences)
+				{
+					foreach (var reference in module.references) TranslateAssembly(reference, outputPath, translateReferences, translatedAssemblies);
+				}
 
 				// create output folder
 				if (!Directory.Exists(outputPath)) Directory.CreateDirectory(outputPath);
@@ -906,7 +909,7 @@ namespace IL2X.Core
 						string value = (string)instruction.Operand;
 						string valueFormated = $"StringLiteral_{allStringLitterals.Count}";
 						stack.Push(new Stack_String(valueFormated));
-						if (!allStringLitterals.ContainsKey(valueFormated))
+						if (!allStringLitterals.ContainsValue(value))
 						{
 							allStringLitterals.Add(valueFormated, value);
 							activeStringLiterals.Add(valueFormated, value);
