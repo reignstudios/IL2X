@@ -28,6 +28,15 @@ namespace IL2X.Core.EvaluationStack
 		string GetAccessToken();
 	}
 
+	abstract class Stack_Typed// TODO: store type ref
+	{
+		public TypeReference type;
+		public Stack_Typed(TypeReference type)
+		{
+			this.type = type;
+		}
+	}
+
 	sealed class Stack_LocalVariable : IStack
 	{
 		public readonly LocalVariable variable;
@@ -84,6 +93,26 @@ namespace IL2X.Core.EvaluationStack
 		public readonly string expression;
 
 		public Stack_ArrayElement(string expression)
+		{
+			this.expression = expression;
+		}
+
+		public string GetValueName()
+		{
+			return expression;
+		}
+
+		public string GetAccessToken()
+		{
+			return "->";
+		}
+	}
+
+	sealed class Stack_ArrayLength : IStack
+	{
+		public readonly string expression;
+
+		public Stack_ArrayLength(string expression)
 		{
 			this.expression = expression;
 		}

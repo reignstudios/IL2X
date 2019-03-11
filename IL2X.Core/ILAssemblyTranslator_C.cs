@@ -901,7 +901,16 @@ namespace IL2X.Core
 					case Code.Ldelem_U4: Ldelem_X(instruction); break;
 					case Code.Ldelem_R4: Ldelem_X(instruction); break;
 					case Code.Ldelem_R8: Ldelem_X(instruction); break;
-					//case Code.Ldelem_Ref: Ldelem_X(instruction); break;// as System.Object
+					case Code.Ldelem_Ref: Ldelem_X(instruction); break;// as System.Object
+
+					case Code.Ldlen:
+					{
+						var array = stack.Pop();
+						var arrayType = activeCoreAssembly.assemblyDefinition.MainModule.GetType("System.Array");
+						var lengthMethod = arrayType.Methods.First(x => x.Name == "get_Length");
+						stack.Push(new Stack_ArrayLength($"{GetMethodDefinitionFullName(lengthMethod)}({array.GetValueName()});"));
+						break;
+					}
 
 					case Code.Ldind_I: Ldind_X("void*", MetadataType.IntPtr); break;
 					case Code.Ldind_I2: Ldind_X("char", MetadataType.Byte); break;
@@ -983,11 +992,17 @@ namespace IL2X.Core
 						break;
 					}
 
+					case Code.Conv_I: Conv_X("void*", MetadataType.IntPtr); break;
+					case Code.Conv_I1: Conv_X("char", MetadataType.Byte); break;
+					case Code.Conv_I2: Conv_X("short", MetadataType.Int16); break;
+					case Code.Conv_I4: Conv_X("int", MetadataType.Int32); break;
+					case Code.Conv_I8: Conv_X("long", MetadataType.Int64); break;
+
 					case Code.Conv_U: Conv_X("void*", MetadataType.IntPtr); break;
-					case Code.Conv_U1: Conv_X("char", MetadataType.Byte); break;
-					case Code.Conv_U2: Conv_X("short", MetadataType.Int16); break;
-					case Code.Conv_U4: Conv_X("int", MetadataType.Int32); break;
-					case Code.Conv_U8: Conv_X("long", MetadataType.Int64); break;
+					case Code.Conv_U1: Conv_X("unsigned char", MetadataType.Byte); break;
+					case Code.Conv_U2: Conv_X("unsigned short", MetadataType.UInt16); break;
+					case Code.Conv_U4: Conv_X("unsigned int", MetadataType.UInt32); break;
+					case Code.Conv_U8: Conv_X("unsigned long", MetadataType.UInt64); break;
 					case Code.Conv_R4: Conv_X("float", MetadataType.Single); break;
 					case Code.Conv_R8: Conv_X("double", MetadataType.Double); break;
 
