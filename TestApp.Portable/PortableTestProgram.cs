@@ -70,3 +70,28 @@ namespace TestApp.Portable
 	}
 }
 */
+
+/*namespace TestApp.Portable
+{
+	static class Program
+	{
+		static int i;
+
+		static void Main()
+		{
+			START:;
+			System.Console.Write("Start");
+			if (i == 3)
+			{
+				goto END;
+				//while (true){ }
+			}
+			else if (i == 2)
+			{
+				goto END;
+			}
+			goto START;
+			END:;
+		}
+	}
+}*/

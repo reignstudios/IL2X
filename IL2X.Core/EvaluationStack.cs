@@ -6,16 +6,26 @@ using System.Text;
 
 namespace IL2X.Core.EvaluationStack
 {
-	interface IStack
+	sealed class BranchJumpModify
 	{
-		string GetValueName();
-		string GetAccessToken();
+		public int offset, stackCountBeforeJump;
+		public BranchJumpModify(int offset, int stackCountBeforeJump)
+		{
+			this.offset = offset;
+			this.stackCountBeforeJump = stackCountBeforeJump;
+		}
 	}
 
 	sealed class LocalVariable
 	{
 		public VariableDefinition definition;
 		public string name;
+	}
+
+	interface IStack
+	{
+		string GetValueName();
+		string GetAccessToken();
 	}
 
 	sealed class Stack_LocalVariable : IStack

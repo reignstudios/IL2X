@@ -512,7 +512,7 @@ namespace IL2X.Core
 
 			// write instructions
 			var stack = new Stack<IStack>();
-			var instructionJumpModify = new Dictionary<Instruction, Instruction>();
+			var instructionJumpModify = new Dictionary<Instruction, BranchJumpModify>();
 
 			void Ldarg_X(int index, bool isAddress, bool indexCanThisOffset)
 			{
@@ -569,13 +569,30 @@ namespace IL2X.Core
 				stack.Push(new Stack_Cast($"(({nativeType}){item.GetValueName()})", primitiveType));
 			}
 
-			void BranchCondition(Instruction instruction, string condition, string form, bool unsignedCmp)
+			void BranchUnconditional(Instruction instruction, string form)
 			{
-				var value2 = stack.Pop();
-				var value1 = stack.Pop();
 				var operand = (Instruction)instruction.Operand;
-				operand = Br_ForwardResolveStack(instruction, operand, true);
+				int jmpOffset = Br_ForwardResolveStack(instruction, operand, false);
+				writer.WriteLinePrefix($"goto IL_{jmpOffset.ToString(form)};");
+			}
+
+			void BranchBooleanCondition(Instruction instruction, bool trueCondition, string form)
+			{
+				var value = stack.Pop();
+				var operand = (Instruction)instruction.Operand;
 				writer.WritePrefix("if (");
+				if (!trueCondition) writer.Write('!');
+				writer.WriteLine($"{value.GetValueName()})");
+				writer.WriteLinePrefix('{');
+				writer.AddTab();
+				int jmpOffset = Br_ForwardResolveStack(instruction, operand, true);
+				writer.WriteLinePrefix($"goto IL_{jmpOffset.ToString(form)};");
+				writer.RemoveTab();
+				writer.WriteLinePrefix('}');
+			}
+
+			void BranchCompareCondition(Instruction instruction, string condition, string form, bool unsignedCmp)
+			{
 				void WriteValue(IStack value)
 				{
 					if (unsignedCmp)
@@ -638,10 +655,22 @@ namespace IL2X.Core
 						writer.Write(value.GetValueName());
 					}
 				}
+
+				var value2 = stack.Pop();
+				var value1 = stack.Pop();
+				var operand = (Instruction)instruction.Operand;
+
+				writer.WritePrefix("if (");
 				WriteValue(value1);
 				writer.Write($" {condition} ");
 				WriteValue(value2);
-				writer.WriteLine($") goto IL_{operand.Offset.ToString(form)};");
+				writer.WriteLine(')');
+				writer.WriteLinePrefix('{');
+				writer.AddTab();
+				int jmpOffset = Br_ForwardResolveStack(instruction, operand, true);
+				writer.WriteLinePrefix($"goto IL_{jmpOffset.ToString(form)};");
+				writer.RemoveTab();
+				writer.WriteLinePrefix('}');
 			}
 
 			MetadataType GetPrimitiveResult(IStack value)
@@ -724,38 +753,32 @@ namespace IL2X.Core
 				stack.Push(new Stack_BitwiseOperation($"({value1.GetValueName()} {op} {value2.GetValueName()})"));
 			}
 
-			Instruction Br_ForwardResolveStack(Instruction brInstruction, Instruction jmpInstruction, bool keepExistingStack)
+			int Br_ForwardResolveStack(Instruction brInstruction, Instruction jmpInstruction, bool keepExistingStack)
 			{
+				int existingStackCount = stack.Count;
 				Stack<IStack> existingStack = null;
-				if (keepExistingStack && stack.Count != 0)
-				{
-					existingStack = new Stack<IStack>(stack);
-					writer.disableWrite = true;
-				}
-
+				if (keepExistingStack && stack.Count != 0) existingStack = new Stack<IStack>(stack);
+				
 				var origJmpInstruction = jmpInstruction;
+				int jmpOffset = jmpInstruction.Offset;
 				while (stack.Count != 0)
 				{
 					ProcessInstruction(jmpInstruction, false);
+					writer.Flush();writer.BaseStream.Flush();// DEBUG
+					jmpOffset = jmpInstruction.Offset + 1;// if next instruction is null make sure we jump after it
 					jmpInstruction = jmpInstruction.Next;
+					if (jmpInstruction != null) jmpOffset = jmpInstruction.Offset;
 				}
 
-				if (origJmpInstruction != jmpInstruction) instructionJumpModify.Add(brInstruction, jmpInstruction);
-				if (keepExistingStack && existingStack != null)
-				{
-					stack = new Stack<IStack>(existingStack);
-					writer.disableWrite = false;
-				}
-				return jmpInstruction;
+				if (origJmpInstruction.Offset != jmpOffset) instructionJumpModify.Add(brInstruction, new BranchJumpModify(jmpOffset, existingStackCount));
+				if (keepExistingStack && existingStack != null) stack = new Stack<IStack>(existingStack);
+				return jmpOffset;
 			}
 			
 			foreach (var instruction in body.Instructions)
 			{
-				if (instruction.Offset == 0x0085)// DEBUG
-				{ }
 				ProcessInstruction(instruction, true);
-				// DEBUG
-				writer.Flush();writer.BaseStream.Flush();
+				writer.Flush();writer.BaseStream.Flush();// DEBUG
 			}
 
 			void ProcessInstruction(Instruction instruction, bool writeBrJumps)
@@ -763,12 +786,25 @@ namespace IL2X.Core
 				// check if this instruction can be jumped to
 				if (writeBrJumps)
 				{
+					// validate instruction isnt jump to only handled
+					foreach (var brModify in instructionJumpModify)
+					{
+						if (brModify.Value.stackCountBeforeJump == 0 && stack.Count == 0) continue;
+						var jumpInstruction = (Instruction)brModify.Key.Operand;
+						if (instruction.Offset >= jumpInstruction.Offset && instruction.Offset < brModify.Value.offset)
+						{
+							stack.Clear();// stack already forward processes, so remove
+							return;
+						}
+					}
+
+					// write jump name
 					bool CanBeJumpedTo(params Code[] codes)
 					{
 						return body.Instructions.Any(x =>
 						x.OpCode.HasAnyCodes(codes) &&// has branch code
 						((((Instruction)x.Operand).Offset == instruction.Offset && !instructionJumpModify.ContainsKey(x)) ||// if instruction jumps to me and no branch overrides
-						(instructionJumpModify.ContainsKey(x) && instructionJumpModify[x].Offset == instruction.Offset)));// or instruction has branch override and jumps to me
+						(instructionJumpModify.ContainsKey(x) && instructionJumpModify[x].offset == instruction.Offset)));// or instruction has branch override and jumps to me
 					}
 
 					if (CanBeJumpedTo
@@ -1088,15 +1124,7 @@ namespace IL2X.Core
 
 					case Code.Stind_R4:
 					{
-						// DEBUG
-						writer.Flush();writer.BaseStream.Flush();
-
 						var value = stack.Pop();
-						if (stack.Count == 0)
-						{
-							writer.WriteLinePrefix($"(*????) = {value.GetValueName()};");
-							break;
-						}
 						var address = stack.Pop();
 						writer.WriteLinePrefix($"(*{address.GetValueName()}) = {value.GetValueName()};");
 						break;
@@ -1150,96 +1178,34 @@ namespace IL2X.Core
 					}
 
 					// flow operations
-					case Code.Br:
-					{
-						var operand = (Instruction)instruction.Operand;
-						operand = Br_ForwardResolveStack(instruction, operand, false);
-						writer.WriteLinePrefix($"goto IL_{operand.Offset.ToString("x8")};");
-						break;
-					}
+					case Code.Br: BranchUnconditional(instruction, "x8"); break;
+					case Code.Br_S: BranchUnconditional(instruction, "x4"); break;
 
-					case Code.Br_S:
-					{
-						var operand = (Instruction)instruction.Operand;
-						operand = Br_ForwardResolveStack(instruction, operand, false);
-						writer.WriteLinePrefix($"goto IL_{operand.Offset.ToString("x4")};");
-						break;
-					}
+					case Code.Brfalse: BranchBooleanCondition(instruction, false, "x8"); break;
+					case Code.Brfalse_S: BranchBooleanCondition(instruction, false, "x4"); break;
+					case Code.Brtrue: BranchBooleanCondition(instruction, true, "x8"); break;
+					case Code.Brtrue_S: BranchBooleanCondition(instruction, true, "x4"); break;
 
-					case Code.Brfalse:
-					{
-						var value = stack.Pop();
-						var operand = (Instruction)instruction.Operand;
-						operand = Br_ForwardResolveStack(instruction, operand, true);
-						writer.WriteLinePrefix($"if (!{value.GetValueName()}) goto IL_{operand.Offset.ToString("x8")};");
-						break;
-					}
-
-					case Code.Brfalse_S:
-					{
-						var value = stack.Pop();
-						var operand = (Instruction)instruction.Operand;
-						operand = Br_ForwardResolveStack(instruction, operand, true);
-						writer.WriteLinePrefix($"if (!{value.GetValueName()}) goto IL_{operand.Offset.ToString("x4")};");
-						break;
-					}
-
-					case Code.Brtrue:
-					{
-						var value = stack.Pop();
-						var operand = (Instruction)instruction.Operand;
-						operand = Br_ForwardResolveStack(instruction, operand, true);
-						writer.WriteLinePrefix($"if ({value.GetValueName()}) goto IL_{operand.Offset.ToString("x8")};");
-						break;
-					}
-
-					case Code.Brtrue_S:
-					{
-						var value = stack.Pop();
-						var operand = (Instruction)instruction.Operand;
-						operand = Br_ForwardResolveStack(instruction, operand, true);
-						writer.WriteLinePrefix($"if ({value.GetValueName()}) goto IL_{operand.Offset.ToString("x4")};");
-						break;
-					}
-
-					case Code.Beq:
-					{
-						var value2 = stack.Pop();
-						var value1 = stack.Pop();
-						var operand = (Instruction)instruction.Operand;
-						operand = Br_ForwardResolveStack(instruction, operand, true);
-						writer.WriteLinePrefix($"if ({value1.GetValueName()} == {value2.GetValueName()}) goto IL_{operand.Offset.ToString("x8")};");
-						break;
-					}
-
-					case Code.Beq_S:
-					{
-						var value2 = stack.Pop();
-						var value1 = stack.Pop();
-						var operand = (Instruction)instruction.Operand;
-						operand = Br_ForwardResolveStack(instruction, operand, true);
-						writer.WriteLinePrefix($"if ({value1.GetValueName()} == {value2.GetValueName()}) goto IL_{operand.Offset.ToString("x4")};");
-						break;
-					}
-
-					case Code.Bge: BranchCondition(instruction, ">=", "x8", false); break;
-					case Code.Bge_S: BranchCondition(instruction, ">=", "x4", false); break;
-					case Code.Bge_Un: BranchCondition(instruction, ">=", "x8", true); break;
-					case Code.Bge_Un_S: BranchCondition(instruction, ">=", "x4", true); break;
-					case Code.Bgt: BranchCondition(instruction, ">", "x8", false); break;
-					case Code.Bgt_S: BranchCondition(instruction, ">", "x4", false); break;
-					case Code.Bgt_Un: BranchCondition(instruction, ">", "x8", true); break;
-					case Code.Bgt_Un_S: BranchCondition(instruction, ">", "x4", true); break;
-					case Code.Ble: BranchCondition(instruction, "<=", "x8", false); break;
-					case Code.Ble_S: BranchCondition(instruction, "<=", "x4", false); break;
-					case Code.Ble_Un: BranchCondition(instruction, "<=", "x8", true); break;
-					case Code.Ble_Un_S: BranchCondition(instruction, "<=", "x4", true); break;
-					case Code.Blt: BranchCondition(instruction, "<", "x8", false); break;
-					case Code.Blt_S: BranchCondition(instruction, "<", "x4", false); break;
-					case Code.Blt_Un: BranchCondition(instruction, "<", "x8", true); break;
-					case Code.Blt_Un_S: BranchCondition(instruction, "<", "x4", true); break;
-					case Code.Bne_Un: BranchCondition(instruction, "!=", "x8", true); break;
-					case Code.Bne_Un_S: BranchCondition(instruction, "!=", "x4", true); break;
+					case Code.Beq: BranchCompareCondition(instruction, "==", "x8", false); break;
+					case Code.Beq_S: BranchCompareCondition(instruction, "==", "x4", false); break;
+					case Code.Bge: BranchCompareCondition(instruction, ">=", "x8", false); break;
+					case Code.Bge_S: BranchCompareCondition(instruction, ">=", "x4", false); break;
+					case Code.Bge_Un: BranchCompareCondition(instruction, ">=", "x8", true); break;
+					case Code.Bge_Un_S: BranchCompareCondition(instruction, ">=", "x4", true); break;
+					case Code.Bgt: BranchCompareCondition(instruction, ">", "x8", false); break;
+					case Code.Bgt_S: BranchCompareCondition(instruction, ">", "x4", false); break;
+					case Code.Bgt_Un: BranchCompareCondition(instruction, ">", "x8", true); break;
+					case Code.Bgt_Un_S: BranchCompareCondition(instruction, ">", "x4", true); break;
+					case Code.Ble: BranchCompareCondition(instruction, "<=", "x8", false); break;
+					case Code.Ble_S: BranchCompareCondition(instruction, "<=", "x4", false); break;
+					case Code.Ble_Un: BranchCompareCondition(instruction, "<=", "x8", true); break;
+					case Code.Ble_Un_S: BranchCompareCondition(instruction, "<=", "x4", true); break;
+					case Code.Blt: BranchCompareCondition(instruction, "<", "x8", false); break;
+					case Code.Blt_S: BranchCompareCondition(instruction, "<", "x4", false); break;
+					case Code.Blt_Un: BranchCompareCondition(instruction, "<", "x8", true); break;
+					case Code.Blt_Un_S: BranchCompareCondition(instruction, "<", "x4", true); break;
+					case Code.Bne_Un: BranchCompareCondition(instruction, "!=", "x8", true); break;
+					case Code.Bne_Un_S: BranchCompareCondition(instruction, "!=", "x4", true); break;
 
 					case Code.Ret:
 					{
