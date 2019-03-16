@@ -518,7 +518,8 @@ namespace IL2X.Core
 			{
 				if (index == 0 && body.Method.HasThis)
 				{
-					stack.Push(new Stack_ParameterVariable(null, "self", true, isAddress, (body.Method.IsConstructor && body.Method.DeclaringType.IsValueType) ? "." : "->"));
+					var selfParameter = new ParameterDefinition(body.Method.DeclaringType);
+					stack.Push(new Stack_ParameterVariable(selfParameter, "self", true, isAddress, (body.Method.IsConstructor && body.Method.DeclaringType.IsValueType) ? "." : "->"));
 				}
 				else
 				{
@@ -543,18 +544,25 @@ namespace IL2X.Core
 			void Ldelem_X(Instruction instruction)
 			{
 				var index = stack.Pop();
-				var array = (Stack_LocalVariable)stack.Pop();
-				var arrayType = (ArrayType)array.variable.definition.VariableType;
-				stack.Push(new Stack_ArrayElement($"(({GetTypeReferenceFullName(arrayType.ElementType)}*)((char*){array.GetValueName()} + sizeof(size_t)))[{index.GetValueName()}]"));
+				var array = (Stack_Typed)stack.Pop();
+				var arrayType = (ArrayType)array.type;
+				stack.Push(new Stack_ArrayElement(arrayType, $"(({GetTypeReferenceFullName(arrayType.ElementType)}*)((char*){array.GetValueName()} + sizeof(size_t)))[{index.GetValueName()}]"));
 			}
 
 			void Stelem_X(Instruction instruction)
 			{
 				var value = stack.Pop();
 				var index = stack.Pop();
-				var array = (Stack_LocalVariable)stack.Pop();
-				var arrayType = (ArrayType)array.variable.definition.VariableType;
-				writer.WriteLinePrefix($"(({GetTypeReferenceFullName(arrayType.ElementType)}*)((char*){array.GetValueName()} + sizeof(size_t)))[{index.GetValueName()}] = {value.GetValueName()};");
+				var array = (Stack_Typed)stack.Pop();
+				if (array.type is ArrayType)
+				{
+					var arrayType = (ArrayType)array.type;
+					writer.WriteLinePrefix($"(({GetTypeReferenceFullName(arrayType.ElementType)}*)((char*){array.GetValueName()} + sizeof(size_t)))[{index.GetValueName()}] = {value.GetValueName()};");
+				}
+				else
+				{
+					writer.WriteLinePrefix($"(????)[{index.GetValueName()}] = {value.GetValueName()};");
+				}
 			}
 
 			void Ldind_X(string nativeType, MetadataType primitiveType)
@@ -645,6 +653,11 @@ namespace IL2X.Core
 							var op = (Stack_PrimitiveOperation)value;
 							UnsignPrimitiveType(op.primitiveType);
 						}
+						else if (value is Stack_ArrayElement)
+						{
+							var op = (Stack_ArrayElement)value;
+							UnsignPrimitiveType(op.type.MetadataType);
+						}
 						else
 						{
 							throw new NotImplementedException("BranchCondition failed to unsign value: " + value.GetValueName());
@@ -715,6 +728,11 @@ namespace IL2X.Core
 				{
 					var type = (Stack_PrimitiveOperation)value;
 					return type.primitiveType;
+				}
+				else if (value is Stack_ArrayElement)
+				{
+					var type = (Stack_ArrayElement)value;
+					return type.type.MetadataType;
 				}
 				else throw new NotImplementedException("GetPrimitiveResult failed to result: " + value.GetType());
 			}
@@ -908,7 +926,7 @@ namespace IL2X.Core
 						var array = stack.Pop();
 						var arrayType = activeCoreAssembly.assemblyDefinition.MainModule.GetType("System.Array");
 						var lengthMethod = arrayType.Methods.First(x => x.Name == "get_Length");
-						stack.Push(new Stack_ArrayLength($"{GetMethodDefinitionFullName(lengthMethod)}({array.GetValueName()});"));
+						stack.Push(new Stack_ArrayLength($"{GetMethodDefinitionFullName(lengthMethod)}({array.GetValueName()})"));
 						break;
 					}
 
@@ -1013,6 +1031,10 @@ namespace IL2X.Core
 					case Code.And: BitwiseOperation("&"); break;
 					case Code.Or: BitwiseOperation("|"); break;
 
+					case Code.Shl: PrimitiveOperator("<<"); break;
+					case Code.Shr: PrimitiveOperator(">>"); break;
+					//case Code.Shr_Un: PrimitiveOperator(">>", true); break;
+
 					case Code.Add: PrimitiveOperator("+"); break;
 					case Code.Sub: PrimitiveOperator("-"); break;
 					case Code.Mul: PrimitiveOperator("*"); break;
@@ -1097,8 +1119,16 @@ namespace IL2X.Core
 					{
 						var type = (TypeReference)instruction.Operand;
 						var size = stack.Pop();
-						if (type.IsValueType) stack.Push(new Stack_Call(null, $"IL2X_GC_NewArrayAtomic(sizeof({GetTypeReferenceFullName(type)}) * {size.GetValueName()})"));
-						else stack.Push(new Stack_Call(null, $"IL2X_GC_NewArray(sizeof({GetTypeReferenceFullName(type)}) * {size.GetValueName()})"));
+						if (type.IsValueType)
+						{
+							var allocMethod = new MethodDefinition("IL2X_GC_NewArrayAtomic", MethodAttributes.RTSpecialName, type);
+							stack.Push(new Stack_Call(allocMethod, $"IL2X_GC_NewArrayAtomic(sizeof({GetTypeReferenceFullName(type)}) * {size.GetValueName()})"));
+						}
+						else
+						{
+							var allocMethod = new MethodDefinition("IL2X_GC_NewArray", MethodAttributes.RTSpecialName, type);
+							stack.Push(new Stack_Call(allocMethod, $"IL2X_GC_NewArray(sizeof({GetTypeReferenceFullName(type)}) * {size.GetValueName()})"));
+						}
 						break;
 					}
 
@@ -1152,6 +1182,7 @@ namespace IL2X.Core
 					case Code.Stelem_I8: Stelem_X(instruction); break;
 					case Code.Stelem_R4: Stelem_X(instruction); break;
 					case Code.Stelem_R8: Stelem_X(instruction); break;
+					case Code.Stelem_Ref: Stelem_X(instruction); break;
 
 					case Code.Initobj:
 					{

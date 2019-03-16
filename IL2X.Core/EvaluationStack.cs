@@ -28,81 +28,91 @@ namespace IL2X.Core.EvaluationStack
 		string GetAccessToken();
 	}
 
-	abstract class Stack_Typed// TODO: store type ref
+	abstract class Stack_Typed : IStack
 	{
-		public TypeReference type;
-		public Stack_Typed(TypeReference type)
-		{
-			this.type = type;
-		}
-	}
-
-	sealed class Stack_LocalVariable : IStack
-	{
-		public readonly LocalVariable variable;
+		public readonly string name;
+		public readonly TypeReference type;
 		public readonly bool isAddress;
 
-		public Stack_LocalVariable(LocalVariable variable, bool isAddress)
+		public Stack_Typed(string name, TypeReference type, bool isAddress)
 		{
-			this.variable = variable;
-			this.isAddress = isAddress;
-		}
-
-		public string GetValueName()
-		{
-			if (isAddress) return '&' + variable.name;
-			return variable.name;
-		}
-
-		public string GetAccessToken()
-		{
-			return (variable.definition.VariableType.IsValueType && !isAddress) ? "." : "->";
-		}
-	}
-
-	sealed class Stack_ParameterVariable : IStack
-	{
-		public readonly ParameterDefinition definition;
-		public readonly string name;
-		public readonly bool isSelf, isAddress;
-		public readonly string accessToken;
-
-		public Stack_ParameterVariable(ParameterDefinition definition, string name, bool isSelf, bool isAddress, string accessToken)
-		{
-			this.definition = definition;
 			this.name = name;
-			this.isSelf = isSelf;
+			this.type = type;
 			this.isAddress = isAddress;
-			this.accessToken = accessToken;
 		}
 
-		public string GetValueName()
+		public virtual string GetValueName()
 		{
 			if (isAddress) return '&' + name;
 			return name;
 		}
 
-		public string GetAccessToken()
+		public virtual string GetAccessToken()
+		{
+			return (type.IsValueType && !isAddress) ? "." : "->";
+		}
+	}
+
+	sealed class Stack_LocalVariable : Stack_Typed
+	{
+		public readonly LocalVariable variable;
+
+		public Stack_LocalVariable(LocalVariable variable, bool isAddress)
+		: base(variable.name, variable.definition.VariableType, isAddress)
+		{
+			this.variable = variable;
+		}
+	}
+
+	sealed class Stack_ParameterVariable : Stack_Typed
+	{
+		public readonly ParameterDefinition definition;
+		public readonly bool isSelf;
+		public readonly string accessToken;
+
+		public Stack_ParameterVariable(ParameterDefinition definition, string name, bool isSelf, bool isAddress, string accessToken)
+		: base(name, definition.ParameterType, isAddress)
+		{
+			this.definition = definition;
+			this.isSelf = isSelf;
+			this.accessToken = accessToken;
+		}
+
+		public override string GetAccessToken()
 		{
 			return accessToken;
 		}
 	}
 
-	sealed class Stack_ArrayElement : IStack
+	sealed class Stack_FieldVariable : Stack_Typed
 	{
+		public readonly FieldDefinition field;
+
+		public Stack_FieldVariable(FieldDefinition field, string name, bool isAddress)
+		: base(name, field.FieldType, isAddress)
+		{
+			this.field = field;
+		}
+	}
+
+	sealed class Stack_ArrayElement : Stack_Typed
+	{
+		public readonly ArrayType arrayType;
 		public readonly string expression;
 
-		public Stack_ArrayElement(string expression)
+		public Stack_ArrayElement(ArrayType arrayType, string expression)
+		: base (expression, arrayType.ElementType, false)
 		{
+			this.arrayType = arrayType;
 			this.expression = expression;
 		}
 
-		public string GetValueName()
+		public override string GetValueName()
 		{
 			return expression;
 		}
 
-		public string GetAccessToken()
+		public override string GetAccessToken()
 		{
 			return "->";
 		}
@@ -187,31 +197,6 @@ namespace IL2X.Core.EvaluationStack
 		public string GetAccessToken()
 		{
 			return ".";
-		}
-	}
-
-	sealed class Stack_FieldVariable : IStack
-	{
-		public readonly FieldDefinition field;
-		public readonly string name;
-		public readonly bool isAddress;
-
-		public Stack_FieldVariable(FieldDefinition field, string name, bool isAddress)
-		{
-			this.field = field;
-			this.name = name;
-			this.isAddress = isAddress;
-		}
-
-		public string GetValueName()
-		{
-			if (isAddress) return '&' + name;
-			return name;
-		}
-
-		public string GetAccessToken()
-		{
-			return (field.FieldType.IsValueType && !isAddress) ? "." : "->";
 		}
 	}
 
@@ -500,25 +485,21 @@ namespace IL2X.Core.EvaluationStack
 		}
 	}
 
-	sealed class Stack_Call : IStack
+	sealed class Stack_Call : Stack_Typed
 	{
 		public readonly MethodReference method;
 		public readonly string methodInvoke;
 
 		public Stack_Call(MethodReference method, string methodInvoke)
+		: base(methodInvoke, method.ReturnType, false)
 		{
 			this.method = method;
 			this.methodInvoke = methodInvoke;
 		}
 
-		public string GetValueName()
+		public override string GetValueName()
 		{
 			return methodInvoke;
-		}
-
-		public string GetAccessToken()
-		{
-			return method.ReturnType.IsValueType ? "." : "->";
 		}
 	}
 }
