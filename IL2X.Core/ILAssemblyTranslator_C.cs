@@ -513,6 +513,7 @@ namespace IL2X.Core
 			// write instructions
 			var stack = new Stack<IStack>();
 			var instructionJumpModify = new Dictionary<Instruction, BranchJumpModify>();
+			var arrayItemWaitingList = new Dictionary<Stack_Call, IStack>();
 
 			void Ldarg_X(int index, bool isAddress, bool indexCanThisOffset)
 			{
@@ -559,9 +560,14 @@ namespace IL2X.Core
 					var arrayType = (ArrayType)array.type;
 					writer.WriteLinePrefix($"(({GetTypeReferenceFullName(arrayType.ElementType)}*)((char*){array.GetValueName()} + sizeof(size_t)))[{index.GetValueName()}] = {value.GetValueName()};");
 				}
+				else if (array is Stack_Call)
+				{
+					//arrayItemWaitingList.Add((Stack_Call)array, value);// array buffer not yet created (add to waiting list)
+					writer.WriteLinePrefix($"(????)[{index.GetValueName()}] = {value.GetValueName()};");
+				}
 				else
 				{
-					writer.WriteLinePrefix($"(????)[{index.GetValueName()}] = {value.GetValueName()};");
+					throw new NotImplementedException("Failed setting an array of type: " + array.GetType());
 				}
 			}
 
@@ -782,7 +788,6 @@ namespace IL2X.Core
 				while (stack.Count != 0)
 				{
 					ProcessInstruction(jmpInstruction, false);
-					writer.Flush();writer.BaseStream.Flush();// DEBUG
 					jmpOffset = jmpInstruction.Offset + 1;// if next instruction is null make sure we jump after it
 					jmpInstruction = jmpInstruction.Next;
 					if (jmpInstruction != null) jmpOffset = jmpInstruction.Offset;
@@ -792,15 +797,16 @@ namespace IL2X.Core
 				if (keepExistingStack && existingStack != null) stack = new Stack<IStack>(existingStack);
 				return jmpOffset;
 			}
-
+			
 			foreach (var instruction in body.Instructions)
 			{
 				ProcessInstruction(instruction, true);
-				writer.Flush();writer.BaseStream.Flush();// DEBUG
 			}
 
 			void ProcessInstruction(Instruction instruction, bool writeBrJumps)
 			{
+				writer.Flush();writer.BaseStream.Flush();// DEBUG
+
 				// check if this instruction can be jumped to
 				if (writeBrJumps)
 				{
