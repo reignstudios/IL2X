@@ -838,7 +838,8 @@ namespace IL2X.Core
 					{
 						writer.WriteLinePrefix($"IL_{instruction.Offset.ToString("x4")}:;");// write goto jump label short form
 					}
-					else if (CanBeJumpedTo
+
+					if (CanBeJumpedTo
 					(
 						Code.Br, Code.Brfalse, Code.Brtrue,
 						Code.Bge, Code.Bge_Un,
