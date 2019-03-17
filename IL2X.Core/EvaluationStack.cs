@@ -43,7 +43,7 @@ namespace IL2X.Core.EvaluationStack
 
 		public virtual string GetValueName()
 		{
-			if (isAddress) return '&' + name;
+			if (isAddress) return $"(&{name})";
 			return name;
 		}
 
@@ -80,7 +80,8 @@ namespace IL2X.Core.EvaluationStack
 
 		public override string GetAccessToken()
 		{
-			return accessToken;
+			if (isSelf) return accessToken;
+			else return base.GetAccessToken();
 		}
 	}
 
@@ -411,8 +412,12 @@ namespace IL2X.Core.EvaluationStack
 
 		public string GetValueName()
 		{
-			string result = value.ToString();
-			if (!result.Contains('.')) return result + ".0f";
+			string result = value.ToString();//value.ToString("F5");
+			if (!result.Contains('.'))
+			{
+				if (!result.Contains('E')) return result + ".0f";
+				else return result + 'f';
+			}
 			return result;
 		}
 

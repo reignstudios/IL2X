@@ -525,7 +525,7 @@ namespace IL2X.Core
 				{
 					if (indexCanThisOffset && body.Method.HasThis) --index;
 					var p = body.Method.Parameters[index];
-					stack.Push(new Stack_ParameterVariable(p, GetParameterDefinitionName(p), false, isAddress, p.ParameterType.IsValueType ? "." : "->"));
+					stack.Push(new Stack_ParameterVariable(p, GetParameterDefinitionName(p), false, isAddress, null));
 				}
 			}
 
@@ -792,7 +792,7 @@ namespace IL2X.Core
 				if (keepExistingStack && existingStack != null) stack = new Stack<IStack>(existingStack);
 				return jmpOffset;
 			}
-			
+
 			foreach (var instruction in body.Instructions)
 			{
 				ProcessInstruction(instruction, true);
