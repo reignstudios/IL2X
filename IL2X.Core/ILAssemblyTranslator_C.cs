@@ -294,6 +294,12 @@ namespace IL2X.Core
 
 			writer = null;
 		}
+
+		private TypeDefinition GetMetadataTypeDefinition(MetadataType metadataType)
+		{
+			string fullname = "System." + metadataType.ToString();
+			return activeCoreAssembly.assemblyDefinition.MainModule.GetType(fullname);
+		}
 		#endregion
 
 		#region Type writers
@@ -511,22 +517,49 @@ namespace IL2X.Core
 			}
 
 			// write instructions
-			var stack = new Stack<IStack>();
+			var stack = new Stack<EvaluationObject>();
+			var stackTypes = new Dictionary<int, List<TypeReference>>();
+			var stackByRefTypes = new Dictionary<TypeReference, ByReferenceType>();
 			var instructionJumpModify = new Dictionary<Instruction, BranchJumpModify>();
-			var arrayItemWaitingList = new Dictionary<Stack_Call, IStack>();
+
+			void StackPush(TypeReference type, string value)
+			{
+				int stackKey = stack.Count;
+				if (!stackTypes.ContainsKey(stackKey)) stackTypes.Add(stackKey, new List<TypeReference>());
+
+				int typeIndex = stackTypes[stackKey].IndexOf(type);
+				if (typeIndex == -1)
+				{
+					typeIndex = stackTypes[stackKey].Count;
+					stackTypes[stackKey].Add(type);
+				}
+
+				string evalStackValue = $"e_s{stackKey}_t{typeIndex}";
+				stack.Push(new EvaluationObject(type, evalStackValue));
+				writer.WriteLinePrefix($"{evalStackValue} = {value};");
+			}
+
+			ByReferenceType GetStackByRefType(TypeReference type)
+			{
+				if (!stackByRefTypes.ContainsKey(type)) stackByRefTypes.Add(type, new ByReferenceType(type));
+				return stackByRefTypes[type];
+			}
 
 			void Ldarg_X(int index, bool isAddress, bool indexCanThisOffset)
 			{
 				if (index == 0 && body.Method.HasThis)
 				{
-					var selfParameter = new ParameterDefinition(body.Method.DeclaringType);
-					stack.Push(new Stack_ParameterVariable(selfParameter, "self", true, isAddress, (body.Method.IsConstructor && body.Method.DeclaringType.IsValueType) ? "." : "->"));
+					TypeReference type = body.Method.DeclaringType;
+					if (isAddress) type = GetStackByRefType(body.Method.DeclaringType);
+					StackPush(type, "self");
 				}
 				else
 				{
 					if (indexCanThisOffset && body.Method.HasThis) --index;
 					var p = body.Method.Parameters[index];
-					stack.Push(new Stack_ParameterVariable(p, GetParameterDefinitionName(p), false, isAddress, null));
+					TypeReference type = p.ParameterType;
+					if (isAddress) type = GetStackByRefType(p.ParameterType);
+					StackPush(type, GetParameterDefinitionName(p));
 				}
 			}
 
@@ -539,48 +572,36 @@ namespace IL2X.Core
 			{
 				var item = stack.Pop();
 				var variableLeft = variables[index];
-				writer.WriteLinePrefix($"{variableLeft.name} = {item.GetValueName()};");
+				writer.WriteLinePrefix($"{variableLeft.name} = {item.value};");
 			}
 
 			void Ldelem_X(Instruction instruction)
 			{
 				var index = stack.Pop();
-				var array = (Stack_Typed)stack.Pop();
+				var array = stack.Pop();
 				var arrayType = (ArrayType)array.type;
-				stack.Push(new Stack_ArrayElement(arrayType, $"(({GetTypeReferenceFullName(arrayType.ElementType)}*)((char*){array.GetValueName()} + sizeof(size_t)))[{index.GetValueName()}]"));
+				StackPush(arrayType, $"(({GetTypeReferenceFullName(arrayType.ElementType)}*)((char*){array.value} + sizeof(size_t)))[{index.value}]");
 			}
 
 			void Stelem_X(Instruction instruction)
 			{
 				var value = stack.Pop();
 				var index = stack.Pop();
-				var array = (Stack_Typed)stack.Pop();
-				if (array.type is ArrayType)
-				{
-					var arrayType = (ArrayType)array.type;
-					writer.WriteLinePrefix($"(({GetTypeReferenceFullName(arrayType.ElementType)}*)((char*){array.GetValueName()} + sizeof(size_t)))[{index.GetValueName()}] = {value.GetValueName()};");
-				}
-				else if (array is Stack_Call)
-				{
-					//arrayItemWaitingList.Add((Stack_Call)array, value);// array buffer not yet created (add to waiting list)
-					writer.WriteLinePrefix($"(????)[{index.GetValueName()}] = {value.GetValueName()};");
-				}
-				else
-				{
-					throw new NotImplementedException("Failed setting an array of type: " + array.GetType());
-				}
+				var array = stack.Pop();
+				var arrayType = (ArrayType)array.type;
+				writer.WriteLinePrefix($"(({GetTypeReferenceFullName(arrayType.ElementType)}*)((char*){array.value} + sizeof(size_t)))[{index.value}] = {value.value};");
 			}
 
-			void Ldind_X(string nativeType, MetadataType primitiveType)
+			void Ldind_X(string nativeCastingTypeName, MetadataType castingType)
 			{
 				var item = stack.Pop();
-				stack.Push(new Stack_Cast($"(*({nativeType}*){item.GetValueName()})", primitiveType));
+				StackPush(GetMetadataTypeDefinition(castingType), $"(*({nativeCastingTypeName}*){item.value})");
 			}
 
-			void Conv_X(string nativeType, MetadataType primitiveType)
+			void Conv_X(string nativeCastingTypeName, MetadataType castingType)
 			{
 				var item = stack.Pop();
-				stack.Push(new Stack_Cast($"(({nativeType}){item.GetValueName()})", primitiveType));
+				StackPush(GetMetadataTypeDefinition(castingType), $"(({nativeCastingTypeName}){item.value})");
 			}
 
 			void BranchUnconditional(Instruction instruction, string form)
@@ -596,7 +617,7 @@ namespace IL2X.Core
 				var operand = (Instruction)instruction.Operand;
 				writer.WritePrefix("if (");
 				if (!trueCondition) writer.Write('!');
-				writer.WriteLine($"{value.GetValueName()})");
+				writer.WriteLine($"{value.value})");
 				writer.WriteLinePrefix('{');
 				writer.AddTab();
 				int jmpOffset = Br_ForwardResolveStack(instruction, operand, true);

@@ -22,7 +22,31 @@ namespace IL2X.Core.EvaluationStack
 		public string name;
 	}
 
-	interface IStack
+	//enum EvaluationType
+	//{
+	//	EvalStack,
+	//	Local,
+	//	Parameter,
+	//	Field
+	//}
+
+	sealed class EvaluationObject
+	{
+		//public readonly EvaluationType evalType;
+		public readonly TypeReference type;
+		public readonly string value;
+
+		public EvaluationObject(TypeReference type, string value)
+		{
+			//this.evalType = evalType;
+			this.type = type;
+			this.value = value;
+		}
+	}
+
+	// ===============
+
+	/*interface IStack
 	{
 		string GetValueName();
 		string GetAccessToken();
@@ -506,5 +530,5 @@ namespace IL2X.Core.EvaluationStack
 		{
 			return methodInvoke;
 		}
-	}
+	}*/
 }
