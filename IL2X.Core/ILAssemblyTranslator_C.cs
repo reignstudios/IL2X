@@ -517,9 +517,9 @@ namespace IL2X.Core
 			}
 
 			// write instructions
-			var stack = new Stack<EvaluationObject>();
-			var stackTypes = new Dictionary<int, List<TypeReference>>();
-			var stackByRefTypes = new Dictionary<TypeReference, ByReferenceType>();
+			var stack = new Stack<EvaluationObject>();// objects currently on the stack
+			var stackTypes = new Dictionary<int, List<TypeReference>>();// possible types a particular stack slot may represent
+			var stackByRefTypes = new Dictionary<TypeReference, ByReferenceType>();// helper to keep evaluation stack "ByReferenceType" all using the same ptrs
 			var instructionJumpModify = new Dictionary<Instruction, BranchJumpModify>();
 
 			void StackPush(TypeReference type, string value)
@@ -628,27 +628,28 @@ namespace IL2X.Core
 
 			void BranchCompareCondition(Instruction instruction, string condition, string form, bool unsignedCmp)
 			{
-				void WriteValue(IStack value)
+				void WriteValue(EvaluationObject value)
 				{
 					if (unsignedCmp)
 					{
-						void UnsignPrimitiveType(MetadataType type)
+						//void UnsignPrimitiveType(MetadataType type)
 						{
+							var type = value.type.MetadataType;
 							switch (type)
 							{
-								case MetadataType.SByte: writer.Write($"((unsigned char){value.GetValueName()})"); break;
-								case MetadataType.Int16: writer.Write($"((unsigned short){value.GetValueName()})"); break;
-								case MetadataType.Int32: writer.Write($"((unsigned int){value.GetValueName()})"); break;
-								case MetadataType.Int64: writer.Write($"((unsigned long){value.GetValueName()})"); break;
+								case MetadataType.SByte: writer.Write($"((unsigned char){value.value})"); break;
+								case MetadataType.Int16: writer.Write($"((unsigned short){value.value})"); break;
+								case MetadataType.Int32: writer.Write($"((unsigned int){value.value})"); break;
+								case MetadataType.Int64: writer.Write($"((unsigned long){value.value})"); break;
 								case MetadataType.Single:
 								case MetadataType.Double:
-									writer.Write(value.GetValueName());
+									writer.Write(value.value);
 									break;
 								default: throw new NotImplementedException("Failed to unsign primitive type: " + type);
 							}
 						}
 
-						if (value is Stack_SByte) writer.Write($"((unsigned char){value.GetValueName()})");
+						/*if (value is Stack_SByte) writer.Write($"((unsigned char){value.GetValueName()})");
 						else if (value is Stack_Int16) writer.Write($"((unsigned short){value.GetValueName()})");
 						else if (value is Stack_Int32) writer.Write($"((unsigned int){value.GetValueName()})");
 						else if (value is Stack_Int64) writer.Write($"((unsigned long){value.GetValueName()})");
@@ -688,11 +689,11 @@ namespace IL2X.Core
 						else
 						{
 							throw new NotImplementedException("BranchCondition failed to unsign value: " + value.GetValueName());
-						}
+						}*/
 					}
 					else
 					{
-						writer.Write(value.GetValueName());
+						writer.Write(value.value);
 					}
 				}
 
@@ -713,7 +714,7 @@ namespace IL2X.Core
 				writer.WriteLinePrefix('}');
 			}
 
-			MetadataType GetPrimitiveResult(IStack value)
+			/*MetadataType GetPrimitiveResult(IStack value)
 			{
 				if (value is Stack_SByte) return MetadataType.SByte;
 				else if (value is Stack_Byte) return MetadataType.Byte;
@@ -762,7 +763,7 @@ namespace IL2X.Core
 					return type.type.MetadataType;
 				}
 				else throw new NotImplementedException("GetPrimitiveResult failed to result: " + value.GetType());
-			}
+			}*/
 
 			MetadataType GetPrimitiveOperationResultType(MetadataType value1, MetadataType value2)
 			{
@@ -775,34 +776,38 @@ namespace IL2X.Core
 				return result;
 			}
 
+			TypeReference GetPrimitiveOperationResultTypeRef(MetadataType value1, MetadataType value2)
+			{
+				var result = GetPrimitiveOperationResultType(value1, value2);
+				return GetMetadataTypeDefinition(result);
+			}
+
 			void PrimitiveOperator(string op)
 			{
 				var value2 = stack.Pop();
 				var value1 = stack.Pop();
-				var primitiveType1 = GetPrimitiveResult(value1);
-				var primitiveType2 = GetPrimitiveResult(value2);
-				stack.Push(new Stack_PrimitiveOperation($"({value1.GetValueName()} {op} {value2.GetValueName()})", GetPrimitiveOperationResultType(primitiveType1, primitiveType2)));
+				StackPush(GetPrimitiveOperationResultTypeRef(value1.type.MetadataType, value2.type.MetadataType), $"({value1.value} {op} {value2.value})");
 			}
 
 			void ConditionalExpression(string condition)
 			{
 				var value2 = stack.Pop();
 				var value1 = stack.Pop();
-				stack.Push(new Stack_ConditionalExpression($"(({value1.GetValueName()} {condition} {value2.GetValueName()}) ? 1 : 0)"));
+				StackPush(GetMetadataTypeDefinition(MetadataType.Int32), $"(({value1.value} {condition} {value2.value}) ? 1 : 0)");
 			}
 
 			void BitwiseOperation(string op)
 			{
 				var value2 = stack.Pop();
 				var value1 = stack.Pop();
-				stack.Push(new Stack_BitwiseOperation($"({value1.GetValueName()} {op} {value2.GetValueName()})"));
+				StackPush(GetPrimitiveOperationResultTypeRef(value1.type.MetadataType, value2.type.MetadataType), $"({value1.value} {op} {value2.value})");
 			}
 
 			int Br_ForwardResolveStack(Instruction brInstruction, Instruction jmpInstruction, bool keepExistingStack)
 			{
 				int existingStackCount = stack.Count;
-				Stack<IStack> existingStack = null;
-				if (keepExistingStack && stack.Count != 0) existingStack = new Stack<IStack>(stack);
+				Stack<EvaluationObject> existingStack = null;
+				if (keepExistingStack && stack.Count != 0) existingStack = new Stack<EvaluationObject>(stack);
 				
 				var origJmpInstruction = jmpInstruction;
 				int jmpOffset = jmpInstruction.Offset;
@@ -815,7 +820,7 @@ namespace IL2X.Core
 				}
 
 				if (origJmpInstruction.Offset != jmpOffset) instructionJumpModify.Add(brInstruction, new BranchJumpModify(jmpOffset, existingStackCount));
-				if (keepExistingStack && existingStack != null) stack = new Stack<IStack>(existingStack);
+				if (keepExistingStack && existingStack != null) stack = new Stack<EvaluationObject>(existingStack);
 				return jmpOffset;
 			}
 			
@@ -888,7 +893,11 @@ namespace IL2X.Core
 					case Code.Nop: break;
 
 					// push to stack
-					case Code.Ldnull: stack.Push(new Stack_Null("0")); break;
+					case Code.Ldnull:
+					{
+						StackPush(GetMetadataTypeDefinition(MetadataType.Int32), "0");
+						break;
+					}
 
 					case Code.Dup:
 					{
