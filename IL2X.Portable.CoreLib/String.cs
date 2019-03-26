@@ -70,7 +70,7 @@ namespace System
             FillStringChecked(result, str0Length, str1);
 
             return result;*/
-			return null;
+			return "TODO";
         }
 	}
 }
