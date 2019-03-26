@@ -25,17 +25,17 @@ void* IL2X_GC_NewAtomic(size_t size)
 	return ptr;
 }
 
-void* IL2X_GC_NewArray(size_t size)
+void* IL2X_GC_NewArray(size_t elementSize, size_t length)
 {
-	void* result = IL2X_GC_New(sizeof(size_t) + size);
-	*((size_t*)result) = size;
+	void* result = IL2X_GC_New(sizeof(size_t) + (elementSize * length));
+	*((size_t*)result) = length;
 	return result;
 }
 
-void* IL2X_GC_NewArrayAtomic(size_t size)
+void* IL2X_GC_NewArrayAtomic(size_t elementSize, size_t length)
 {
-	void* result = IL2X_GC_NewAtomic(sizeof(size_t) + size);
-	*((size_t*)result) = size;
+	void* result = IL2X_GC_NewAtomic(sizeof(size_t) + (elementSize * length));
+	*((size_t*)result) = length;
 	return result;
 }
 

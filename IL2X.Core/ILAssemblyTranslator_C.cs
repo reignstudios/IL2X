@@ -1121,7 +1121,7 @@ namespace IL2X.Core
 						string allocMethod;
 						if (IsAtomicType(type)) allocMethod = "IL2X_GC_NewArrayAtomic";
 						else allocMethod = "IL2X_GC_NewArray";
-						StackPush(new ArrayType(type), $"{allocMethod}(sizeof({GetTypeReferenceFullName(type)}) * {size.value})", false);
+						StackPush(new ArrayType(type), $"{allocMethod}(sizeof({GetTypeReferenceFullName(type)}), {size.value})", false);
 						break;
 					}
 
