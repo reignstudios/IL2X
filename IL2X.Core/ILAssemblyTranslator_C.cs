@@ -786,8 +786,6 @@ namespace IL2X.Core
 
 			void ProcessInstruction(Instruction instruction, bool writeBrJumps)
 			{
-				writer.Flush();writer.BaseStream.Flush();// DEBUG
-
 				// check if this instruction can be jumped to
 				if (writeBrJumps)
 				{
