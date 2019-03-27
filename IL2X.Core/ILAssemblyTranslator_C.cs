@@ -1004,7 +1004,7 @@ namespace IL2X.Core
 					}
 
 					case Code.Conv_I: Conv_X("size_t", MetadataType.IntPtr); break;
-					case Code.Conv_I1: Conv_X("int8_t", MetadataType.Byte); break;
+					case Code.Conv_I1: Conv_X("int8_t", MetadataType.SByte); break;
 					case Code.Conv_I2: Conv_X("int16_t", MetadataType.Int16); break;
 					case Code.Conv_I4: Conv_X("int32_t", MetadataType.Int32); break;
 					case Code.Conv_I8: Conv_X("int64_t", MetadataType.Int64); break;
@@ -1043,7 +1043,7 @@ namespace IL2X.Core
 					case Code.Neg:
 					{
 						var value = stack.Pop();
-						StackPush(value.type, $"(-{value.value})", false);
+						StackPush(value.type, '-' + value.value, false);
 						break;
 					}
 
