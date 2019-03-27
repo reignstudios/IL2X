@@ -1040,7 +1040,7 @@ namespace IL2X.Core
 					case Code.Neg:
 					{
 						var value = stack.Pop();
-						StackPush(value.type, '!' + value.value, false);
+						StackPush(value.type, $"(-{value.value})", false);
 						break;
 					}
 
