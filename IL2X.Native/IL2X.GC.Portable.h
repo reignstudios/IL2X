@@ -1,4 +1,5 @@
 #pragma once
+#include <stdlib.h>
 
 void IL2X_GC_Init()
 {

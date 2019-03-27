@@ -1,5 +1,6 @@
 #pragma once
 #include "..\3rdParty\Boehm.GC\include\gc.h"
+#include <stdlib.h>
 
 void IL2X_GC_Init()
 {
