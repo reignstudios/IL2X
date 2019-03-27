@@ -794,7 +794,7 @@ namespace IL2X.Core
 					{
 						if (brModify.Value.stackCountBeforeJump == 0 && stack.Count == 0) continue;
 						var jumpInstruction = (Instruction)brModify.Key.Operand;
-						if (instruction.Offset >= jumpInstruction.Offset && instruction.Offset < brModify.Value.offset)
+						if (instruction.Offset > jumpInstruction.Offset && instruction.Offset < brModify.Value.offset)
 						{
 							stack.Clear();// stack already forward processes, so remove
 							return;
