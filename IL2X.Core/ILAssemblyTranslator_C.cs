@@ -131,6 +131,7 @@ namespace IL2X.Core
 					// include std libraries
 					writer.WriteLine("#include <stdio.h>");
 					writer.WriteLine("#include <math.h>");
+					writer.WriteLine("#include <stdint.h>");
 				}
 
 				// write includes of dependencies
@@ -457,11 +458,11 @@ namespace IL2X.Core
 					{
 						if (method.Name == "get_Length")
 						{
-							writer.WriteLinePrefix($"return (int)(*(size_t*)self);");
+							writer.WriteLinePrefix($"return (int32_t)(*(size_t*)self);");
 						}
 						else if (method.Name == "get_LongLength")
 						{
-							writer.WriteLinePrefix($"return (long)(*(size_t*)self);");
+							writer.WriteLinePrefix($"return (int64_t)(*(size_t*)self);");
 						}
 						else
 						{
@@ -626,10 +627,11 @@ namespace IL2X.Core
 				writer.WriteLinePrefix($"(({GetTypeReferenceFullName(arrayType.ElementType)}*)((char*){array.value} + sizeof(size_t)))[{index.value}] = {value.value};");
 			}
 
-			void Ldind_X(string nativeCastingTypeName, MetadataType castingType)
+			void Ldind_X(string nativePtrType, string nativeCastingTypeName, MetadataType castingType)
 			{
 				var item = stack.Pop();
-				StackPush(GetMetadataTypeDefinition(castingType), $"(*({nativeCastingTypeName}*){item.value})", false);
+				if (nativePtrType == nativeCastingTypeName) StackPush(GetMetadataTypeDefinition(castingType), $"(*(({nativePtrType}*){item.value}))", false);
+				else StackPush(GetMetadataTypeDefinition(castingType), $"(({nativeCastingTypeName})*(({nativePtrType}*){item.value}))", false);
 			}
 
 			void Ldloc_X(int variableIndex, bool isAddress)
@@ -686,10 +688,10 @@ namespace IL2X.Core
 						var type = value.type.MetadataType;
 						switch (type)
 						{
-							case MetadataType.SByte: writer.Write($"((unsigned char){value.value})"); break;
-							case MetadataType.Int16: writer.Write($"((unsigned short){value.value})"); break;
-							case MetadataType.Int32: writer.Write($"((unsigned int){value.value})"); break;
-							case MetadataType.Int64: writer.Write($"((unsigned long){value.value})"); break;
+							case MetadataType.SByte: writer.Write($"((uint8_t){value.value})"); break;
+							case MetadataType.Int16: writer.Write($"((uint16_t){value.value})"); break;
+							case MetadataType.Int32: writer.Write($"((uint32_t){value.value})"); break;
+							case MetadataType.Int64: writer.Write($"((uint64_t){value.value})"); break;
 							case MetadataType.Single:
 							case MetadataType.Double:
 								writer.Write(value.value);
@@ -920,12 +922,13 @@ namespace IL2X.Core
 						break;
 					}
 
-					case Code.Ldind_I: Ldind_X("void*", MetadataType.IntPtr); break;
-					case Code.Ldind_I2: Ldind_X("char", MetadataType.Byte); break;
-					case Code.Ldind_I4: Ldind_X("short", MetadataType.Int16); break;
-					case Code.Ldind_I8: Ldind_X("int", MetadataType.Int32); break;
-					case Code.Ldind_R4: Ldind_X("float", MetadataType.Single); break;
-					case Code.Ldind_R8: Ldind_X("double", MetadataType.Double); break;
+					case Code.Ldind_I: Ldind_X("size_t", "size_t", MetadataType.IntPtr); break;
+					case Code.Ldind_I1: Ldind_X("uint8_t", "uint32_t", MetadataType.Int32); break;
+					case Code.Ldind_I2: Ldind_X("uint16_t", "uint32_t", MetadataType.Int32); break;
+					case Code.Ldind_I4: Ldind_X("uint32_t", "uint32_t", MetadataType.Int32); break;
+					case Code.Ldind_I8: Ldind_X("uint64_t", "uint64_t", MetadataType.Int64); break;
+					case Code.Ldind_R4: Ldind_X("float", "float", MetadataType.Single); break;
+					case Code.Ldind_R8: Ldind_X("double", "double", MetadataType.Double); break;
 
 					case Code.Ldloc_0: Ldloc_X(0, false); break;
 					case Code.Ldloc_1: Ldloc_X(1, false); break;
@@ -1000,17 +1003,17 @@ namespace IL2X.Core
 						break;
 					}
 
-					case Code.Conv_I: Conv_X("void*", MetadataType.IntPtr); break;
-					case Code.Conv_I1: Conv_X("char", MetadataType.Byte); break;
-					case Code.Conv_I2: Conv_X("short", MetadataType.Int16); break;
-					case Code.Conv_I4: Conv_X("int", MetadataType.Int32); break;
-					case Code.Conv_I8: Conv_X("long", MetadataType.Int64); break;
+					case Code.Conv_I: Conv_X("size_t", MetadataType.IntPtr); break;
+					case Code.Conv_I1: Conv_X("int8_t", MetadataType.Byte); break;
+					case Code.Conv_I2: Conv_X("int16_t", MetadataType.Int16); break;
+					case Code.Conv_I4: Conv_X("int32_t", MetadataType.Int32); break;
+					case Code.Conv_I8: Conv_X("int64_t", MetadataType.Int64); break;
 
-					case Code.Conv_U: Conv_X("void*", MetadataType.IntPtr); break;
-					case Code.Conv_U1: Conv_X("unsigned char", MetadataType.Byte); break;
-					case Code.Conv_U2: Conv_X("unsigned short", MetadataType.UInt16); break;
-					case Code.Conv_U4: Conv_X("unsigned int", MetadataType.UInt32); break;
-					case Code.Conv_U8: Conv_X("unsigned long", MetadataType.UInt64); break;
+					case Code.Conv_U: Conv_X("size_t", MetadataType.IntPtr); break;
+					case Code.Conv_U1: Conv_X("uint8_t", MetadataType.Byte); break;
+					case Code.Conv_U2: Conv_X("uint16_t", MetadataType.UInt16); break;
+					case Code.Conv_U4: Conv_X("uint32_t", MetadataType.UInt32); break;
+					case Code.Conv_U8: Conv_X("uint64_t", MetadataType.UInt64); break;
 					case Code.Conv_R4: Conv_X("float", MetadataType.Single); break;
 					case Code.Conv_R8: Conv_X("double", MetadataType.Double); break;
 
@@ -1311,18 +1314,18 @@ namespace IL2X.Core
 			{
 				case MetadataType.Boolean: return "char";
 				case MetadataType.Char: return "wchar_t";
-				case MetadataType.SByte: return "signed char";
-				case MetadataType.Byte: return "unsigned char";
-				case MetadataType.Int16: return "short";
-				case MetadataType.UInt16: return "unsigned short";
-				case MetadataType.Int32: return "int";
-				case MetadataType.UInt32: return "unsigned int";
-				case MetadataType.Int64: return "long";
-				case MetadataType.UInt64: return "unsigned long";
+				case MetadataType.SByte: return "int8_t";
+				case MetadataType.Byte: return "uint8_t";
+				case MetadataType.Int16: return "int16_t";
+				case MetadataType.UInt16: return "uint16_t";
+				case MetadataType.Int32: return "int32_t";
+				case MetadataType.UInt32: return "uint32_t";
+				case MetadataType.Int64: return "int64_t";
+				case MetadataType.UInt64: return "uint64_t";
 				case MetadataType.Single: return "float";
 				case MetadataType.Double: return "double";
-				case MetadataType.IntPtr: return "void*";
-				case MetadataType.UIntPtr: return "void*";
+				case MetadataType.IntPtr: return "size_t";
+				case MetadataType.UIntPtr: return "size_t";
 				default: throw new NotImplementedException("Unsupported primitive: " + type.MetadataType);
 			}
 		}

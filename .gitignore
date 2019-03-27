@@ -247,7 +247,4 @@ ModelManifest.xml
 .fake/
 
 # 3rdParty
-!3rdParty/Mono.Cecil/*
-!3rdParty/Boehm.GC/Win32/*
-!3rdParty/Boehm.GC/Win32/x86/*
-!3rdParty/Boehm.GC/Win32/x64/*
+!3rdParty/**
