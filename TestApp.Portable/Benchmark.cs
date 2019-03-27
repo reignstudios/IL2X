@@ -110,66 +110,74 @@ namespace RayTraceBenchmark
 		#else
 		public static Vec3 operator +(Vec3 p1, Vec3 p2)
 		{
-			p1.X += p2.X;
-			p1.Y += p2.Y;
-			p1.Z += p2.Z;
-			return p1;
+			//p1.X += p2.X;
+			//p1.Y += p2.Y;
+			//p1.Z += p2.Z;
+			//return p1;
+			return new Vec3(p1.X + p2.X, p1.Y + p2.Y, p1.Z + p2.Z);
 		}
 
 		public static Vec3 operator -(Vec3 p1, Vec3 p2)
 		{
-			p1.X -= p2.X;
-			p1.Y -= p2.Y;
-			p1.Z -= p2.Z;
-			return p1;
+			//p1.X -= p2.X;
+			//p1.Y -= p2.Y;
+			//p1.Z -= p2.Z;
+			//return p1;
+			return new Vec3(p1.X - p2.X, p1.Y - p2.Y, p1.Z - p2.Z);
 		}
 		
 		public static Vec3 operator-(Vec3 p1)
 		{
-			p1.X = -p1.X;
-			p1.Y = -p1.Y;
-			p1.Z = -p1.Z;
-			return p1;
+			//p1.X = -p1.X;
+			//p1.Y = -p1.Y;
+			//p1.Z = -p1.Z;
+			//return p1;
+			return new Vec3(-p1.X, -p1.Y, -p1.Z);
 		}
 
 		public static Vec3 operator*(Vec3 p1, Vec3 p2)
 		{
-			p1.X *= p2.X;
-			p1.Y *= p2.Y;
-			p1.Z *= p2.Z;
-			return p1;
+			//p1.X *= p2.X;
+			//p1.Y *= p2.Y;
+			//p1.Z *= p2.Z;
+			//return p1;
+			return new Vec3(p1.X * p2.X, p1.Y * p2.Y, p1.Z * p2.Z);
 		}
 
 		public static Vec3 operator*(Vec3 p1, Num p2)
 		{
-			p1.X *= p2;
-			p1.Y *= p2;
-			p1.Z *= p2;
-			return p1;
+			//p1.X *= p2;
+			//p1.Y *= p2;
+			//p1.Z *= p2;
+			//return p1;
+			return new Vec3(p1.X * p2, p1.Y * p2, p1.Z * p2);
 		}
 
 		public static Vec3 operator*(Num p1, Vec3 p2)
 		{
-			p2.X = p1 * p2.X;
-			p2.Y = p1 * p2.Y;
-			p2.Z = p1 * p2.Z;
-			return p2;
+			//p2.X = p1 * p2.X;
+			//p2.Y = p1 * p2.Y;
+			//p2.Z = p1 * p2.Z;
+			//return p2;
+			return new Vec3(p1 * p2.X, p1 * p2.Y, p1 * p2.Z);
 		}
 
 		public static Vec3 operator/(Vec3 p1, Vec3 p2)
 		{
-			p1.X /= p2.X;
-			p1.Y /= p2.Y;
-			p1.Z /= p2.Z;
-			return p1;
+			//p1.X /= p2.X;
+			//p1.Y /= p2.Y;
+			//p1.Z /= p2.Z;
+			//return p1;
+			return new Vec3(p1.X / p2.X, p1.Y / p2.Y, p1.Z / p2.Z);
 		}
 
 		public static Vec3 operator/(Vec3 p1, Num p2)
 		{
-			p1.X /= p2;
-			p1.Y /= p2;
-			p1.Z /= p2;
-			return p1;
+			//p1.X /= p2;
+			//p1.Y /= p2;
+			//p1.Z /= p2;
+			//return p1;
+			return new Vec3(p1.X / p2, p1.Y / p2, p1.Z / p2);
 		}
 
 		public static Num Dot(Vec3 v1, Vec3 v2)
@@ -179,12 +187,14 @@ namespace RayTraceBenchmark
 
 		public static Num Magnitude(Vec3 v)
 		{
-			return (Num)Math.Sqrt((v.X*v.X) + (v.Y*v.Y) + (v.Z*v.Z));
+			//return (Num)Math.Sqrt((v.X*v.X) + (v.Y*v.Y) + (v.Z*v.Z));
+			return MathF.Sqrt((v.X * v.X) + (v.Y * v.Y) + (v.Z * v.Z));
 		}
 
 		public static Vec3 Normalize(Vec3 v)
 		{
-			return v / (Num)Math.Sqrt((v.X*v.X) + (v.Y*v.Y) + (v.Z*v.Z));
+			//return v / (Num)Math.Sqrt((v.X*v.X) + (v.Y*v.Y) + (v.Z*v.Z));
+			return v / MathF.Sqrt((v.X * v.X) + (v.Y * v.Y) + (v.Z * v.Z));
 		}
 		#endif
 	}
@@ -304,7 +314,8 @@ namespace RayTraceBenchmark
 			if (b2 > r2)            // perpendicular > r
 				return false;
 
-			var c = (Num)Math.Sqrt(r2 - b2);
+			//var c = (Num)Math.Sqrt(r2 - b2);
+			var c = MathF.Sqrt(r2 - b2);
 			var near = a - c;
 			var far  = a + c;
 			distance = (near < 0) ? far : near;
@@ -338,7 +349,8 @@ namespace RayTraceBenchmark
 		public const int Height = 720;
 		private const Num fov = 45;
 		private const int maxDepth = 6;
-		private const Num PI = (Num)Math.PI;
+		//private const Num PI = (Num)Math.PI;
+		private const Num PI = MathF.PI;
 
 		#if USE_OUT
 		private static void trace (Ray ray, Scene scene, int depth, out Vec3 result)
@@ -558,7 +570,8 @@ namespace RayTraceBenchmark
 
 			var rayNormDot = Vec3.Dot(ray.Dir, normal);
 			Num facing = Math.Max(0, -rayNormDot);
-			Num fresneleffect = reflection_ratio + ((1 - reflection_ratio) * (Num)Math.Pow((1 - facing), 5));
+			//Num fresneleffect = reflection_ratio + ((1 - reflection_ratio) * (Num)Math.Pow((1 - facing), 5));
+			Num fresneleffect = reflection_ratio + ((1 - reflection_ratio) * MathF.Pow((1 - facing), 5));
 
 			// compute reflection
 			if (depth < maxDepth && reflection_ratio > 0)
@@ -583,7 +596,8 @@ namespace RayTraceBenchmark
 				var sin_t2_2 = sin_t1_2 * (eta * eta);
 				if (sin_t2_2 < 1)
 				{
-					var GC = normal * (Num)Math.Sqrt(1 - sin_t2_2);
+					//var GC = normal * (Num)Math.Sqrt(1 - sin_t2_2);
+					var GC = normal * MathF.Sqrt(1 - sin_t2_2);
 					var refraction_direction = GF - GC;
 					Ray r;
 					r.Org = point_of_hit - (normal * 1e-4f);
@@ -598,7 +612,8 @@ namespace RayTraceBenchmark
 		public static byte[] Render(Scene scene, byte[] pixels)
 		{
 			var eye = Vec3.Zero;
-			Num h = (Num)Math.Tan(((fov / 360) * (2 * PI)) / 2) * 2;
+			//Num h = (Num)Math.Tan(((fov / 360) * (2 * PI)) / 2) * 2;
+			Num h = MathF.Tan(((fov / 360) * (2 * PI)) / 2) * 2;
 			Num w = h * Width / Height;
 
 			for (int y = 0; y != Height; ++y)
