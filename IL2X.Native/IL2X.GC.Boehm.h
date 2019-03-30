@@ -2,6 +2,12 @@
 #include "..\3rdParty\Boehm.GC\include\gc.h"
 #include <stdlib.h>
 
+#ifdef _WIN32
+#include <malloc.h>
+#else
+#include <alloca.h>
+#endif
+
 void IL2X_GC_Init()
 {
 	GC_INIT();
@@ -64,11 +70,24 @@ void IL2X_GC_EnableAutoCollections()
 }
 
 /* ====================================== */
-/* manual allocation methods(non-GC heap) */
+/* manual allocation methods (non-GC) */
 /* ====================================== */
-void* IL2X_Malloc(size_t size)
+void* IL2X_AllocA(size_t size)// alloc memory on the stack
 {
-	return malloc(size);
+	#ifdef _WIN32
+	void* ptr = _alloca(size);
+	#else
+	void* ptr = alloca(size);
+	#endif
+	memset(ptr, 0, size);
+	return ptr;
+}
+
+void* IL2X_Malloc(size_t size)// alloc memory on the heap
+{
+	void* ptr = malloc(size);
+	memset(ptr, 0, size);
+	return ptr;
 }
 
 void IL2X_Delete(void* ptr)

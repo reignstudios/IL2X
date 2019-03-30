@@ -10,8 +10,8 @@ namespace System
 		[NonSerialized]
 		internal char _firstChar;// TODO: change back to private when Console is implemented correctly
 
-		//[Intrinsic]
-        //public static readonly string Empty;
+		[Intrinsic]
+        public static readonly string Empty;
 
 		//[MethodImpl(MethodImplOptions.InternalCall)]
 		//public extern String(char[] value);
@@ -46,9 +46,23 @@ namespace System
             return (value == null || 0u >= (uint)value.Length) ? true : false;
         }
 
+		private static unsafe void FillStringChecked(string dest, int destPos, string src)
+		{
+			if (src.Length > dest.Length - destPos)
+			{
+				//throw new IndexOutOfRangeException();// TODO
+			}
+
+			fixed (char* pDest = &dest._firstChar)
+			fixed (char* pSrc = &src._firstChar)
+			{
+				Buffer.memcpy(pDest + destPos, pSrc, (void*)(src.Length * sizeof(char)));
+			}
+		}
+
 		public static string Concat(string str0, string str1)
         {
-            /*if (IsNullOrEmpty(str0))
+            if (IsNullOrEmpty(str0))
             {
                 if (IsNullOrEmpty(str1))
                 {
@@ -69,8 +83,67 @@ namespace System
             FillStringChecked(result, 0, str0);
             FillStringChecked(result, str0Length, str1);
 
-            return result;*/
-			return "TODO";
+            return result;
         }
+
+		public static string Concat(string str0, string str1, string str2)
+		{
+			if (IsNullOrEmpty(str0))
+			{
+				return Concat(str1, str2);
+			}
+
+			if (IsNullOrEmpty(str1))
+			{
+				return Concat(str0, str2);
+			}
+
+			if (IsNullOrEmpty(str2))
+			{
+				return Concat(str0, str1);
+			}
+
+			int totalLength = str0.Length + str1.Length + str2.Length;
+
+			string result = FastAllocateString(totalLength);
+			FillStringChecked(result, 0, str0);
+			FillStringChecked(result, str0.Length, str1);
+			FillStringChecked(result, str0.Length + str1.Length, str2);
+
+			return result;
+		}
+
+		public static string Concat(string str0, string str1, string str2, string str3)
+		{
+			if (IsNullOrEmpty(str0))
+			{
+				return Concat(str1, str2, str3);
+			}
+
+			if (IsNullOrEmpty(str1))
+			{
+				return Concat(str0, str2, str3);
+			}
+
+			if (IsNullOrEmpty(str2))
+			{
+				return Concat(str0, str1, str3);
+			}
+
+			if (IsNullOrEmpty(str3))
+			{
+				return Concat(str0, str1, str2);
+			}
+
+			int totalLength = str0.Length + str1.Length + str2.Length + str3.Length;
+
+			string result = FastAllocateString(totalLength);
+			FillStringChecked(result, 0, str0);
+			FillStringChecked(result, str0.Length, str1);
+			FillStringChecked(result, str0.Length + str1.Length, str2);
+			FillStringChecked(result, str0.Length + str1.Length + str2.Length, str3);
+
+			return result;
+		}
 	}
 }

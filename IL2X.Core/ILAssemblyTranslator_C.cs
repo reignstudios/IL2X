@@ -200,6 +200,37 @@ namespace IL2X.Core
 				writer.WriteLinePrefix("// Init generated members");
 				writer.WriteLinePrefix($"{generatedMembersInitMethod}();");
 				writer.WriteLine();
+
+				writer.WriteLinePrefix("// Init intrinsic fields");
+				foreach (var type in module.typesDependencyOrdered)
+				{
+					foreach (var field in type.Fields)
+					{
+						if (field.HasCustomAttributes && field.CustomAttributes.Any(x => x.AttributeType.FullName == "System.Runtime.CompilerServices.IntrinsicAttribute"))
+						{
+							if (!field.IsStatic) throw new NotImplementedException("Unsupported non-static field Intrinsic: " + field.Name);
+							if (field.DeclaringType.FullName == "System.String")
+							{
+								var stringType = module.moduleDefinition.GetType("System.String");
+								string stringTypeName = GetTypeDefinitionFullName(stringType);
+								if (field.Name == "Empty")
+								{
+									writer.WriteLinePrefix($"{GetFieldDefinitionName(field)} = IL2X_Malloc(sizeof({stringTypeName}));");
+								}
+								else
+								{
+									throw new NotImplementedException("Unsupported field Intrinsic: " + field.Name);
+								}
+							}
+							else
+							{
+								throw new NotImplementedException("Unsupported Intrinsic type for field: " + field.Name);
+							}
+						}
+					}
+				}
+				writer.WriteLine();
+
 				writer.WriteLinePrefix("// Init static methods");
 				foreach (var type in module.typesDependencyOrdered)
 				{
@@ -372,7 +403,28 @@ namespace IL2X.Core
 
 		private void WriteFieldDefinition(FieldDefinition field)
 		{
-			if (field.FieldType.IsGenericInstance) throw new Exception("TODO: generate generic type");
+			if (field.FieldType.IsGenericInstance)
+			{
+				throw new Exception("TODO: generate generic type");
+			}
+			//else if (field.HasCustomAttributes && field.CustomAttributes.Any(x => x.AttributeType.FullName == "System.Runtime.CompilerServices.IntrinsicAttribute"))
+			//{
+			//	if (field.DeclaringType.FullName ==  "System.String")
+			//	{
+			//		if (field.Name == "Empty")
+			//		{
+						
+			//		}
+			//		else
+			//		{
+			//			throw new NotImplementedException("Unsupported field Intrinsic: " + field.Name);
+			//		}
+			//	}
+			//	else
+			//	{
+			//		throw new NotImplementedException("Unsupported Intrinsic type for field: " + field.Name);
+			//	}
+			//}
 			writer.WriteLinePrefix($"{GetTypeReferenceFullName(field.FieldType)} {GetFieldDefinitionName(field)};");
 		}
 
@@ -434,14 +486,14 @@ namespace IL2X.Core
 				{
 					throw new NotImplementedException("TODO: handle delegates etc");
 				}
-				else if (method.ImplAttributes.HasFlag(MethodImplAttributes.InternalCall))
+				else if (method.IsInternalCall)
 				{
 					if (method.DeclaringType.FullName == "System.String")
 					{
 						if (method.Name == "FastAllocateString")
 						{
 							string lengthName = GetParameterDefinitionName(method.Parameters[0]);
-							writer.WriteLinePrefix($"{GetTypeDefinitionFullName(method.DeclaringType)}* result = IL2X_Malloc(sizeof(int) + sizeof(wchar_t) + (sizeof(wchar_t) * {lengthName}));");
+							writer.WriteLinePrefix($"{GetTypeDefinitionFullName(method.DeclaringType)}* result = IL2X_GC_NewAtomic(sizeof(int) + sizeof(wchar_t) + (sizeof(wchar_t) * {lengthName}));");
 							writer.WriteLinePrefix($"result->{GetFieldDefinitionName(method.DeclaringType.Fields[0])} = {lengthName};");
 							writer.WriteLinePrefix("return result;");
 						}
@@ -473,6 +525,10 @@ namespace IL2X.Core
 					{
 						throw new NotImplementedException("Unsupported internal runtime method: " + method.Name);
 					}
+				}
+				else if (method.HasCustomAttributes && method.CustomAttributes.Any(x => x.AttributeType.Name == "System.Runtime.CompilerServices.IntrinsicAttribute"))
+				{
+					throw new NotImplementedException("Unsupported method Intrinsic: " + method.Name);
 				}
 				else
 				{
@@ -640,15 +696,15 @@ namespace IL2X.Core
 				StackPush(variable.definition.VariableType, variable.name, isAddress);
 			}
 
-			void Ldsfld_X(FieldDefinition field, bool isAddress)
+			void Ldsfld_X(FieldReference field, bool isAddress)
 			{
-				StackPush(field.FieldType, GetFieldDefinitionName(field), isAddress);
+				StackPush(field.FieldType, GetFieldReferenceName(field), isAddress);
 			}
 
-			void Ldfld_X(EvaluationObject self, FieldDefinition field, bool isAddress)
+			void Ldfld_X(EvaluationObject self, FieldReference field, bool isAddress)
 			{
 				string accessToken = self.type.IsValueType ? "." : "->";
-				StackPush(field.FieldType, $"{self.value}{accessToken}{GetFieldDefinitionName(field)}", isAddress);
+				StackPush(field.FieldType, $"{self.value}{accessToken}{GetFieldReferenceName(field)}", isAddress);
 			}
 
 			void Conv_X(string nativeCastingTypeName, MetadataType castingType)
@@ -679,40 +735,44 @@ namespace IL2X.Core
 				writer.WriteLinePrefix('}');
 			}
 
-			void BranchCompareCondition(Instruction instruction, string condition, string form, bool unsignedCmp)
+			string GetPrimitiveValue(EvaluationObject value, bool unsignedCmp)
 			{
-				void WriteValue(EvaluationObject value)
+				if (!value.type.IsPrimitive) throw new Exception("Value is not primitive: " + value.value);
+				if (unsignedCmp)
 				{
-					if (unsignedCmp)
+					var type = value.type.MetadataType;
+					switch (type)
 					{
-						var type = value.type.MetadataType;
-						switch (type)
-						{
-							case MetadataType.SByte: writer.Write($"((uint8_t){value.value})"); break;
-							case MetadataType.Int16: writer.Write($"((uint16_t){value.value})"); break;
-							case MetadataType.Int32: writer.Write($"((uint32_t){value.value})"); break;
-							case MetadataType.Int64: writer.Write($"((uint64_t){value.value})"); break;
-							case MetadataType.Single:
-							case MetadataType.Double:
-								writer.Write(value.value);
-								break;
-							default: throw new NotImplementedException("Failed to unsign primitive type: " + type);
-						}
-					}
-					else
-					{
-						writer.Write(value.value);
+						case MetadataType.SByte: return $"((uint8_t){value.value})";
+						case MetadataType.Int16: return $"((uint16_t){value.value})";
+						case MetadataType.Int32: return $"((uint32_t){value.value})";
+						case MetadataType.Int64: return $"((uint64_t){value.value})";
+						case MetadataType.Byte:
+						case MetadataType.UInt16:
+						case MetadataType.UInt32:
+						case MetadataType.UInt64:
+						case MetadataType.Single:
+						case MetadataType.Double:
+							return value.value;
+						default: throw new NotImplementedException("Failed to unsign primitive type: " + type);
 					}
 				}
+				else
+				{
+					return value.value;
+				}
+			}
 
+			void BranchCompareCondition(Instruction instruction, string condition, string form, bool unsignedCmp)
+			{
 				var value2 = stack.Pop();
 				var value1 = stack.Pop();
 				var operand = (Instruction)instruction.Operand;
 
 				writer.WritePrefix("if (");
-				WriteValue(value1);
+				writer.Write(GetPrimitiveValue(value1, unsignedCmp));
 				writer.Write($" {condition} ");
-				WriteValue(value2);
+				writer.Write(GetPrimitiveValue(value2, unsignedCmp));
 				writer.WriteLine(')');
 				writer.WriteLinePrefix('{');
 				writer.AddTab();
@@ -743,14 +803,16 @@ namespace IL2X.Core
 			{
 				var value2 = stack.Pop();
 				var value1 = stack.Pop();
-				StackPush(GetPrimitiveOperationResultTypeRef(value1.type.MetadataType, value2.type.MetadataType), $"({value1.value} {op} {value2.value})", false);
+				// pointer arithmetic is always done in steps of bytes and ignores its type (so make sure to cast to a byte*)
+				if (value1.type.IsPointer) StackPush(GetPrimitiveOperationResultTypeRef(value1.type.MetadataType, value2.type.MetadataType), $"((char*){value1.value} {op} {value2.value})", false);
+				else StackPush(GetPrimitiveOperationResultTypeRef(value1.type.MetadataType, value2.type.MetadataType), $"({value1.value} {op} {value2.value})", false);
 			}
 
-			void ConditionalExpression(string condition)
+			void ConditionalExpression(string condition, bool unsignedCmp)
 			{
 				var value2 = stack.Pop();
 				var value1 = stack.Pop();
-				StackPush(GetMetadataTypeDefinition(MetadataType.Int32), $"(({value1.value} {condition} {value2.value}) ? 1 : 0)", false);
+				StackPush(GetMetadataTypeDefinition(MetadataType.Int32), $"(({GetPrimitiveValue(value1, unsignedCmp)} {condition} {GetPrimitiveValue(value2, unsignedCmp)}) ? 1 : 0)", false);
 			}
 
 			void BitwiseOperation(string op)
@@ -975,14 +1037,14 @@ namespace IL2X.Core
 
 					case Code.Ldsfld:
 					{
-						var field = (FieldDefinition)instruction.Operand;
+						var field = (FieldReference)instruction.Operand;
 						Ldsfld_X(field, false);
 						break;
 					}
 
 					case Code.Ldsflda:
 					{
-						var field = (FieldDefinition)instruction.Operand;
+						var field = (FieldReference)instruction.Operand;
 						Ldsfld_X(field, true);
 						break;
 					}
@@ -990,7 +1052,7 @@ namespace IL2X.Core
 					case Code.Ldfld:
 					{
 						var self = stack.Pop();
-						var field = (FieldDefinition)instruction.Operand;
+						var field = (FieldReference)instruction.Operand;
 						Ldfld_X(self, field, false);
 						break;
 					}
@@ -998,7 +1060,7 @@ namespace IL2X.Core
 					case Code.Ldflda:
 					{
 						var self = stack.Pop();
-						var field = (FieldDefinition)instruction.Operand;
+						var field = (FieldReference)instruction.Operand;
 						Ldfld_X(self, field, true);
 						break;
 					}
@@ -1017,9 +1079,10 @@ namespace IL2X.Core
 					case Code.Conv_R4: Conv_X("float", MetadataType.Single); break;
 					case Code.Conv_R8: Conv_X("double", MetadataType.Double); break;
 
-					case Code.Ceq: ConditionalExpression("=="); break;
-					case Code.Cgt: ConditionalExpression(">"); break;
-					case Code.Clt: ConditionalExpression("<"); break;
+					case Code.Ceq: ConditionalExpression("==", false); break;
+					case Code.Cgt: ConditionalExpression(">", false); break;
+					case Code.Cgt_Un: ConditionalExpression(">", true); break;
+					case Code.Clt: ConditionalExpression("<", false); break;
 
 					case Code.And: BitwiseOperation("&"); break;
 					case Code.Or: BitwiseOperation("|"); break;
@@ -1466,8 +1529,8 @@ namespace IL2X.Core
 
 		protected override string GetFieldReferenceName(FieldReference field)
 		{
-			int count = GetBaseTypeCount(GetTypeDefinition(field.DeclaringType));
-			return $"f_{count}_{base.GetFieldReferenceName(field)}";
+			var fieldDef = (FieldDefinition)GetMemberDefinition(field);
+			return GetFieldDefinitionName(fieldDef);
 		}
 
 		protected override string GetTypeDefinitionDelimiter()
