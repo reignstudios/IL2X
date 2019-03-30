@@ -16,6 +16,7 @@ namespace System
 		[NativeExternC("tan")]
         public static extern double Tan(double a);
 
+		// TODO: use [NativeExternC("max")]
 		public static float Max(float val1, float val2)
         {
             // When val1 and val2 are both finite or infinite, return the larger
@@ -45,6 +46,7 @@ namespace System
             return (val1 < val2) ? val2 : val1;
         }
 
+		// TODO: use [NativeExternC("min")]
 		public static float Min(float val1, float val2)
         {
             // When val1 and val2 are both finite or infinite, return the smaller

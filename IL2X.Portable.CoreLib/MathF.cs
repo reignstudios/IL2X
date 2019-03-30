@@ -17,12 +17,14 @@ namespace System
 		[NativeExternC("tanf")]
 		public static extern float Tan(float a);
 
+		// TODO: use [NativeExternC("maxf")]
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static float Max(float x, float y)
 		{
 			return Math.Max(x, y);
 		}
 
+		// TODO: use [NativeExternC("minf")]
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static float Min(float x, float y)
 		{

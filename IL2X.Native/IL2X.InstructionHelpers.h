@@ -1,0 +1,109 @@
+#pragma once
+#include <setjmp.h>
+#include <limits.h>
+
+// REF BACKUP for try/catch/finally
+/*#include <iostream>
+#include <setjmp.h>
+#include <limits.h>
+#include <windows.h>
+#include <process.h>
+
+__declspec(thread) jmp_buf IL2X_CurrentThreadExceptionBuff;
+
+#define TRY(jmp, jmpLast, e) \
+	memcpy(jmpLast, IL2X_CurrentThreadExceptionBuff, sizeof(jmp_buf)); \
+	e = setjmp(jmp); \
+	if (e == 0) { memcpy(IL2X_CurrentThreadExceptionBuff, jmp, sizeof(jmp_buf));
+
+#define CATCH_START(e) } switch(e) {
+#define CATCH(x, jmpLast) break; case x: memcpy(IL2X_CurrentThreadExceptionBuff, jmpLast, sizeof(jmp_buf));
+#define FINALLY(jmpLast, e) break; \
+	default: memcpy(IL2X_CurrentThreadExceptionBuff, jmpLast, sizeof(jmp_buf)); \
+	if (e != 0) longjmp(jmpLast, e);
+
+#define TRY_END break; }
+#define THROW(x) longjmp(IL2X_CurrentThreadExceptionBuff, x)
+
+
+
+
+#define EXCEPTION (1)
+#define NOT_IMPLEMENTED_EXCEPTION (2)
+
+void Foo()
+{
+	THROW(NOT_IMPLEMENTED_EXCEPTION);
+}
+
+bool done[2] = { 0 };
+void TestThread(void* args)
+{
+	jmp_buf IL2X_UnhandledThreadExceptionBuff;
+	int result = setjmp(IL2X_UnhandledThreadExceptionBuff);
+	if (result != 0)
+	{
+		printf("Unhandled Exception Caught: %d\n", result);
+		return;// exit(result);
+	}
+	else
+	{
+		memcpy(IL2X_CurrentThreadExceptionBuff, IL2X_UnhandledThreadExceptionBuff, sizeof(jmp_buf));
+	}
+
+	jmp_buf IL2X_LOCAL_JMP_0, IL2X_LOCAL_JMP_LAST_0;
+	int e_0;
+	TRY(IL2X_LOCAL_JMP_0, IL2X_LOCAL_JMP_LAST_0, e_0)
+	{
+		jmp_buf IL2X_LOCAL_JMP_1, IL2X_LOCAL_JMP_LAST_1;
+		int e_1;
+		TRY(IL2X_LOCAL_JMP_1, IL2X_LOCAL_JMP_LAST_1, e_1)
+		{
+			printf("Start\n");
+			Foo();
+			printf("End\n");
+		}
+		CATCH_START(e_1)
+		CATCH(NOT_IMPLEMENTED_EXCEPTION, IL2X_LOCAL_JMP_LAST_1)
+		{
+			printf("Catch: NOT_IMPLEMENTED_EXCEPTION\n");
+			//THROW(EXCEPTION);
+			Sleep(100);
+		}
+		CATCH(EXCEPTION, IL2X_LOCAL_JMP_LAST_1)
+		{
+			printf("Catch: EXCEPTION\n");
+		}
+		TRY_END
+	}
+	CATCH_START(e_0)
+	FINALLY(IL2X_LOCAL_JMP_LAST_0, e_0)
+	{
+		printf("FINALLY\n");
+	}
+	TRY_END
+
+	//THROW(EXCEPTION);
+	int threadIndex = (int)args;
+	done[threadIndex] = true;
+}
+
+void main()
+{
+	uintptr_t threadID = _beginthread(TestThread, 0, (void*)0);
+	uintptr_t threadID2 = _beginthread(TestThread, 0, (void*)1);
+	while (!done[0] || !done[1]) Sleep(1);
+}*/
+
+char IL2X_AddOvf_Int32(int a, int b, int* result)
+{
+	if (a > INT_MAX - b)
+	{
+		return 0;
+	}
+	else
+	{
+		*result = a + b;
+		return 1;
+	}
+}
