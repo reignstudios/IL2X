@@ -3,6 +3,7 @@
 
 #ifdef _WIN32
 #include <malloc.h>
+#include <windows.h>
 #else
 #include <alloca.h>
 #include <string.h>

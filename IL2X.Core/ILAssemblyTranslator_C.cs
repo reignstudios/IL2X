@@ -133,6 +133,7 @@ namespace IL2X.Core
 					writer.WriteLine("#include <math.h>");
 					writer.WriteLine("#include <stdint.h>");
 					writer.WriteLine("#include <uchar.h>");
+					writer.WriteLine("#include <locale.h>");
 				}
 
 				// write includes of dependencies
@@ -251,9 +252,37 @@ namespace IL2X.Core
 					writer.WriteLine("// ===============================");
 					writer.WriteLine("// Entry Point");
 					writer.WriteLine("// ===============================");
+					
+					writer.WriteLine("void InitConsole()");
+					writer.WriteLine('{');
+					writer.WriteLine("#ifdef _WIN32");
+					writer.Write
+(
+@"	setlocale(LC_ALL, ""en_US.utf8"");
+	SetConsoleOutputCP(CP_UTF8);
+	SetConsoleCP(CP_UTF8);
+
+	CONSOLE_FONT_INFOEX fontInfo;
+	fontInfo.cbSize = sizeof(fontInfo);
+	fontInfo.FontFamily = 54;
+	fontInfo.FontWeight = 100;
+	fontInfo.nFont = 0;
+	const wchar_t myFont[] = L""KaiTi"";
+	fontInfo.dwFontSize.Y = 18;
+	memcpy(fontInfo.FaceName, myFont, (sizeof(myFont)));
+
+	HANDLE stdOut = GetStdHandle(STD_OUTPUT_HANDLE);
+	SetCurrentConsoleFontEx(stdOut, 0, &fontInfo);"
+);
+					writer.WriteLine();
+					writer.WriteLine("#endif");
+					writer.WriteLine('}');
+					writer.WriteLine();
+
 					writer.WriteLine("int main()");
 					writer.WriteLine('{');
 					writer.AddTab();
+					writer.WriteLinePrefix("InitConsole();");
 					writer.WriteLinePrefix("IL2X_GC_Init();");
 					writer.WriteLinePrefix($"{initModuleMethod}();");
 					writer.WriteLinePrefix($"{GetMethodDefinitionFullName(module.moduleDefinition.EntryPoint)}();");
