@@ -7,7 +7,7 @@ namespace TestApp.Portable
 		static void Foo(int i)
 		{
 			//i = checked(i + 22);
-			Console.Write("Done: " + string.Empty + "yahoo");
+			Console.WriteLine("Done: " + string.Empty + "yahoo");
 		}
 
 		static void Main()

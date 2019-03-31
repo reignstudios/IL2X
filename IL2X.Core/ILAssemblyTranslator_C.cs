@@ -132,6 +132,7 @@ namespace IL2X.Core
 					writer.WriteLine("#include <stdio.h>");
 					writer.WriteLine("#include <math.h>");
 					writer.WriteLine("#include <stdint.h>");
+					writer.WriteLine("#include <uchar.h>");
 				}
 
 				// write includes of dependencies
@@ -250,13 +251,14 @@ namespace IL2X.Core
 					writer.WriteLine("// ===============================");
 					writer.WriteLine("// Entry Point");
 					writer.WriteLine("// ===============================");
-					writer.WriteLine("void main()");
+					writer.WriteLine("int main()");
 					writer.WriteLine('{');
 					writer.AddTab();
 					writer.WriteLinePrefix("IL2X_GC_Init();");
 					writer.WriteLinePrefix($"{initModuleMethod}();");
 					writer.WriteLinePrefix($"{GetMethodDefinitionFullName(module.moduleDefinition.EntryPoint)}();");
 					writer.WriteLinePrefix("IL2X_GC_Collect();");
+					writer.WriteLinePrefix("return 0;");
 					writer.RemoveTab();
 					writer.WriteLine('}');
 				}
@@ -493,7 +495,7 @@ namespace IL2X.Core
 						if (method.Name == "FastAllocateString")
 						{
 							string lengthName = GetParameterDefinitionName(method.Parameters[0]);
-							writer.WriteLinePrefix($"{GetTypeDefinitionFullName(method.DeclaringType)}* result = IL2X_GC_NewAtomic(sizeof(int) + sizeof(wchar_t) + (sizeof(wchar_t) * {lengthName}));");
+							writer.WriteLinePrefix($"{GetTypeDefinitionFullName(method.DeclaringType)}* result = IL2X_GC_NewAtomic(sizeof(int) + sizeof(char16_t) + (sizeof(char16_t) * {lengthName}));");
 							writer.WriteLinePrefix($"result->{GetFieldDefinitionName(method.DeclaringType.Fields[0])} = {lengthName};");
 							writer.WriteLinePrefix("return result;");
 						}
@@ -690,6 +692,13 @@ namespace IL2X.Core
 				else StackPush(GetMetadataTypeDefinition(castingType), $"(({nativeCastingTypeName})*(({nativePtrType}*){item.value}))", false);
 			}
 
+			void Stind_X()
+			{
+				var value = stack.Pop();
+				var address = stack.Pop();
+				writer.WriteLinePrefix($"(*{address.value}) = {value.value};");
+			}
+
 			void Ldloc_X(int variableIndex, bool isAddress)
 			{
 				var variable = variables[variableIndex];
@@ -793,9 +802,15 @@ namespace IL2X.Core
 				return result;
 			}
 
-			TypeReference GetPrimitiveOperationResultTypeRef(MetadataType value1, MetadataType value2)
+			TypeReference GetPrimitiveOperationResultTypeRef(TypeReference type1, TypeReference type2)//(MetadataType value1, MetadataType value2)
 			{
-				var result = GetPrimitiveOperationResultType(value1, value2);
+				var result = GetPrimitiveOperationResultType(type1.MetadataType, type2.MetadataType);
+				if (result == MetadataType.Pointer)
+				{
+					if (type1.IsPointer) return type1;
+					else if (type2.IsPointer) return type2;
+					else throw new Exception("Primitive Operation Result Type failed");
+				}
 				return GetMetadataTypeDefinition(result);
 			}
 
@@ -804,8 +819,8 @@ namespace IL2X.Core
 				var value2 = stack.Pop();
 				var value1 = stack.Pop();
 				// pointer arithmetic is always done in steps of bytes and ignores its type (so make sure to cast to a byte*)
-				if (value1.type.IsPointer) StackPush(GetPrimitiveOperationResultTypeRef(value1.type.MetadataType, value2.type.MetadataType), $"((char*){value1.value} {op} {value2.value})", false);
-				else StackPush(GetPrimitiveOperationResultTypeRef(value1.type.MetadataType, value2.type.MetadataType), $"({value1.value} {op} {value2.value})", false);
+				if (value1.type.IsPointer) StackPush(GetPrimitiveOperationResultTypeRef(value1.type, value2.type), $"((char*){value1.value} {op} {value2.value})", false);
+				else StackPush(GetPrimitiveOperationResultTypeRef(value1.type, value2.type), $"({value1.value} {op} {value2.value})", false);
 			}
 
 			void ConditionalExpression(string condition, bool unsignedCmp)
@@ -819,7 +834,7 @@ namespace IL2X.Core
 			{
 				var value2 = stack.Pop();
 				var value1 = stack.Pop();
-				StackPush(GetPrimitiveOperationResultTypeRef(value1.type.MetadataType, value2.type.MetadataType), $"({value1.value} {op} {value2.value})", false);
+				StackPush(GetPrimitiveOperationResultTypeRef(value1.type, value2.type), $"({value1.value} {op} {value2.value})", false);
 			}
 
 			int Br_ForwardResolveStack(Instruction brInstruction, Instruction jmpInstruction, bool keepExistingStack)
@@ -985,12 +1000,16 @@ namespace IL2X.Core
 					}
 
 					case Code.Ldind_I: Ldind_X("size_t", "size_t", MetadataType.IntPtr); break;
-					case Code.Ldind_I1: Ldind_X("uint8_t", "uint32_t", MetadataType.Int32); break;
-					case Code.Ldind_I2: Ldind_X("uint16_t", "uint32_t", MetadataType.Int32); break;
-					case Code.Ldind_I4: Ldind_X("uint32_t", "uint32_t", MetadataType.Int32); break;
-					case Code.Ldind_I8: Ldind_X("uint64_t", "uint64_t", MetadataType.Int64); break;
+					case Code.Ldind_I1: Ldind_X("int8_t", "int32_t", MetadataType.Int32); break;
+					case Code.Ldind_I2: Ldind_X("int16_t", "int32_t", MetadataType.Int32); break;
+					case Code.Ldind_I4: Ldind_X("int32_t", "int32_t", MetadataType.Int32); break;
+					case Code.Ldind_I8: Ldind_X("int64_t", "int64_t", MetadataType.Int64); break;
 					case Code.Ldind_R4: Ldind_X("float", "float", MetadataType.Single); break;
 					case Code.Ldind_R8: Ldind_X("double", "double", MetadataType.Double); break;
+					
+					case Code.Ldind_U1: Ldind_X("uint8_t", "int32_t", MetadataType.Int32); break;
+					case Code.Ldind_U2: Ldind_X("uint16_t", "int32_t", MetadataType.Int32); break;
+					case Code.Ldind_U4: Ldind_X("uint32_t", "int32_t", MetadataType.Int32); break;
 
 					case Code.Ldloc_0: Ldloc_X(0, false); break;
 					case Code.Ldloc_1: Ldloc_X(1, false); break;
@@ -1189,6 +1208,13 @@ namespace IL2X.Core
 						break;
 					}
 
+					case Code.Localloc:
+					{
+						var size = stack.Pop();
+						StackPush(GetMetadataTypeDefinition(MetadataType.IntPtr), $"alloca({size.value})", false);
+						break;
+					}
+
 					// pop from stack and write operation
 					case Code.Stloc_0: Stloc_X(0); break;
 					case Code.Stloc_1: Stloc_X(1); break;
@@ -1225,13 +1251,12 @@ namespace IL2X.Core
 						break;
 					}
 
-					case Code.Stind_R4:
-					{
-						var value = stack.Pop();
-						var address = stack.Pop();
-						writer.WriteLinePrefix($"(*{address.value}) = {value.value};");
-						break;
-					}
+					case Code.Stind_I1: Stind_X(); break;
+					case Code.Stind_I2: Stind_X(); break;
+					case Code.Stind_I4: Stind_X(); break;
+					case Code.Stind_R4: Stind_X(); break;
+					case Code.Stind_R8: Stind_X(); break;
+					//case Code.Stind_Ref: Stind_X(); break;
 
 					//case Code.Stelem_I: Stelem_X(instruction); break;// as void* (native int)
 					case Code.Stelem_I1: Stelem_X(instruction); break;
@@ -1376,7 +1401,7 @@ namespace IL2X.Core
 			switch (type.MetadataType)
 			{
 				case MetadataType.Boolean: return "char";
-				case MetadataType.Char: return "wchar_t";
+				case MetadataType.Char: return "char16_t";
 				case MetadataType.SByte: return "int8_t";
 				case MetadataType.Byte: return "uint8_t";
 				case MetadataType.Int16: return "int16_t";

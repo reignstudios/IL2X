@@ -1,12 +1,6 @@
 #pragma once
 #include "..\3rdParty\Boehm.GC\include\gc.h"
-#include <stdlib.h>
-
-#ifdef _WIN32
-#include <malloc.h>
-#else
-#include <alloca.h>
-#endif
+#include "IL2X.GC.Common.h"
 
 void IL2X_GC_Init()
 {
@@ -34,23 +28,23 @@ void* IL2X_GC_NewAtomic(size_t size)
 
 void* IL2X_GC_NewArray(size_t elementSize, size_t length)
 {
-	void* result = IL2X_GC_New(sizeof(size_t) + (elementSize * length));
-	*((size_t*)result) = length;
-	return result;
+	void* ptr = IL2X_GC_New(sizeof(size_t) + (elementSize * length));
+	*((size_t*)ptr) = length;
+	return ptr;
 }
 
 void* IL2X_GC_NewArrayAtomic(size_t elementSize, size_t length)
 {
-	void* result = IL2X_GC_NewAtomic(sizeof(size_t) + (elementSize * length));
-	*((size_t*)result) = length;
-	return result;
+	void* ptr = IL2X_GC_NewAtomic(sizeof(size_t) + (elementSize * length));
+	*((size_t*)ptr) = length;
+	return ptr;
 }
 
 void* IL2X_GC_Resize(void* object, size_t oldSize, size_t newSize)
 {
-	__int8* ptr = GC_realloc(object, newSize);
-	size_t sizeDiff = newSize - oldSize;
-	if (sizeDiff > 0) memset(ptr + oldSize, 0, sizeDiff);
+	char* ptr = GC_realloc(object, newSize);
+	//size_t sizeDiff = newSize - oldSize;// GC_malloc will null memory ??
+	//if (sizeDiff > 0) memset(ptr + oldSize, 0, sizeDiff);
 	return ptr;
 }
 
@@ -67,30 +61,4 @@ void IL2X_GC_DisableAutoCollections()
 void IL2X_GC_EnableAutoCollections()
 {
 	/* boehm doesn't support this (do nothing...) */
-}
-
-/* ====================================== */
-/* manual allocation methods (non-GC) */
-/* ====================================== */
-void* IL2X_AllocA(size_t size)// alloc memory on the stack
-{
-	#ifdef _WIN32
-	void* ptr = _alloca(size);
-	#else
-	void* ptr = alloca(size);
-	#endif
-	memset(ptr, 0, size);
-	return ptr;
-}
-
-void* IL2X_Malloc(size_t size)// alloc memory on the heap
-{
-	void* ptr = malloc(size);
-	memset(ptr, 0, size);
-	return ptr;
-}
-
-void IL2X_Delete(void* ptr)
-{
-	return free(ptr);
 }
