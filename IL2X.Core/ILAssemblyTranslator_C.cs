@@ -267,9 +267,9 @@ namespace IL2X.Core
 	fontInfo.FontFamily = 54;
 	fontInfo.FontWeight = 100;
 	fontInfo.nFont = 0;
-	const wchar_t myFont[] = L""KaiTi"";
+	const wchar_t fontName[] = L""KaiTi"";
 	fontInfo.dwFontSize.Y = 18;
-	memcpy(fontInfo.FaceName, myFont, (sizeof(myFont)));
+	memcpy(fontInfo.FaceName, fontName, (sizeof(fontName)));
 
 	HANDLE stdOut = GetStdHandle(STD_OUTPUT_HANDLE);
 	SetCurrentConsoleFontEx(stdOut, 0, &fontInfo);
@@ -773,11 +773,11 @@ namespace IL2X.Core
 				writer.WriteLinePrefix('}');
 			}
 
-			string GetPrimitiveValue(EvaluationObject value, bool unsignedCmp)
+			string GetObjectValue(EvaluationObject value, bool asUnsigned)
 			{
-				if (!value.type.IsPrimitive) throw new Exception("Value is not primitive: " + value.value);
-				if (unsignedCmp)
+				if (asUnsigned)
 				{
+					if (!value.type.IsPrimitive) throw new Exception("Value is not primitive: " + value.value);
 					var type = value.type.MetadataType;
 					switch (type)
 					{
@@ -808,9 +808,9 @@ namespace IL2X.Core
 				var operand = (Instruction)instruction.Operand;
 
 				writer.WritePrefix("if (");
-				writer.Write(GetPrimitiveValue(value1, unsignedCmp));
+				writer.Write(GetObjectValue(value1, unsignedCmp));
 				writer.Write($" {condition} ");
-				writer.Write(GetPrimitiveValue(value2, unsignedCmp));
+				writer.Write(GetObjectValue(value2, unsignedCmp));
 				writer.WriteLine(')');
 				writer.WriteLinePrefix('{');
 				writer.AddTab();
@@ -856,7 +856,7 @@ namespace IL2X.Core
 			{
 				var value2 = stack.Pop();
 				var value1 = stack.Pop();
-				StackPush(GetMetadataTypeDefinition(MetadataType.Int32), $"(({GetPrimitiveValue(value1, unsignedCmp)} {condition} {GetPrimitiveValue(value2, unsignedCmp)}) ? 1 : 0)", false);
+				StackPush(GetMetadataTypeDefinition(MetadataType.Int32), $"(({GetObjectValue(value1, unsignedCmp)} {condition} {GetObjectValue(value2, unsignedCmp)}) ? 1 : 0)", false);
 			}
 
 			void BitwiseOperation(string op)

@@ -2,7 +2,9 @@
 #include <setjmp.h>
 #include <limits.h>
 
-// REF BACKUP for try/catch/finally
+// ================================
+// REF BACKUP: for try/catch/finally
+// ================================
 /*#include <iostream>
 #include <setjmp.h>
 #include <limits.h>
@@ -93,6 +95,45 @@ void main()
 	uintptr_t threadID = _beginthread(TestThread, 0, (void*)0);
 	uintptr_t threadID2 = _beginthread(TestThread, 0, (void*)1);
 	while (!done[0] || !done[1]) Sleep(1);
+}*/
+
+
+// ================================
+// REF BACKUP: utf-16 to utf-32 for posix console writes
+// ================================
+/*int is_surrogate(char16_t uc) { return (uc - 0xd800u) < 2048u; }
+int is_high_surrogate(char16_t uc) { return (uc & 0xfffffc00) == 0xd800; }
+int is_low_surrogate(char16_t uc) { return (uc & 0xfffffc00) == 0xdc00; }
+
+char32_t surrogate_to_utf32(char16_t high, char16_t low)
+{
+	return (high << 10) + low - 0x35fdc00;
+}
+
+void convert_utf16_to_utf32(const char16_t *input, size_t input_size, char32_t *output)
+{
+	const char16_t * const end = input + input_size;
+	while (input < end)
+	{
+		const char16_t uc = *input++;
+		if (!is_surrogate(uc))
+		{
+			*output++ = uc;
+		}
+		else
+		{
+			if (is_high_surrogate(uc) && input < end && is_low_surrogate(*input))
+			{
+				*output++ = surrogate_to_utf32(uc, *input++);
+			}
+			else
+			{
+				return;
+				//*output++ = U+FFFD;
+				// ERROR
+			}
+		}
+	}
 }*/
 
 char IL2X_AddOvf_Int32(int a, int b, int* result)

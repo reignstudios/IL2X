@@ -1,4 +1,4 @@
-﻿using System;
+﻿/*using System;
 
 namespace TestApp.Portable
 {
@@ -15,4 +15,4 @@ namespace TestApp.Portable
 			Foo(44);
 		}
 	}
-}
+}*/
