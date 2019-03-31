@@ -272,9 +272,9 @@ namespace IL2X.Core
 	memcpy(fontInfo.FaceName, myFont, (sizeof(myFont)));
 
 	HANDLE stdOut = GetStdHandle(STD_OUTPUT_HANDLE);
-	SetCurrentConsoleFontEx(stdOut, 0, &fontInfo);"
+	SetCurrentConsoleFontEx(stdOut, 0, &fontInfo);
+"
 );
-					writer.WriteLine();
 					writer.WriteLine("#endif");
 					writer.WriteLine('}');
 					writer.WriteLine();
