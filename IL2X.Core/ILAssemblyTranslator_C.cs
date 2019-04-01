@@ -262,7 +262,7 @@ namespace IL2X.Core
 	SetConsoleOutputCP(CP_UTF8);
 	SetConsoleCP(CP_UTF8);
 
-	CONSOLE_FONT_INFOEX fontInfo;
+	/*CONSOLE_FONT_INFOEX fontInfo;
 	fontInfo.cbSize = sizeof(fontInfo);
 	fontInfo.FontFamily = 54;
 	fontInfo.FontWeight = 100;
@@ -272,7 +272,7 @@ namespace IL2X.Core
 	memcpy(fontInfo.FaceName, fontName, (sizeof(fontName)));
 
 	HANDLE stdOut = GetStdHandle(STD_OUTPUT_HANDLE);
-	SetCurrentConsoleFontEx(stdOut, 0, &fontInfo);
+	SetCurrentConsoleFontEx(stdOut, 0, &fontInfo);*/
 "
 );
 					writer.WriteLine("#endif");
