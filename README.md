@@ -1,3 +1,5 @@
+[![Gitter](https://badges.gitter.im/IL2X/community.svg)](https://gitter.im/IL2X/community?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge)
+
 # IL2X (Currently Experimental)
 Translates .NET IL to supported and unsuported .NET platforms and architectures. (Powered by Mono.Cecil)<br>
 If you're looking for CS2X: https://github.com/reignstudios/CS2X
