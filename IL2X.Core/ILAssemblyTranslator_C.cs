@@ -107,9 +107,9 @@ namespace IL2X.Core
 			using (writer = new StreamWriterEx(stream))
 			{
 				// write generate info
-				writer.WriteLine("// ###############################");
-				writer.WriteLine($"// Generated with IL2X v{Utils.GetAssemblyInfoVersion()}");
-				writer.WriteLine("// ###############################");
+				writer.WriteLine("/* ############################### */");
+				writer.WriteLine($"/* Generated with IL2X v{Utils.GetAssemblyInfoVersion()} */");
+				writer.WriteLine("/* ############################### */");
 				if (!isExe) writer.WriteLine("#pragma once");
 
 				// write includes of core lib
@@ -134,6 +134,12 @@ namespace IL2X.Core
 					writer.WriteLine("#include <stdint.h>");
 					writer.WriteLine("#include <uchar.h>");
 					writer.WriteLine("#include <locale.h>");
+					writer.WriteLine("#include <setjmp.h>");
+					writer.WriteLine("#include <process.h>");
+
+					// write thread local exception
+					writer.WriteLine();
+					writer.WriteLine("__declspec(thread) jmp_buf IL2X_ThreadExceptionBuff;");
 				}
 
 				// write includes of dependencies
@@ -145,22 +151,22 @@ namespace IL2X.Core
 				writer.WriteLine();
 
 				// write forward declare of types
-				writer.WriteLine("// ===============================");
-				writer.WriteLine("// Type forward declares");
-				writer.WriteLine("// ===============================");
+				writer.WriteLine("/* =============================== */");
+				writer.WriteLine("/* Type forward declares */");
+				writer.WriteLine("/* =============================== */");
 				foreach (var type in module.typesDependencyOrdered) WriteTypeDefinition(type, false);
 				writer.WriteLine();
 
 				// write type definitions
-				writer.WriteLine("// ===============================");
-				writer.WriteLine("// Type definitions");
-				writer.WriteLine("// ===============================");
+				writer.WriteLine("/* =============================== */");
+				writer.WriteLine("/* Type definitions */");
+				writer.WriteLine("/* =============================== */");
 				foreach (var type in module.typesDependencyOrdered) WriteTypeDefinition(type, true);
 
 				// write forward declare of type methods
-				writer.WriteLine("// ===============================");
-				writer.WriteLine("// Method forward declares");
-				writer.WriteLine("// ===============================");
+				writer.WriteLine("/* =============================== */");
+				writer.WriteLine("/* Method forward declares */");
+				writer.WriteLine("/* =============================== */");
 				foreach (var type in module.typesDependencyOrdered)
 				{
 					foreach (var method in type.Methods) WriteMethodDefinition(method, false);
@@ -168,29 +174,29 @@ namespace IL2X.Core
 				writer.WriteLine();
 
 				// write include of IL instruction generated members
-				writer.WriteLine("// ===============================");
-				writer.WriteLine("// Instruction generated members");
-				writer.WriteLine("// ===============================");
+				writer.WriteLine("/* =============================== */");
+				writer.WriteLine("/* Instruction generated members */");
+				writer.WriteLine("/* =============================== */");
 				writer.WriteLine($"#include \"{generatedMembersFilename}\"");
 				writer.WriteLine();
 
 				// write method definitions
-				writer.WriteLine("// ===============================");
-				writer.WriteLine("// Method definitions");
-				writer.WriteLine("// ===============================");
+				writer.WriteLine("/* =============================== */");
+				writer.WriteLine("/* Method definitions */");
+				writer.WriteLine("/* =============================== */");
 				foreach (var type in module.typesDependencyOrdered)
 				{
 					foreach (var method in type.Methods) WriteMethodDefinition(method, true);
 				}
 
 				// write init module
-				writer.WriteLine("// ===============================");
-				writer.WriteLine("// Init module");
-				writer.WriteLine("// ===============================");
+				writer.WriteLine("/* =============================== */");
+				writer.WriteLine("/* Init module */");
+				writer.WriteLine("/* =============================== */");
 				writer.WriteLine($"void {initModuleMethod}()");
 				writer.WriteLine('{');
 				writer.AddTab();
-				writer.WriteLinePrefix("// Init references");
+				writer.WriteLinePrefix("/* Init references */");
 				foreach (var reference in module.references)
 				{
 					foreach (var refModule in reference.modules)
@@ -199,11 +205,11 @@ namespace IL2X.Core
 					}
 				}
 				writer.WriteLine();
-				writer.WriteLinePrefix("// Init generated members");
+				writer.WriteLinePrefix("/* Init generated members */");
 				writer.WriteLinePrefix($"{generatedMembersInitMethod}();");
 				writer.WriteLine();
 
-				writer.WriteLinePrefix("// Init intrinsic fields");
+				writer.WriteLinePrefix("/* Init intrinsic fields */");
 				foreach (var type in module.typesDependencyOrdered)
 				{
 					foreach (var field in type.Fields)
@@ -233,7 +239,7 @@ namespace IL2X.Core
 				}
 				writer.WriteLine();
 
-				writer.WriteLinePrefix("// Init static methods");
+				writer.WriteLinePrefix("/* Init static methods */");
 				foreach (var type in module.typesDependencyOrdered)
 				{
 					foreach (var method in type.Methods)
@@ -249,9 +255,9 @@ namespace IL2X.Core
 				// write entry point
 				if (isExe && module.moduleDefinition.EntryPoint != null)
 				{
-					writer.WriteLine("// ===============================");
-					writer.WriteLine("// Entry Point");
-					writer.WriteLine("// ===============================");
+					writer.WriteLine("/* =============================== */");
+					writer.WriteLine("/* Entry Point */");
+					writer.WriteLine("/* =============================== */");
 					
 					writer.WriteLine("void InitConsole()");
 					writer.WriteLine('{');
@@ -298,9 +304,9 @@ namespace IL2X.Core
 			using (writer = new StreamWriterEx(stream))
 			{
 				// write generate info
-				writer.WriteLine("// ###############################");
-				writer.WriteLine($"// Generated with IL2X v{Utils.GetAssemblyInfoVersion()}");
-				writer.WriteLine("// ###############################");
+				writer.WriteLine("/* ############################### */");
+				writer.WriteLine($"/* Generated with IL2X v{Utils.GetAssemblyInfoVersion()} */");
+				writer.WriteLine("/* ############################### */");
 				writer.WriteLine("#pragma once");
 				writer.WriteLine();
 
@@ -310,9 +316,9 @@ namespace IL2X.Core
 					if (stringType == null) throw new Exception("Failed to get 'System.String' from CoreLib");
 					string stringTypeName = GetTypeDefinitionFullName(stringType);
 
-					writer.WriteLine("// ===============================");
-					writer.WriteLine("// String literals");
-					writer.WriteLine("// ===============================");
+					writer.WriteLine("/* =============================== */");
+					writer.WriteLine("/* String literals */");
+					writer.WriteLine("/* =============================== */");
 					foreach (var literal in activeStringLiterals)
 					{
 						//WriteStringLiteralValue(literal.Key, literal.Value);
@@ -320,7 +326,7 @@ namespace IL2X.Core
 						if (value.Contains('\n')) value = value.Replace("\n", "");
 						if (value.Contains('\r')) value = value.Replace("\r", "");
 						if (value.Length > 64) value = value.Substring(0, 64) + "...";
-						writer.WriteLine($"// {value}");
+						writer.WriteLine($"/* {value} */");
 						int stringMemSize = sizeof(int) + sizeof(char) + (literal.Value.Length * sizeof(char));// TODO: handle non-standard int & char sizes
 						writer.Write($"char {literal.Key}[{stringMemSize}] = {{");
 						foreach(byte b in BitConverter.GetBytes(literal.Value.Length))
@@ -344,9 +350,9 @@ namespace IL2X.Core
 				}
 
 				// write init module
-				writer.WriteLine("// ===============================");
-				writer.WriteLine("// Init method");
-				writer.WriteLine("// ===============================");
+				writer.WriteLine("/* =============================== */");
+				writer.WriteLine("/* Init method */");
+				writer.WriteLine("/* =============================== */");
 				writer.WriteLine($"void {generatedMembersInitMethod}()");
 				writer.WriteLine('{');
 				writer.AddTab();
@@ -400,8 +406,10 @@ namespace IL2X.Core
 				}
 
 				// empty types aren't allowed in C (so only write if applicable)
+				bool didWriteType = false;
 				if (!IsEmptyType(type))
 				{
+					didWriteType = true;
 					writer.WriteLine(string.Format("struct {0}", GetTypeDefinitionFullName(type)));
 					writer.WriteLine('{');
 					writer.AddTab();
@@ -428,7 +436,7 @@ namespace IL2X.Core
 					}
 				}
 
-				writer.WriteLine();
+				if (didWriteType) writer.WriteLine();
 			}
 		}
 
@@ -438,24 +446,6 @@ namespace IL2X.Core
 			{
 				throw new Exception("TODO: generate generic type");
 			}
-			//else if (field.HasCustomAttributes && field.CustomAttributes.Any(x => x.AttributeType.FullName == "System.Runtime.CompilerServices.IntrinsicAttribute"))
-			//{
-			//	if (field.DeclaringType.FullName ==  "System.String")
-			//	{
-			//		if (field.Name == "Empty")
-			//		{
-						
-			//		}
-			//		else
-			//		{
-			//			throw new NotImplementedException("Unsupported field Intrinsic: " + field.Name);
-			//		}
-			//	}
-			//	else
-			//	{
-			//		throw new NotImplementedException("Unsupported Intrinsic type for field: " + field.Name);
-			//	}
-			//}
 			writer.WriteLinePrefix($"{GetTypeReferenceFullName(field.FieldType)} {GetFieldDefinitionName(field)};");
 		}
 

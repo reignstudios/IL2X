@@ -2,6 +2,11 @@ namespace System
 {
 	public class Exception
 	{
+		public Exception()
+		{
+			
+		}
+
 		public Exception(string message)
 		{
 		}

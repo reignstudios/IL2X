@@ -1,18 +1,21 @@
-﻿/*using System;
+﻿using System;
 
 namespace TestApp.Portable
 {
 	static class Program
 	{
-		static void Foo(int i)
+		/*static void Foo(int i)
 		{
 			//i = checked(i + 22);
 			Console.WriteLine("Done: (你好 + こんにちは)" + string.Empty + "yahoo");
-		}
+		}*/
 
 		static void Main()
 		{
-			Foo(44);
+			//Foo(44);
+			Console.WriteLine("Starting");
+			//throw new Exception();
+			Console.WriteLine("Should not hit");
 		}
 	}
-}*/
+}
