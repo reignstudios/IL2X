@@ -9,6 +9,7 @@ namespace System
 
 		public Exception(string message)
 		{
+			this.Message = message;
 		}
 		
 		public Exception InnerException
@@ -19,13 +20,7 @@ namespace System
 			}
 		}
 
-		public virtual string Message
-		{
-			get
-			{
-				return null;
-			}
-		}
+		public virtual string Message { get; private set; }
 		
 		public virtual string StackTrace
 		{

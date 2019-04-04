@@ -15,6 +15,7 @@ void IL2X_GC_Collect()
 void* IL2X_GC_New(size_t size)
 {
 	void* ptr = GC_malloc(size);
+	if (ptr == 0) exit(-1);
 	//memset(ptr, 0, size);// GC_malloc will null memory
 	return ptr;
 }
@@ -22,6 +23,7 @@ void* IL2X_GC_New(size_t size)
 void* IL2X_GC_NewAtomic(size_t size)
 {
 	void* ptr = GC_malloc_atomic(size);
+	if (ptr == 0) exit(-1);
 	//memset(ptr, 0, size);// GC_malloc will null memory
 	return ptr;
 }
@@ -43,6 +45,7 @@ void* IL2X_GC_NewArrayAtomic(size_t elementSize, size_t length)
 void* IL2X_GC_Resize(void* object, size_t oldSize, size_t newSize)
 {
 	char* ptr = GC_realloc(object, newSize);
+	if (ptr == 0) exit(-1);
 	//size_t sizeDiff = newSize - oldSize;// GC_malloc will null memory ??
 	//if (sizeDiff > 0) memset(ptr + oldSize, 0, sizeDiff);
 	return ptr;

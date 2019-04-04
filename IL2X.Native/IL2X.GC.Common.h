@@ -16,6 +16,7 @@
 void* IL2X_Malloc(size_t size)
 {
 	void* ptr = malloc(size);
+	if (ptr == 0) exit(-1);
 	memset(ptr, 0, size);
 	return ptr;
 }

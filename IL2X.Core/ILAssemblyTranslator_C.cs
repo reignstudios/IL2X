@@ -127,6 +127,7 @@ namespace IL2X.Core
 					
 					gcFileName = Path.Combine(Path.GetFullPath(options.gcFolderPath), gcFileName);
 					writer.WriteLine($"#include \"{gcFileName}.h\"");
+					writer.WriteLine($"#include \"{Path.Combine(Path.GetFullPath(options.gcFolderPath), "IL2X.InstructionHelpers.h")}\"");
 
 					// include std libraries
 					writer.WriteLine("#include <stdio.h>");
@@ -134,12 +135,6 @@ namespace IL2X.Core
 					writer.WriteLine("#include <stdint.h>");
 					writer.WriteLine("#include <uchar.h>");
 					writer.WriteLine("#include <locale.h>");
-					writer.WriteLine("#include <setjmp.h>");
-					writer.WriteLine("#include <process.h>");
-
-					// write thread local exception
-					writer.WriteLine();
-					writer.WriteLine("__declspec(thread) jmp_buf IL2X_ThreadExceptionBuff;");
 				}
 
 				// write includes of dependencies
@@ -289,6 +284,23 @@ namespace IL2X.Core
 					writer.WriteLine('{');
 					writer.AddTab();
 					writer.WriteLinePrefix("InitConsole();");
+					writer.Write
+(
+@"
+	jmp_buf IL2X_UnhandledThreadExceptionBuff;
+	int result = setjmp(IL2X_UnhandledThreadExceptionBuff);
+	if (result != 0)
+	{
+		wprintf(L""Unhandled Exception\n"");
+		exit(-2);
+	}
+	else
+	{
+		memcpy(IL2X_ThreadExceptionJmpBuff, IL2X_UnhandledThreadExceptionBuff, sizeof(jmp_buf));
+	}
+"
+);
+					writer.WriteLine();
 					writer.WriteLinePrefix("IL2X_GC_Init();");
 					writer.WriteLinePrefix($"{initModuleMethod}();");
 					writer.WriteLinePrefix($"{GetMethodDefinitionFullName(module.moduleDefinition.EntryPoint)}();");
@@ -598,7 +610,8 @@ namespace IL2X.Core
 			var stack = new Stack<EvaluationObject>();// objects currently on the stack
 			var stackTypes = new Dictionary<int, List<TypeReference>>();// possible types a particular stack slot may represent
 			var stackByRefTypes = new Dictionary<TypeReference, ByReferenceType>();// helper to keep evaluation stack "ByReferenceType" all using the same ptrs
-			var instructionJumpModify = new Dictionary<Instruction, BranchJumpModify>();
+			var instructionJumpModify = new Dictionary<Instruction, BranchJumpModify>();// helper to keep track of branch predicted jump modifications
+			int tryBuffNext = 0;// name mangle helper for jmp buffs
 
 			string FormatedEvalStackTypeName(int stackKey, int typeIndex)
 			{
@@ -876,7 +889,7 @@ namespace IL2X.Core
 				if (keepExistingStack && existingStack != null) stack = new Stack<EvaluationObject>(existingStack);
 				return jmpOffset;
 			}
-			
+
 			foreach (var instruction in body.Instructions)
 			{
 				ProcessInstruction(instruction, true);
@@ -934,6 +947,44 @@ namespace IL2X.Core
 					))
 					{
 						writer.WriteLinePrefix($"IL_{instruction.Offset.ToString("x8")}:;");// write goto jump label long form
+					}
+				}
+
+				// check for exception handlers
+				if (body.HasExceptionHandlers)
+				{
+					foreach (var e in body.ExceptionHandlers)
+					{
+						// check for try
+						if (e.TryStart == instruction)
+						{
+							writer.WriteLinePrefix(string.Format("jmp_buf IL2X_LOCAL_JMP_{0}, IL2X_LOCAL_JMP_LAST_{0};", tryBuffNext));
+							writer.WriteLinePrefix($"int IL2X_EX_{tryBuffNext};");
+							writer.WriteLinePrefix(string.Format("IL2X_TRY(jmp_buf IL2X_LOCAL_JMP_{0}, IL2X_LOCAL_JMP_LAST_{0}, IL2X_EX_{0})", tryBuffNext));
+							++tryBuffNext;
+							break;
+						}
+
+						if (e.HandlerType == ExceptionHandlerType.Catch)
+						{
+							if (e.HandlerStart == instruction)
+							{
+								var objectType = activeCoreAssembly.assemblyDefinition.MainModule.GetType("System.Object");
+								StackPush(objectType, "IL2X_ThreadExceptionObject", false);
+							}
+
+							/*if (e.HandlerEnd == instruction)
+							{
+								
+							}*/
+						}
+
+						// check for try end
+						/*if (e.TryEnd == instruction)
+						{
+							writer.WriteLinePrefix("IL2X_TRY_END");
+							--tryBuffNext;
+						}*/
 					}
 				}
 
@@ -1194,7 +1245,9 @@ namespace IL2X.Core
 						{
 							if (IsAtomicType(method.DeclaringType)) allocMethod = "IL2X_GC_NewAtomic";
 							else allocMethod = "IL2X_GC_New";
-							allocMethod = $"{allocMethod}(sizeof({GetTypeReferenceFullName(method.DeclaringType, allowSymbols: false)}))";
+							string typeName = GetTypeReferenceFullName(method.DeclaringType, allowSymbols: false);
+							if (IsEmptyType(method.DeclaringType)) typeName += '*';
+							allocMethod = $"{allocMethod}(sizeof({typeName}))";
 						}
 
 						var paramaterStack = new Stack<EvaluationObject>();
@@ -1335,6 +1388,17 @@ namespace IL2X.Core
 						}
 						break;
 					}
+
+					case Code.Throw:
+					{
+						var e = stack.Pop();
+						writer.WriteLinePrefix($"IL2X_ThreadExceptionObject = {e.value};");
+						writer.WriteLinePrefix($"IL2X_THROW(1);");
+						break;
+					}
+
+					case Code.Leave: BranchUnconditional(instruction, "x8"); break;
+					case Code.Leave_S: BranchUnconditional(instruction, "x4"); break;
 
 					default: throw new Exception("Unsuported opcode type: " + instruction.OpCode.Code);
 				}

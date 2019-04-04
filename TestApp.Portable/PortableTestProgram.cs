@@ -2,19 +2,35 @@
 
 namespace TestApp.Portable
 {
+	//public class MyException : Exception
+	//{
+		
+	//}
+
 	static class Program
 	{
-		/*static void Foo(int i)
-		{
-			//i = checked(i + 22);
-			Console.WriteLine("Done: (你好 + こんにちは)" + string.Empty + "yahoo");
-		}*/
+        //static void Foo(int i)
+        //{
+        //    //i = checked(i + 22);
+        //    Console.WriteLine("Done: (你好 + こんにちは)" + string.Empty + "yahoo");
+        //}
 
-		static void Main()
+        static void Main()
 		{
 			//Foo(44);
 			Console.WriteLine("Starting");
-			//throw new Exception();
+			//try
+			{
+				//throw new Exception("Test exception!");
+			}
+			//catch (MyException e)
+			//{
+			//	Console.WriteLine("Caught my: " + e.Message);
+			//}
+			//catch (Exception e)
+			{
+				//Console.WriteLine("Caught: " + e.Message);
+			}
 			Console.WriteLine("Should not hit");
 		}
 	}

@@ -1,6 +1,11 @@
 #pragma once
-#include <setjmp.h>
 #include <limits.h>
+#include <setjmp.h>
+#include <process.h>
+
+#ifdef _WIN32
+#include <windows.h>
+#endif
 
 // ================================
 // REF BACKUP: for try/catch/finally
@@ -136,6 +141,29 @@ void convert_utf16_to_utf32(const char16_t *input, size_t input_size, char32_t *
 	}
 }*/
 
+/* ====================================== */
+/* Exception helpers */
+/* ====================================== */
+__declspec(thread) jmp_buf IL2X_ThreadExceptionJmpBuff;
+__declspec(thread) void* IL2X_ThreadExceptionObject;
+
+#define IL2X_TRY(jmp, jmpLast, e) \
+	memcpy(jmpLast, IL2X_ThreadExceptionJmpBuff, sizeof(jmp_buf)); \
+	e = setjmp(jmp); \
+	if (e == 0) { memcpy(IL2X_ThreadExceptionJmpBuff, jmp, sizeof(jmp_buf));
+
+#define IL2X_CATCH_START(e) } switch(e) {
+#define IL2X_CATCH(x, jmpLast) break; case x: memcpy(IL2X_ThreadExceptionJmpBuff, jmpLast, sizeof(jmp_buf));
+#define IL2X_FINALLY(jmpLast, e) break; \
+	default: memcpy(IL2X_ThreadExceptionJmpBuff, jmpLast, sizeof(jmp_buf)); \
+	if (e != 0) longjmp(jmpLast, e);
+
+#define IL2X_TRY_END break; } IL2X_ThreadExceptionObject = 0;
+#define IL2X_THROW(x) longjmp(IL2X_ThreadExceptionJmpBuff, x)
+
+/* ====================================== */
+/* overflow helpers */
+/* ====================================== */
 char IL2X_AddOvf_Int32(int a, int b, int* result)
 {
 	if (a > INT_MAX - b)
