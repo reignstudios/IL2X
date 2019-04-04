@@ -373,5 +373,10 @@ namespace IL2X.Core
 
 			return true;
 		}
+
+		//protected MethodDefinition FindMethodSignature(bool constructor, TypeDefinition type, params TypeReference[] paramaters)
+		//{
+			
+		//}
 	}
 }

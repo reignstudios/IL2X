@@ -1,3 +1,5 @@
+using System.Runtime.CompilerServices;
+
 namespace System
 {
 	public abstract class Type
@@ -25,5 +27,10 @@ namespace System
 				return null;
 			}
 		}
+
+		public virtual RuntimeTypeHandle TypeHandle { get { throw new NotSupportedException(); } }
+
+		[MethodImpl(MethodImplOptions.InternalCall)]
+		public static extern Type GetTypeFromHandle(RuntimeTypeHandle handle);
 	}
 }

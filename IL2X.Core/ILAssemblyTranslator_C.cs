@@ -99,7 +99,6 @@ namespace IL2X.Core
 
 			// get generated members filename
 			string generatedMembersFilename = $"{module.moduleDefinition.Name.Replace('.', '_')}_GeneratedMembers.h";
-			string generatedMembersInitMethod = "IL2X_Init_GeneratedMembers_" + module.moduleDefinition.Name.Replace('.', '_');
 			string initModuleMethod = "IL2X_InitModule_" + module.moduleDefinition.Name.Replace('.', '_');
 
 			// write module
@@ -158,6 +157,18 @@ namespace IL2X.Core
 				writer.WriteLine("/* =============================== */");
 				foreach (var type in module.typesDependencyOrdered) WriteTypeDefinition(type, true);
 
+				// write type definitions
+				writer.WriteLine("/* =============================== */");
+				writer.WriteLine("/* Runtime Types */");
+				writer.WriteLine("/* =============================== */");
+				var rtTypeHandle = activeCoreAssembly.assemblyDefinition.MainModule.GetType("System.RuntimeTypeHandle");
+				string rtTypeHandleName = GetTypeDefinitionFullName(rtTypeHandle);
+				foreach (var type in module.typesDependencyOrdered)
+				{
+					writer.WriteLine($"{rtTypeHandleName} {GetRuntimeTypeDefinitionFullName(type)};");
+				}
+				writer.WriteLine();
+
 				// write forward declare of type methods
 				writer.WriteLine("/* =============================== */");
 				writer.WriteLine("/* Method forward declares */");
@@ -200,8 +211,17 @@ namespace IL2X.Core
 					}
 				}
 				writer.WriteLine();
-				writer.WriteLinePrefix("/* Init generated members */");
-				writer.WriteLinePrefix($"{generatedMembersInitMethod}();");
+
+				writer.WriteLinePrefix("/* Init runtime types */");
+				var rtTypeField = rtTypeHandle.Fields.First(x => x.Name == "m_type");
+				string rtTypeFieldName = GetFieldDefinitionName(rtTypeField);
+				var rtTypeFieldType = GetTypeDefinition(rtTypeField.FieldType);
+				string rtTypeFieldTypeName = GetTypeDefinitionFullName(rtTypeFieldType);
+				foreach (var type in module.typesDependencyOrdered)
+				{
+					if (!IsEmptyType(rtTypeFieldType)) writer.WriteLinePrefix($"{GetRuntimeTypeDefinitionFullName(type)}.{rtTypeFieldName} = IL2X_Malloc(sizeof({rtTypeFieldTypeName}));");
+					else writer.WriteLinePrefix($"{GetRuntimeTypeDefinitionFullName(type)}.{rtTypeFieldName} = IL2X_Malloc(sizeof({rtTypeFieldTypeName}*));");
+				}
 				writer.WriteLine();
 
 				writer.WriteLinePrefix("/* Init intrinsic fields */");
@@ -360,17 +380,6 @@ namespace IL2X.Core
 
 					writer.WriteLine();
 				}
-
-				// write init module
-				writer.WriteLine("/* =============================== */");
-				writer.WriteLine("/* Init method */");
-				writer.WriteLine("/* =============================== */");
-				writer.WriteLine($"void {generatedMembersInitMethod}()");
-				writer.WriteLine('{');
-				writer.AddTab();
-				// TODO
-				writer.RemoveTab();
-				writer.WriteLine('}');
 			}
 
 			writer = null;
@@ -536,7 +545,7 @@ namespace IL2X.Core
 						}
 						else
 						{
-							throw new NotImplementedException("Unsupported internal runtime String method: " + method.Name);
+							throw new NotImplementedException("Unsupported internal runtime System.String method: " + method.Name);
 						}
 					}
 					else if (method.DeclaringType.FullName == "System.Array")
@@ -551,7 +560,19 @@ namespace IL2X.Core
 						}
 						else
 						{
-							throw new NotImplementedException("Unsupported internal runtime Array method: " + method.Name);
+							throw new NotImplementedException("Unsupported internal runtime System.Array method: " + method.Name);
+						}
+					}
+					else if (method.DeclaringType.FullName == "System.Type")
+					{
+						if (method.Name == "GetTypeFromHandle")
+						{
+							var type = GetTypeDefinition(method.Parameters[0].ParameterType);
+							writer.WriteLinePrefix($"return {GetParameterDefinitionName(method.Parameters[0])}.{GetFieldDefinitionName(type.Fields[0])};");
+						}
+						else
+						{
+							throw new NotImplementedException("Unsupported internal runtime System.Type method: " + method.Name);
 						}
 					}
 					else
@@ -1008,6 +1029,14 @@ namespace IL2X.Core
 						stack.Push(item);
 						break;
 					}
+
+					case Code.Ldtoken:
+					{
+						var type = GetTypeDefinition((TypeReference)instruction.Operand);
+						var rtTypeHandle = activeCoreAssembly.assemblyDefinition.MainModule.GetType("System.RuntimeTypeHandle");
+						StackPush(rtTypeHandle, GetRuntimeTypeDefinitionFullName(type), false);
+						break;
+					}
 					
 					case Code.Ldc_I4_M1: Ldc_X(MetadataType.Int32, -1); break;
 					case Code.Ldc_I4_0: Ldc_X(MetadataType.Int32, 0); break;
@@ -1452,6 +1481,11 @@ namespace IL2X.Core
 		{
 			var memberDef = (MemberReference)GetMemberDefinition(member);
 			return $"{memberDef.Module.Name.Replace(".", "")}_{value}";
+		}
+
+		private string GetRuntimeTypeDefinitionFullName(TypeDefinition type)
+		{
+			return GetTypeDefinitionFullName(type) + "_RTTYPEH";
 		}
 
 		protected override string GetTypeDefinitionName(TypeDefinition type)
