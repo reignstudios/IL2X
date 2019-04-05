@@ -12,21 +12,7 @@ namespace System
 			}
 		}
 
-		public string Name
-		{
-			get
-			{
-				return null;
-			}
-		}
-
-		public string FullName
-		{
-			get
-			{
-				return null;
-			}
-		}
+		public abstract string FullName { get; }
 
 		public virtual RuntimeTypeHandle TypeHandle { get { throw new NotSupportedException(); } }
 

@@ -161,13 +161,15 @@ namespace IL2X.Core
 				writer.WriteLine("/* =============================== */");
 				writer.WriteLine("/* Runtime Types */");
 				writer.WriteLine("/* =============================== */");
-				var rtTypeHandle = activeCoreAssembly.assemblyDefinition.MainModule.GetType("System.RuntimeTypeHandle");
-				string rtTypeHandleName = GetTypeDefinitionFullName(rtTypeHandle);
+				var rtType = activeCoreAssembly.assemblyDefinition.MainModule.GetType("System.RuntimeType");
+				string rtTypeName = GetTypeDefinitionFullName(rtType);
 				foreach (var type in module.typesDependencyOrdered)
 				{
-					writer.WriteLine($"{rtTypeHandleName} {GetRuntimeTypeDefinitionFullName(type)};");
+					writer.WriteLine($"{rtTypeName} {GetRuntimeTypeReferenceFullName(type)};");
+					// TODO: allow metadata to be stored and loaded from external file to save memory
+					writer.WriteLine($"char {GetRuntimeTypeMetadataFullName(type)}_FullName[{GetStringMemorySize(type.FullName)}] = {StringToLiteral(type.FullName)};");
+					writer.WriteLine();
 				}
-				writer.WriteLine();
 
 				// write forward declare of type methods
 				writer.WriteLine("/* =============================== */");
@@ -213,14 +215,10 @@ namespace IL2X.Core
 				writer.WriteLine();
 
 				writer.WriteLinePrefix("/* Init runtime types */");
-				var rtTypeField = rtTypeHandle.Fields.First(x => x.Name == "m_type");
-				string rtTypeFieldName = GetFieldDefinitionName(rtTypeField);
-				var rtTypeFieldType = GetTypeDefinition(rtTypeField.FieldType);
-				string rtTypeFieldTypeName = GetTypeDefinitionFullName(rtTypeFieldType);
+				var rtTypeFullNameField = rtType.Fields.First(x => x.Name == "_FullName");
 				foreach (var type in module.typesDependencyOrdered)
 				{
-					if (!IsEmptyType(rtTypeFieldType)) writer.WriteLinePrefix($"{GetRuntimeTypeDefinitionFullName(type)}.{rtTypeFieldName} = IL2X_Malloc(sizeof({rtTypeFieldTypeName}));");
-					else writer.WriteLinePrefix($"{GetRuntimeTypeDefinitionFullName(type)}.{rtTypeFieldName} = IL2X_Malloc(sizeof({rtTypeFieldTypeName}*));");
+					writer.WriteLinePrefix($"{GetRuntimeTypeReferenceFullName(type)}.{GetFieldDefinitionName(rtTypeFullNameField)} = {GetRuntimeTypeMetadataFullName(type)}_FullName;");
 				}
 				writer.WriteLine();
 
@@ -353,29 +351,14 @@ namespace IL2X.Core
 					writer.WriteLine("/* =============================== */");
 					foreach (var literal in activeStringLiterals)
 					{
-						//WriteStringLiteralValue(literal.Key, literal.Value);
 						string value = literal.Value;
 						if (value.Contains('\n')) value = value.Replace("\n", "");
 						if (value.Contains('\r')) value = value.Replace("\r", "");
 						if (value.Length > 64) value = value.Substring(0, 64) + "...";
 						writer.WriteLine($"/* {value} */");
-						int stringMemSize = sizeof(int) + sizeof(char) + (literal.Value.Length * sizeof(char));// TODO: handle non-standard int & char sizes
-						writer.Write($"char {literal.Key}[{stringMemSize}] = {{");
-						foreach(byte b in BitConverter.GetBytes(literal.Value.Length))
-						{
-							writer.Write(b);
-							writer.Write(',');
-						}
-						foreach(char c in literal.Value)
-						{
-							foreach (byte b in BitConverter.GetBytes(c))
-							{
-								writer.Write(b);
-								writer.Write(',');
-							}
-						}
-						writer.Write("0,0");// null-terminated char
-						writer.WriteLine("};");
+						writer.Write($"char {literal.Key}[{GetStringMemorySize(literal.Value)}] = ");// = {{");
+						writer.Write(StringToLiteral(literal.Value));
+						writer.WriteLine(';');
 					}
 
 					writer.WriteLine();
@@ -383,6 +366,32 @@ namespace IL2X.Core
 			}
 
 			writer = null;
+		}
+
+		private int GetStringMemorySize(string value)
+		{
+			return sizeof(int) + sizeof(char) + (value.Length * sizeof(char));// TODO: handle non-standard int & char sizes
+		}
+
+		private string StringToLiteral(string value)
+		{
+			var result = new StringBuilder();
+			result.Append('{');
+			foreach (byte b in BitConverter.GetBytes(value.Length))
+			{
+				result.Append(b);
+				result.Append(',');
+			}
+			foreach (char c in value)
+			{
+				foreach (byte b in BitConverter.GetBytes(c))
+				{
+					result.Append(b);
+					result.Append(',');
+				}
+			}
+			result.Append("0,0}");// null-terminated char
+			return result.ToString();
 		}
 
 		private TypeDefinition GetMetadataTypeDefinition(MetadataType metadataType)
@@ -1034,7 +1043,9 @@ namespace IL2X.Core
 					{
 						var type = GetTypeDefinition((TypeReference)instruction.Operand);
 						var rtTypeHandle = activeCoreAssembly.assemblyDefinition.MainModule.GetType("System.RuntimeTypeHandle");
-						StackPush(rtTypeHandle, GetRuntimeTypeDefinitionFullName(type), false);
+						var rtType = activeCoreAssembly.assemblyDefinition.MainModule.GetType("System.RuntimeType");
+						var thMethod = rtType.Methods.First(x => x.Name == "get_TypeHandle");
+						StackPush(rtTypeHandle, $"{GetMethodDefinitionFullName(thMethod)}(&{GetRuntimeTypeReferenceFullName(type)})", false);
 						break;
 					}
 					
@@ -1483,9 +1494,14 @@ namespace IL2X.Core
 			return $"{memberDef.Module.Name.Replace(".", "")}_{value}";
 		}
 
-		private string GetRuntimeTypeDefinitionFullName(TypeDefinition type)
+		private string GetRuntimeTypeReferenceFullName(TypeDefinition type)
 		{
-			return GetTypeDefinitionFullName(type) + "_RTTYPEH";
+			return GetTypeDefinitionFullName(type) + "_RTTYPE_OBJ";
+		}
+
+		private string GetRuntimeTypeMetadataFullName(TypeDefinition type)
+		{
+			return GetTypeDefinitionFullName(type) + "_RTTYPE_METADATA";
 		}
 
 		protected override string GetTypeDefinitionName(TypeDefinition type)

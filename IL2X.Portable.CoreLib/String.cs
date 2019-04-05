@@ -50,7 +50,7 @@ namespace System
 		{
 			if (src.Length > dest.Length - destPos)
 			{
-				//throw new IndexOutOfRangeException();// TODO
+				throw new IndexOutOfRangeException();
 			}
 
 			fixed (char* pDest = &dest._firstChar)
