@@ -46,9 +46,25 @@ namespace IL2X.Core
 
 		public struct Options
 		{
+			/// <summary>
+			/// Target Garbage Collector
+			/// This will generate the proper C #includes
+			/// </summary>
 			public GC_Type gc;
+
+			/// <summary>
+			/// Garbage Collector file path
+			/// </summary>
 			public string gcFolderPath;
+
+			/// <summary>
+			/// Native pointer size in bits (native int)
+			/// </summary>
 			public Ptr_Size ptrSize;
+
+			/// <summary>
+			/// CPU bit order
+			/// </summary>
 			public Endianness endianness;
 		}
 
@@ -118,6 +134,17 @@ namespace IL2X.Core
 			string generatedMembersFilename = $"{module.moduleDefinition.Name.Replace('.', '_')}_GeneratedMembers.h";
 			string generatedMembersInitMethod = "IL2X_Init_GeneratedMembers_" + module.moduleDefinition.Name.Replace('.', '_');
 			string initModuleMethod = "IL2X_InitModule_" + module.moduleDefinition.Name.Replace('.', '_');
+
+			// get string type
+			var stringType = activeCoreAssembly.assemblyDefinition.MainModule.GetType("System.String");
+			if (stringType == null) throw new Exception("Failed to get 'System.String' from CoreLib");
+			string stringTypeName = GetTypeDefinitionFullName(stringType);
+			string stringTypeRuntimeTypeName = GetRuntimeTypeReferenceFullName(stringType);
+
+			// get object type
+			var objectType = activeCoreAssembly.assemblyDefinition.MainModule.GetType("System.Object");
+			var objectTypeRuntimeType = objectType.Fields.First(x => x.Name == "_runtimeType");
+			string objectTypeRuntimeTypeFieldName = GetFieldDefinitionName(objectTypeRuntimeType);
 
 			// write module
 			using (var stream = new FileStream(modulePath, FileMode.Create, FileAccess.Write, FileShare.Read))
@@ -236,12 +263,18 @@ namespace IL2X.Core
 				var rtTypeFullNameField = rtType.Fields.First(x => x.Name == "_fullName");
 				foreach (var type in module.typesDependencyOrdered)
 				{
-					writer.WriteLinePrefix($"{GetRuntimeTypeReferenceFullName(type)}.{GetFieldDefinitionName(rtTypeFullNameField)} = {GetRuntimeTypeMetadataFullName(type)}_FullName;");
+					string fullname = GetRuntimeTypeMetadataFullName(type) + "_FullName";
+					writer.WriteLinePrefix($"(({stringTypeName}*){fullname})->{objectTypeRuntimeTypeFieldName} = &{stringTypeRuntimeTypeName};");
+					writer.WriteLinePrefix($"{GetRuntimeTypeReferenceFullName(type)}.{GetFieldDefinitionName(rtTypeFullNameField)} = {fullname};");
 				}
 				writer.WriteLine();
 
-				writer.WriteLinePrefix("/* Init generated members */");
-				writer.WriteLinePrefix($"{generatedMembersInitMethod}();");
+				writer.WriteLinePrefix("/* Init generated members (set string literal runtime-type ptrs) */");
+				foreach (var literal in activeStringLiterals)
+				{
+					writer.WriteLinePrefix($"(({stringTypeName}*){literal.Key})->{objectTypeRuntimeTypeFieldName} = &{stringTypeRuntimeTypeName};");
+				}
+				writer.WriteLine();
 
 				writer.WriteLinePrefix("/* Init intrinsic fields */");
 				foreach (var type in module.typesDependencyOrdered)
@@ -253,8 +286,6 @@ namespace IL2X.Core
 							if (!field.IsStatic) throw new NotImplementedException("Unsupported non-static field Intrinsic: " + field.Name);
 							if (field.DeclaringType.FullName == "System.String")
 							{
-								var stringType = module.moduleDefinition.GetType("System.String");
-								string stringTypeName = GetTypeDefinitionFullName(stringType);
 								if (field.Name == "Empty")
 								{
 									writer.WriteLinePrefix($"{GetFieldDefinitionName(field)} = IL2X_Malloc(sizeof({stringTypeName}));");
@@ -361,12 +392,8 @@ namespace IL2X.Core
 				writer.WriteLine("#pragma once");
 				writer.WriteLine();
 
-				var stringType = activeCoreAssembly.assemblyDefinition.MainModule.GetType("System.String");
 				if (activeStringLiterals.Count != 0)
 				{
-					if (stringType == null) throw new Exception("Failed to get 'System.String' from CoreLib");
-					string stringTypeName = GetTypeDefinitionFullName(stringType);
-
 					writer.WriteLine("/* =============================== */");
 					writer.WriteLine("/* String literals */");
 					writer.WriteLine("/* =============================== */");
@@ -381,22 +408,6 @@ namespace IL2X.Core
 						writer.Write(StringToLiteral(literal.Value));
 						writer.WriteLine(';');
 					}
-
-					writer.WriteLine();
-
-					// write init module
-					writer.WriteLine("/* =============================== */");
-					writer.WriteLine("/* Init method */");
-					writer.WriteLine("/* =============================== */");
-					writer.WriteLine($"void {generatedMembersInitMethod}()");
-					writer.WriteLine('{');
-					writer.AddTab();
-					foreach (var literal in activeStringLiterals)
-					{
-						//writer.WriteLinePrefix($"(({stringTypeName}*){literal.Key})->_runtimeType = 0;");
-					}
-					writer.RemoveTab();
-					writer.WriteLine('}');
 				}
 			}
 
