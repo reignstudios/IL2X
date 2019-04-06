@@ -18,7 +18,7 @@ namespace TestApp.Portable
         static void Main()
 		{
 			var type = typeof(object);
-			Console.Write("Type: " + type.FullName);
+			Console.Write("Type: ");// + type.FullName);
 
 			//Foo(44);
 			//Console.WriteLine("Starting");

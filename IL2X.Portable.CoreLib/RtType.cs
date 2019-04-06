@@ -6,7 +6,7 @@ namespace System
 	{
 		public override RuntimeTypeHandle TypeHandle => new RuntimeTypeHandle(this);
 
-		private string _FullName;
-		public override string FullName => _FullName;
+		private string _fullName;
+		public override string FullName => _fullName;
 	}
 }

@@ -24,7 +24,7 @@ This project will focus on translating .NET IL for non-supported .NET targets. P
 ## What IL2X does .NET Core / CoreRT doesn't
 You're asking yourself why this project exists?
 * True portability. You don't need to add explicit support for each target as portable C does that already.
-* Statically link the entire programs dependencies. Each ".dll" is translated to a ".h" file and each ".exe" is translated to a ".c" file that includes all its dependencies as headers. This allows you to ship a single lightweight binary with no external libraries. Later support for closed source dynamic linked libs will be supported.
-* IL2X can be significantly faster than all currently available .NET runtimes when it comes to heavy number crunching thanks to the awesome C optimizers available today.
-* Allows you to directly invoke C methods statically for better optimizations.
+* Statically link the entire programs dependencies (CoreRT does this to some extent as well). Each ".dll" is translated to a ".h" file and each ".exe" is translated to a ".c" file that includes all its dependencies as headers. This allows you to ship a single lightweight binary with no external libraries. Later support for closed source dynamic linked libs will be supported.
+* IL2X can be significantly faster than all currently available .NET runtimes when it comes to heavy number crunching thanks to the awesome C optimizers available today and lighter weight code gen.
+* Allows you to directly invoke C methods statically for better optimizations vs using DllImport.
 * Supports many C compilers allowing you to choose what's best.

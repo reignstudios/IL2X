@@ -29,10 +29,27 @@ namespace IL2X.Core
 			Micro
 		}
 
+		public enum Ptr_Size
+		{
+			Bit_8 = 1,
+			Bit_16 = 2,
+			Bit_32 = 4,
+			Bit_64 = 8,
+			Bit_128 = 16
+		}
+
+		public enum Endianness
+		{
+			Little,
+			Big
+		}
+
 		public struct Options
 		{
 			public GC_Type gc;
 			public string gcFolderPath;
+			public Ptr_Size ptrSize;
+			public Endianness endianness;
 		}
 
 		public readonly Options options;
@@ -42,7 +59,7 @@ namespace IL2X.Core
 		private ILModule activeModule;// current module being translated
 		private MethodDebugInformation activeMethodDebugInfo;// current method debug symbols
 		private Dictionary<string, string> activeStringLiterals;// current module string literals
-		private Dictionary<string, string> allStringLitterals;// multi-lib string literal values (active and dependancy lib string literals)
+		private Dictionary<string, string> allStringLiterals;// multi-lib string literal values (active and dependancy lib string literals)
 
 		#region Core dependency resolution
 		public ILAssemblyTranslator_C(string binaryPath, bool loadReferences, in Options options, params string[] searchPaths)
@@ -54,7 +71,7 @@ namespace IL2X.Core
 
 		public override void Translate(string outputPath, bool translateReferences)
 		{
-			allStringLitterals = new Dictionary<string, string>();
+			allStringLiterals = new Dictionary<string, string>();
 			TranslateAssembly(assembly, outputPath, translateReferences, new List<ILAssembly>());
 		}
 
@@ -99,6 +116,7 @@ namespace IL2X.Core
 
 			// get generated members filename
 			string generatedMembersFilename = $"{module.moduleDefinition.Name.Replace('.', '_')}_GeneratedMembers.h";
+			string generatedMembersInitMethod = "IL2X_Init_GeneratedMembers_" + module.moduleDefinition.Name.Replace('.', '_');
 			string initModuleMethod = "IL2X_InitModule_" + module.moduleDefinition.Name.Replace('.', '_');
 
 			// write module
@@ -215,12 +233,15 @@ namespace IL2X.Core
 				writer.WriteLine();
 
 				writer.WriteLinePrefix("/* Init runtime types */");
-				var rtTypeFullNameField = rtType.Fields.First(x => x.Name == "_FullName");
+				var rtTypeFullNameField = rtType.Fields.First(x => x.Name == "_fullName");
 				foreach (var type in module.typesDependencyOrdered)
 				{
 					writer.WriteLinePrefix($"{GetRuntimeTypeReferenceFullName(type)}.{GetFieldDefinitionName(rtTypeFullNameField)} = {GetRuntimeTypeMetadataFullName(type)}_FullName;");
 				}
 				writer.WriteLine();
+
+				writer.WriteLinePrefix("/* Init generated members */");
+				writer.WriteLinePrefix($"{generatedMembersInitMethod}();");
 
 				writer.WriteLinePrefix("/* Init intrinsic fields */");
 				foreach (var type in module.typesDependencyOrdered)
@@ -356,12 +377,26 @@ namespace IL2X.Core
 						if (value.Contains('\r')) value = value.Replace("\r", "");
 						if (value.Length > 64) value = value.Substring(0, 64) + "...";
 						writer.WriteLine($"/* {value} */");
-						writer.Write($"char {literal.Key}[{GetStringMemorySize(literal.Value)}] = ");// = {{");
+						writer.Write($"char {literal.Key}[{GetStringMemorySize(literal.Value)}] = ");
 						writer.Write(StringToLiteral(literal.Value));
 						writer.WriteLine(';');
 					}
 
 					writer.WriteLine();
+
+					// write init module
+					writer.WriteLine("/* =============================== */");
+					writer.WriteLine("/* Init method */");
+					writer.WriteLine("/* =============================== */");
+					writer.WriteLine($"void {generatedMembersInitMethod}()");
+					writer.WriteLine('{');
+					writer.AddTab();
+					foreach (var literal in activeStringLiterals)
+					{
+						//writer.WriteLinePrefix($"(({stringTypeName}*){literal.Key})->_runtimeType = 0;");
+					}
+					writer.RemoveTab();
+					writer.WriteLine('}');
 				}
 			}
 
@@ -370,27 +405,38 @@ namespace IL2X.Core
 
 		private int GetStringMemorySize(string value)
 		{
-			return sizeof(int) + sizeof(char) + (value.Length * sizeof(char));// TODO: handle non-standard int & char sizes
+			return (int)options.ptrSize + sizeof(int) + sizeof(char) + (value.Length * sizeof(char));// TODO: handle non-standard int & char sizes
 		}
 
 		private string StringToLiteral(string value)
 		{
 			var result = new StringBuilder();
 			result.Append('{');
-			foreach (byte b in BitConverter.GetBytes(value.Length))
+
+			void WriteBinary(byte[] data)
 			{
-				result.Append(b);
-				result.Append(',');
-			}
-			foreach (char c in value)
-			{
-				foreach (byte b in BitConverter.GetBytes(c))
+				foreach (byte b in data)
 				{
 					result.Append(b);
 					result.Append(',');
 				}
 			}
-			result.Append("0,0}");// null-terminated char
+
+			// write System.Object header
+			WriteBinary(new byte[(int)options.ptrSize]);
+
+			// write string length
+			WriteBinary(BitConverter.GetBytes(value.Length));
+
+			// write string unicode data
+			byte[] binaryData;
+			if (options.endianness == Endianness.Little) binaryData = Encoding.Unicode.GetBytes(value);
+			else binaryData = Encoding.BigEndianUnicode.GetBytes(value);
+			WriteBinary(binaryData);
+
+			// null-terminated char
+			result.Append("0,0}");
+
 			return result.ToString();
 		}
 
@@ -519,6 +565,7 @@ namespace IL2X.Core
 				writer.AddTab();
 				if (method.Body != null)
 				{
+					//if (method.IsConstructor) writer.WriteLinePrefix("");
 					activeMethodDebugInfo = null;
 					if (activeModule.symbolReader != null) activeMethodDebugInfo = activeModule.symbolReader.Read(method);
 					using (var streamCache = new MemoryStream())
@@ -1109,7 +1156,7 @@ namespace IL2X.Core
 						break;
 					}
 
-					case Code.Ldind_I: Ldind_X("size_t", "size_t", MetadataType.IntPtr); break;
+					case Code.Ldind_I: Ldind_X("intptr_t", "intptr_t", MetadataType.IntPtr); break;
 					case Code.Ldind_I1: Ldind_X("int8_t", "int32_t", MetadataType.Int32); break;
 					case Code.Ldind_I2: Ldind_X("int16_t", "int32_t", MetadataType.Int32); break;
 					case Code.Ldind_I4: Ldind_X("int32_t", "int32_t", MetadataType.Int32); break;
@@ -1154,11 +1201,11 @@ namespace IL2X.Core
 					case Code.Ldstr:
 					{
 						string value = (string)instruction.Operand;
-						string valueFormated = $"StringLiteral_{allStringLitterals.Count}";
+						string valueFormated = $"StringLiteral_{allStringLiterals.Count}";
 						StackPush(activeCoreAssembly.assemblyDefinition.MainModule.GetType("System.String"), valueFormated, false);
-						if (!allStringLitterals.ContainsValue(value))
+						if (!allStringLiterals.ContainsValue(value))
 						{
-							allStringLitterals.Add(valueFormated, value);
+							allStringLiterals.Add(valueFormated, value);
 							activeStringLiterals.Add(valueFormated, value);
 						}
 						break;
@@ -1194,13 +1241,13 @@ namespace IL2X.Core
 						break;
 					}
 
-					case Code.Conv_I: Conv_X("size_t", MetadataType.IntPtr); break;
+					case Code.Conv_I: Conv_X("intptr_t", MetadataType.IntPtr); break;
 					case Code.Conv_I1: Conv_X("int8_t", MetadataType.SByte); break;
 					case Code.Conv_I2: Conv_X("int16_t", MetadataType.Int16); break;
 					case Code.Conv_I4: Conv_X("int32_t", MetadataType.Int32); break;
 					case Code.Conv_I8: Conv_X("int64_t", MetadataType.Int64); break;
 
-					case Code.Conv_U: Conv_X("size_t", MetadataType.IntPtr); break;
+					case Code.Conv_U: Conv_X("uintptr_t", MetadataType.UIntPtr); break;
 					case Code.Conv_U1: Conv_X("uint8_t", MetadataType.Byte); break;
 					case Code.Conv_U2: Conv_X("uint16_t", MetadataType.UInt16); break;
 					case Code.Conv_U4: Conv_X("uint32_t", MetadataType.UInt32); break;
@@ -1253,6 +1300,11 @@ namespace IL2X.Core
 							if (methodName == null) methodName = method.Name;
 						}
 						if (methodName == null) methodName = GetMethodReferenceFullName(method);
+
+						//if (methodDef.IsVirtual)
+						//{
+						//	// TODO: invoke virtual call
+						//}
 
 						var methodInvoke = new StringBuilder(methodName + '(');
 						var parameters = new StringBuilder();
@@ -1545,8 +1597,8 @@ namespace IL2X.Core
 				case MetadataType.UInt64: return "uint64_t";
 				case MetadataType.Single: return "float";
 				case MetadataType.Double: return "double";
-				case MetadataType.IntPtr: return "size_t";
-				case MetadataType.UIntPtr: return "size_t";
+				case MetadataType.IntPtr: return "intptr_t";
+				case MetadataType.UIntPtr: return "uintptr_t";
 				default: throw new NotImplementedException("Unsupported primitive: " + type.MetadataType);
 			}
 		}
