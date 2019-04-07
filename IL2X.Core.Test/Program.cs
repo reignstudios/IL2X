@@ -25,7 +25,9 @@ namespace IL2X.Core.Test
 				gc = ILAssemblyTranslator_C.GC_Type.Boehm,
 				gcFolderPath = Path.Combine(Environment.CurrentDirectory, @"..\..\..\..\IL2X.Native"),
 				ptrSize = ILAssemblyTranslator_C.Ptr_Size.Bit_64,
-				endianness = ILAssemblyTranslator_C.Endianness.Little
+				endianness = ILAssemblyTranslator_C.Endianness.Little,
+				storeRuntimeTypeStringLiteralMetadata = true,
+				stringLiteralMemoryLocation = ILAssemblyTranslator_C.StringLiteralMemoryLocation.GlobalProgramMemory_RAM
 			};
 
 			string outputPath = $@"..\..\..\..\{testName}\bin\{target}\netcoreapp2.2\TestOutput";

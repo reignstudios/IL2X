@@ -248,7 +248,7 @@ namespace IL2X.Core
 			return ',';
 		}
 
-		private void ParseMemberImplementationDetail(ref string elementName)
+		protected void ParseMemberImplementationDetail(ref string elementName)
 		{
 			if (elementName.Contains('<')) elementName = elementName.Replace('<', '_');
 			if (elementName.Contains('>')) elementName = elementName.Replace('>', '_');
@@ -257,7 +257,7 @@ namespace IL2X.Core
 			if (elementName.Contains('`')) elementName = elementName.Replace('`', '_');
 		}
 
-		private void ParseMemberImplementationDetail(ref StringBuilder elementName)
+		protected void ParseMemberImplementationDetail(ref StringBuilder elementName)
 		{
 			if (elementName.Contains('<')) elementName = elementName.Replace('<', '_');
 			if (elementName.Contains('>')) elementName = elementName.Replace('>', '_');
@@ -273,10 +273,72 @@ namespace IL2X.Core
 			foreach (var typeMethod in methodDef.DeclaringType.Methods)
 			{
 				if (typeMethod == methodDef) return index;
-				++index;
+				if (typeMethod.Name == method.Name) ++index;
 			}
 
 			throw new Exception("Failed to find method index (this should never happen)");
+		}
+
+		private int GetVirtualMethodOverloadIndex(TypeDefinition type, MethodDefinition methodSignature)
+		{
+			if (type.BaseType != null)
+			{
+				int index = GetVirtualMethodOverloadIndex(GetTypeDefinition(type.BaseType), methodSignature);
+				if (index != -1) return index;
+			}
+			
+			var paramaters = GetMethodParameterTypeReferences(methodSignature);
+			foreach (var method in type.Methods)
+			{
+				if (!method.IsVirtual) continue;
+				var foundMethod = FindMethodSignature(false, type, methodSignature.Name, paramaters);
+				if (foundMethod != null) return GetMethodOverloadIndex(foundMethod);
+			}
+
+			return -1;
+		}
+
+		protected int GetVirtualMethodOverloadIndex(MethodDefinition method)
+		{
+			if (!method.IsVirtual) throw new Exception("Method must be virtual: " + method.FullName);
+			int index = GetVirtualMethodOverloadIndex(method.DeclaringType, method);
+			if (index != -1) return index;
+			throw new Exception("Failed to find virtual method index (this should never happen)");
+		}
+
+		protected List<MethodDefinition> GetOrderedVirtualMethods(TypeDefinition type)
+		{
+			var virtualMethodList = new List<MethodDefinition>();
+			var baseType = (TypeReference)type;
+			do
+			{
+				var baseTypeDef = GetTypeDefinition(baseType);
+				foreach (var method in baseTypeDef.Methods.Reverse())
+				{
+					if (!method.IsVirtual || method.IsReuseSlot) continue;
+					virtualMethodList.Add(method);
+				}
+				baseType = baseTypeDef.BaseType;
+			} while (baseType != null);
+
+			return virtualMethodList;
+		}
+
+		protected MethodDefinition FindHighestVirtualMethodSlot(TypeDefinition type, MethodDefinition rootSlotMethodSignature)
+		{
+			MethodDefinition foundMethod;
+			var paramaters = GetMethodParameterTypeReferences(rootSlotMethodSignature);
+			var baseType = (TypeReference)type;
+			do
+			{
+				var baseTypeDef = GetTypeDefinition(baseType);
+				foundMethod = FindMethodSignature(false, baseTypeDef, rootSlotMethodSignature.Name, paramaters);
+				if (foundMethod != null && foundMethod.IsVirtual) break;
+				baseType = baseTypeDef.BaseType;
+			} while (baseType != null);
+
+			if (foundMethod == null) throw new Exception("Failed to find highest virtual method slot (this should never happen)");
+			return foundMethod;
 		}
 
 		protected int GetBaseTypeCount(TypeDefinition type)
@@ -291,6 +353,11 @@ namespace IL2X.Core
 			var def = type.Resolve();
 			if (def == null) throw new Exception("Failed to resolve type definition for reference: " + type.Name);
 			return def;
+		}
+
+		protected MethodDefinition GetMethodDefinition(MethodReference method)
+		{
+			return (MethodDefinition)GetMemberDefinition(method);
 		}
 
 		protected IMemberDefinition GetMemberDefinition(MemberReference member)
@@ -374,9 +441,33 @@ namespace IL2X.Core
 			return true;
 		}
 
-		//protected MethodDefinition FindMethodSignature(bool constructor, TypeDefinition type, params TypeReference[] paramaters)
-		//{
-			
-		//}
+		protected TypeReference[] GetMethodParameterTypeReferences(MethodReference method)
+		{
+			var types = new TypeReference[method.Parameters.Count];
+			for (int i = 0; i != types.Length; ++i) types[i] = method.Parameters[i].ParameterType;
+			return types;
+		}
+
+		protected MethodDefinition FindMethodSignature(bool constructor, TypeDefinition type, string methodName, params TypeReference[] paramaters)
+		{
+			foreach (var method in type.Methods)
+			{
+				if (method.IsConstructor != constructor || method.Name != methodName) continue;
+				if (method.Parameters.Count != paramaters.Length) continue;
+				bool found = true;
+				for (int i = 0; i != paramaters.Length; ++i)
+				{
+					if (method.Parameters[i].ParameterType.FullName != paramaters[i].FullName)
+					{
+						found = false;
+						break;
+					}
+				}
+
+				if (found) return method;
+			}
+
+			return null;
+		}
 	}
 }

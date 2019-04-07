@@ -21,7 +21,7 @@ This project will focus on translating .NET IL for non-supported .NET targets. P
 * IL2X.CLI: CLI interface for IL2X.Core
 * IL2X.Portable.CoreLib: The IL2X runtime system CoreLib
 
-## What IL2X does .NET Core / CoreRT doesn't
+## What IL2X does .NET Core / CoreRT / Mono doesn't
 You're asking yourself why this project exists?
 * True portability. You don't need to add explicit support for each target as portable C does that already.
 * Statically link the entire programs dependencies (CoreRT does this to some extent as well). Each ".dll" is translated to a ".h" file and each ".exe" is translated to a ".c" file that includes all its dependencies as headers. This allows you to ship a single lightweight binary with no external libraries. Later support for closed source dynamic linked libs will be supported.

@@ -7,6 +7,28 @@ namespace TestApp.Portable
 		
 	//}
 
+	class A
+	{
+		public virtual void Foo()
+		{
+			Console.WriteLine("Class A");
+		}
+	}
+
+	class B : A
+	{
+		public override void Foo()
+		{
+			Console.WriteLine("Class B");
+			base.Foo();
+		}
+	}
+
+	struct TestStruct
+	{
+		
+	}
+
 	static class Program
 	{
         //static void Foo(int i)
@@ -17,8 +39,10 @@ namespace TestApp.Portable
 
         static void Main()
 		{
-			var type = typeof(object);
-			Console.Write("Type: ");// + type.FullName);
+			A a = new B();
+			a.Foo();
+			//var type = typeof(object);
+			//Console.Write("Type: " + type.FullName);
 
 			//Foo(44);
 			//Console.WriteLine("Starting");
