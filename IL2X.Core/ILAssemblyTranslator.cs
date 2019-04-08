@@ -347,6 +347,19 @@ namespace IL2X.Core
 			return GetBaseTypeCount(GetTypeDefinition(type.BaseType)) + 1;
 		}
 
+		protected bool HasBaseType(TypeDefinition type, TypeDefinition baseType)
+		{
+			var b = type.BaseType;
+			while (b != null)
+			{
+				var bDef = GetTypeDefinition(b);
+				if (bDef == baseType) return true;
+				b = bDef.BaseType;
+			}
+
+			return false;
+		}
+
 		protected TypeDefinition GetTypeDefinition(TypeReference type)
 		{
 			if (type.IsDefinition) return (TypeDefinition)type;

@@ -28,3 +28,6 @@ You're asking yourself why this project exists?
 * IL2X can be significantly faster than all currently available .NET runtimes when it comes to heavy number crunching thanks to the awesome C optimizers available today and lighter weight code gen.
 * Allows you to directly invoke C methods statically for better optimizations vs using DllImport.
 * Supports many C compilers allowing you to choose what's best.
+
+## Is this project ready for general use?
+Short answer is no. Once enough core runtime parts are working a document will be made describing what features are implemented.

@@ -1,13 +1,10 @@
-using System.Runtime.InteropServices;
+using System.Runtime.CompilerServices;
 
 namespace System
 {
 	public class Object
 	{
-		private RuntimeType _runtimeType;
-		public Type GetType()
-		{
-			return _runtimeType;
-		}
+		[MethodImpl(MethodImplOptions.InternalCall)]
+		public extern Type GetType();
 	}
 }

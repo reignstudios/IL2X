@@ -41,8 +41,11 @@ namespace TestApp.Portable
 		{
 			A a = new B();
 			a.Foo();
-			//var type = typeof(object);
-			//Console.Write("Type: " + type.FullName);
+			Console.WriteLine("B Type: " + a.GetType().FullName);
+
+			var type = typeof(object);
+			Console.WriteLine("Type: " + type.FullName);
+			Console.WriteLine("String Type: ".GetType().FullName);
 
 			//Foo(44);
 			//Console.WriteLine("Starting");

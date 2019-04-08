@@ -169,8 +169,9 @@ namespace IL2X.Core
 
 			// get object type
 			var objectType = FindTypeDefinitionByFullName("System.Object");
-			var objectTypeRuntimeType = objectType.Fields.First(x => x.Name == "_runtimeType");
-			string objectTypeRuntimeTypeFieldName = GetFieldDefinitionName(objectTypeRuntimeType);
+
+			// get runtime type
+			var rtType = FindTypeDefinitionByFullName("System.RuntimeType");
 
 			// write module
 			using (var stream = new FileStream(modulePath, FileMode.Create, FileAccess.Write, FileShare.Read))
@@ -233,7 +234,12 @@ namespace IL2X.Core
 				writer.WriteLine("/* =============================== */");
 				writer.WriteLine("/* Runtime Types */");
 				writer.WriteLine("/* =============================== */");
-				foreach (var type in module.typesDependencyOrdered) WriteRuntimeTypeDefinition(type);
+				//if (module.assembly.isCoreLib) WriteRuntimeTypeDefinition(rtType);
+				foreach (var type in module.typesDependencyOrdered)
+				{
+					//if (type != rtType) WriteRuntimeTypeDefinition(type);
+					WriteRuntimeTypeDefinition(type);
+				}
 
 				// write forward declare of type methods
 				writer.WriteLine("/* =============================== */");
@@ -279,26 +285,46 @@ namespace IL2X.Core
 				writer.WriteLine();
 
 				writer.WriteLinePrefix("/* Init runtime type metadata */");
-				var rtType = FindTypeDefinitionByFullName("System.RuntimeType");
-				var rtTypeFullNameField = rtType.Fields.First(x => x.Name == "_fullName");
+				var rtTypeBaseTypeFieldName = GetFieldDefinitionName(rtType.Fields.First(x => x.Name == "_baseType"));
+				var rtTypeFullNameFieldName = GetFieldDefinitionName(rtType.Fields.First(x => x.Name == "_fullName"));
 				foreach (var type in module.typesDependencyOrdered)
 				{
+					if (type == rtType) continue;
+
+					string runtimeTypeName = GetRuntimeTypeReferenceFullName(type);
+					writer.WriteLinePrefix($"memset(&{runtimeTypeName}, 0, sizeof({GetRuntimeTypeDefinitionFullName(type)}));");
+					writer.WriteLinePrefix($"{runtimeTypeName}.runtimeType.IL2X_RuntimeType = &{runtimeTypeName};");
+					if (type.BaseType != null) writer.WriteLinePrefix($"{runtimeTypeName}.runtimeType.{rtTypeBaseTypeFieldName} = &{GetRuntimeTypeReferenceFullName(GetTypeDefinition(type.BaseType))};");
+
 					string fullname = GetRuntimeTypeMetadataFullName(type) + "_FullName";
 					if (options.storeRuntimeTypeStringLiteralMetadata && options.stringLiteralMemoryLocation == StringLiteralMemoryLocation.GlobalProgramMemory_RAM)
 					{
-						writer.WriteLinePrefix($"(({stringTypeName}*){fullname})->{objectTypeRuntimeTypeFieldName} = &{stringTypeRuntimeTypeName};");
+						writer.WriteLinePrefix($"(({stringTypeName}*){fullname})->IL2X_RuntimeType = &{stringTypeRuntimeTypeName};");
 					}
-					writer.WriteLinePrefix($"{GetRuntimeTypeReferenceFullName(type)}.runtimeType.{GetFieldDefinitionName(rtTypeFullNameField)} = {fullname};");
+					writer.WriteLinePrefix($"{runtimeTypeName}.runtimeType.{rtTypeFullNameFieldName} = {fullname};");
 				}
 				writer.WriteLine();
 
 				writer.WriteLinePrefix("/* Init runtime type vtabel */");
+				var rtVirtMethods = GetOrderedVirtualMethods(rtType);
+				var typeDef = FindTypeDefinitionByFullName("System.Type");
 				foreach (var type in module.typesDependencyOrdered)
 				{
+					// write runtime type virtual methods
+					if (type != typeDef && !HasBaseType(type, typeDef))
+					{
+						foreach (var method in rtVirtMethods)
+						{
+							var topMethod = FindHighestVirtualMethodSlot(rtType, method);
+							if (!topMethod.IsAbstract) writer.WriteLinePrefix($"{GetRuntimeTypeReferenceFullName(type)}.{GetVirtualMethodVTabelName(method)} = {GetMethodDefinitionFullName(topMethod)};");
+						}
+					}
+
+					// write type specific virtual methods
 					foreach (var method in GetOrderedVirtualMethods(type))
 					{
 						var topMethod = FindHighestVirtualMethodSlot(type, method);
-						writer.WriteLinePrefix($"{GetRuntimeTypeReferenceFullName(type)}.{GetVirtualMethodVTabelName(method)} = {GetMethodDefinitionFullName(topMethod)};");
+						if (!topMethod.IsAbstract) writer.WriteLinePrefix($"{GetRuntimeTypeReferenceFullName(type)}.{GetVirtualMethodVTabelName(method)} = {GetMethodDefinitionFullName(topMethod)};");
 					}
 				}
 				writer.WriteLine();
@@ -308,7 +334,7 @@ namespace IL2X.Core
 				{
 					if (options.stringLiteralMemoryLocation == StringLiteralMemoryLocation.GlobalProgramMemory_RAM)
 					{
-						writer.WriteLinePrefix($"(({stringTypeName}*){literal.Key})->{objectTypeRuntimeTypeFieldName} = &{stringTypeRuntimeTypeName};");
+						writer.WriteLinePrefix($"(({stringTypeName}*){literal.Key})->IL2X_RuntimeType = &{stringTypeRuntimeTypeName};");
 					}
 				}
 				writer.WriteLine();
@@ -510,14 +536,22 @@ namespace IL2X.Core
 			// get all virtual method slot roots
 			var virtualMethodList = GetOrderedVirtualMethods(type);
 
-			// write runtime type definition
+			// add runtime type methods
 			var rtType = FindTypeDefinitionByFullName("System.RuntimeType");
+			var typeDef = FindTypeDefinitionByFullName("System.Type");
+			if (type != typeDef && !HasBaseType(type, typeDef))
+			{
+				var rtTypeVirtualMethodList = GetOrderedVirtualMethods(rtType);
+				virtualMethodList.AddRange(rtTypeVirtualMethodList);
+			}
+
+			// write runtime type definition
 			string rtTypeName = GetTypeDefinitionFullName(rtType);
 			string defTypeName = GetRuntimeTypeDefinitionFullName(type);
 			writer.WriteLine($"typedef struct {defTypeName}");
 			writer.WriteLine('{');
 			writer.AddTab();
-			writer.WriteLinePrefix($"{rtTypeName} runtimeType;");// inherent base runtime type
+			writer.WriteLinePrefix($"{rtTypeName} runtimeType;");// inherent base runtime type fields
 			for (int i = virtualMethodList.Count - 1; i != -1; --i)
 			{
 				var method = virtualMethodList[i];
@@ -533,13 +567,17 @@ namespace IL2X.Core
 			writer.RemoveTab();
 			writer.WriteLine($"}} {defTypeName};");
 
+			// write runtime type reference
 			writer.WriteLine($"{defTypeName} {GetRuntimeTypeReferenceFullName(type)};");
-			// TODO: allow metadata to be stored and loaded from external file to save memory / RAM
+
+			// write runtime type metadata memory
 			if (options.storeRuntimeTypeStringLiteralMetadata)
 			{
 				if (options.stringLiteralMemoryLocation == StringLiteralMemoryLocation.ReadonlyProgramMemory_AVR) writer.Write("const PROGMEM ");
+				// TODO: allow metadata to be stored and loaded from external file to save memory / RAM
 				writer.WriteLine($"char {GetRuntimeTypeMetadataFullName(type)}_FullName[{GetStringMemorySize(type.FullName)}] = {StringToLiteral(type.FullName)};");
 			}
+
 			writer.WriteLine();
 		}
 
@@ -551,10 +589,9 @@ namespace IL2X.Core
 
 			if (!writeBody)
 			{
-				if (IsEmptyType(type))
+				if (type.IsValueType && IsEmptyType(type))
 				{
-					if (type.IsValueType) writer.WriteLine(string.Format("typedef void* {0};", GetTypeDefinitionFullName(type)));// empty value types only function as pointers
-					else writer.WriteLine(string.Format("typedef void {0};", GetTypeDefinitionFullName(type)));// empty reference types only function as 'void' as ptrs will be added
+					writer.WriteLine(string.Format("typedef void* {0};", GetTypeDefinitionFullName(type)));// empty value types only function as pointers
 				}
 				else
 				{
@@ -576,12 +613,19 @@ namespace IL2X.Core
 
 				// empty types aren't allowed in C (so only write if applicable)
 				bool didWriteType = false;
-				if (!IsEmptyType(type))
+				if (!type.IsValueType || !IsEmptyType(type))
 				{
 					didWriteType = true;
 					writer.WriteLine(string.Format("struct {0}", GetTypeDefinitionFullName(type)));
 					writer.WriteLine('{');
 					writer.AddTab();
+
+					// writer runtime type header
+					if (!type.IsValueType)
+					{
+						var runtimeType = FindTypeDefinitionByFullName("System.RuntimeType");
+						writer.WriteLinePrefix($"{GetTypeDefinitionFullName(runtimeType)}* IL2X_RuntimeType;");
+					}
 
 					// write all non-static fields starting from last base type
 					for (int i = fieldTypeList.Count - 1; i != -1; --i)
@@ -622,6 +666,7 @@ namespace IL2X.Core
 		{
 			if (method.HasGenericParameters || method.DeclaringType.HasGenericParameters) return;// generics are generated per use
 			if (method.HasCustomAttributes && method.CustomAttributes.Any(x => x.AttributeType.FullName == "IL2X.NativeExternCAttribute")) return;// skip native C methods
+			if (method.IsAbstract) return;
 
 			if (method.IsConstructor && method.DeclaringType.IsPrimitive) throw new Exception("Constructors aren't supported on primitives");
 			writer.Write($"{GetTypeReferenceFullName(method.ReturnType)} {GetMethodDefinitionFullName(method)}(");
@@ -721,6 +766,17 @@ namespace IL2X.Core
 						else
 						{
 							throw new NotImplementedException("Unsupported internal runtime System.Type method: " + method.Name);
+						}
+					}
+					else if (method.DeclaringType.FullName == "System.Object")
+					{
+						if (method.Name == "GetType")
+						{
+							writer.WriteLinePrefix("return self->IL2X_RuntimeType;");
+						}
+						else
+						{
+							throw new NotImplementedException("Unsupported internal runtime System.Object method: " + method.Name);
 						}
 					}
 					else
@@ -1418,8 +1474,7 @@ namespace IL2X.Core
 						else if (methodDef.IsVirtual && instruction.OpCode.Code == Code.Callvirt)
 						{
 							if (!method.HasThis) throw new NotImplementedException("Calling non-instance virtual method not supported");
-							var runtimeTypeField = FindTypeDefinitionByFullName("System.Object").Fields.First(x => x.Name == "_runtimeType");
-							methodName = $"(({GetRuntimeTypeDefinitionFullName(methodDef.DeclaringType)}*){self.value}->{GetFieldDefinitionName(runtimeTypeField)})->{GetVirtualMethodVTabelName(methodDef)}";
+							methodName = $"(({GetRuntimeTypeDefinitionFullName(methodDef.DeclaringType)}*){self.value}->IL2X_RuntimeType)->{GetVirtualMethodVTabelName(methodDef)}";
 						}
 
 						if (methodName == null) methodName = GetMethodReferenceFullName(method);
@@ -1456,9 +1511,8 @@ namespace IL2X.Core
 						// set runtime type pointer
 						if (!method.DeclaringType.IsValueType)
 						{
-							var runtimeTypeField = FindTypeDefinitionByFullName("System.Object").Fields.First(x => x.Name == "_runtimeType");
 							var typeDef = GetTypeDefinition(method.DeclaringType);
-							writer.WriteLinePrefix($"{self}->{GetFieldDefinitionName(runtimeTypeField)} = &{GetRuntimeTypeReferenceFullName(typeDef)};");
+							writer.WriteLinePrefix($"{self}->IL2X_RuntimeType = &{GetRuntimeTypeReferenceFullName(typeDef)};");
 						}
 
 						// construct memory
