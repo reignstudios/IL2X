@@ -6,5 +6,10 @@ namespace System
 	{
 		[MethodImpl(MethodImplOptions.InternalCall)]
 		public extern Type GetType();
+
+		public virtual string ToString()
+		{
+			return GetType().FullName;
+		}
 	}
 }

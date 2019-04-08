@@ -234,12 +234,7 @@ namespace IL2X.Core
 				writer.WriteLine("/* =============================== */");
 				writer.WriteLine("/* Runtime Types */");
 				writer.WriteLine("/* =============================== */");
-				//if (module.assembly.isCoreLib) WriteRuntimeTypeDefinition(rtType);
-				foreach (var type in module.typesDependencyOrdered)
-				{
-					//if (type != rtType) WriteRuntimeTypeDefinition(type);
-					WriteRuntimeTypeDefinition(type);
-				}
+				foreach (var type in module.typesDependencyOrdered) WriteRuntimeTypeDefinition(type);
 
 				// write forward declare of type methods
 				writer.WriteLine("/* =============================== */");
@@ -286,7 +281,8 @@ namespace IL2X.Core
 
 				writer.WriteLinePrefix("/* Init runtime type metadata */");
 				var rtTypeBaseTypeFieldName = GetFieldDefinitionName(rtType.Fields.First(x => x.Name == "_baseType"));
-				var rtTypeFullNameFieldName = GetFieldDefinitionName(rtType.Fields.First(x => x.Name == "_fullName"));
+				var rtTypeFullNameFieldName = GetFieldDefinitionName(rtType.Fields.First(x => x.Name == "_name"));
+				var rtTypeFullNameFieldFullName = GetFieldDefinitionName(rtType.Fields.First(x => x.Name == "_fullName"));
 				foreach (var type in module.typesDependencyOrdered)
 				{
 					if (type == rtType) continue;
@@ -296,22 +292,26 @@ namespace IL2X.Core
 					writer.WriteLinePrefix($"{runtimeTypeName}.runtimeType.IL2X_RuntimeType = &{runtimeTypeName};");
 					if (type.BaseType != null) writer.WriteLinePrefix($"{runtimeTypeName}.runtimeType.{rtTypeBaseTypeFieldName} = &{GetRuntimeTypeReferenceFullName(GetTypeDefinition(type.BaseType))};");
 
+					string name = GetRuntimeTypeMetadataFullName(type) + "_Name";
 					string fullname = GetRuntimeTypeMetadataFullName(type) + "_FullName";
 					if (options.storeRuntimeTypeStringLiteralMetadata && options.stringLiteralMemoryLocation == StringLiteralMemoryLocation.GlobalProgramMemory_RAM)
 					{
+						writer.WriteLinePrefix($"(({stringTypeName}*){name})->IL2X_RuntimeType = &{stringTypeRuntimeTypeName};");
 						writer.WriteLinePrefix($"(({stringTypeName}*){fullname})->IL2X_RuntimeType = &{stringTypeRuntimeTypeName};");
 					}
-					writer.WriteLinePrefix($"{runtimeTypeName}.runtimeType.{rtTypeFullNameFieldName} = {fullname};");
+					writer.WriteLinePrefix($"{runtimeTypeName}.runtimeType.{rtTypeFullNameFieldName} = {name};");
+					writer.WriteLinePrefix($"{runtimeTypeName}.runtimeType.{rtTypeFullNameFieldFullName} = {fullname};");
 				}
 				writer.WriteLine();
 
 				writer.WriteLinePrefix("/* Init runtime type vtabel */");
-				var rtVirtMethods = GetOrderedVirtualMethods(rtType);
-				var typeDef = FindTypeDefinitionByFullName("System.Type");
+				var rtVirtMethods = GetOrderedVirtualMethods(rtType, false);
+				var memberInfoDef = FindTypeDefinitionByFullName("System.Reflection.MemberInfo");
 				foreach (var type in module.typesDependencyOrdered)
 				{
 					// write runtime type virtual methods
-					if (type != typeDef && !HasBaseType(type, typeDef))
+					bool isRuntimeTypeSet = type == memberInfoDef || HasBaseType(type, memberInfoDef);
+					if (!isRuntimeTypeSet)
 					{
 						foreach (var method in rtVirtMethods)
 						{
@@ -321,7 +321,7 @@ namespace IL2X.Core
 					}
 
 					// write type specific virtual methods
-					foreach (var method in GetOrderedVirtualMethods(type))
+					foreach (var method in GetOrderedVirtualMethods(type, !isRuntimeTypeSet))
 					{
 						var topMethod = FindHighestVirtualMethodSlot(type, method);
 						if (!topMethod.IsAbstract) writer.WriteLinePrefix($"{GetRuntimeTypeReferenceFullName(type)}.{GetVirtualMethodVTabelName(method)} = {GetMethodDefinitionFullName(topMethod)};");
@@ -526,7 +526,9 @@ namespace IL2X.Core
 
 		private TypeDefinition FindTypeDefinitionByFullName(string fullName)
 		{
-			return activeCoreAssembly.assemblyDefinition.MainModule.GetType(fullName);
+			var result = activeCoreAssembly.assemblyDefinition.MainModule.GetType(fullName);
+			if (result == null) throw new Exception("Failed to find type definition: " + fullName);
+			return result;
 		}
 		#endregion
 
@@ -534,14 +536,15 @@ namespace IL2X.Core
 		private void WriteRuntimeTypeDefinition(TypeDefinition type)
 		{
 			// get all virtual method slot roots
-			var virtualMethodList = GetOrderedVirtualMethods(type);
+			var memberInfoDef = FindTypeDefinitionByFullName("System.Reflection.MemberInfo");
+			bool isRuntimeTypeSet = type == memberInfoDef || HasBaseType(type, memberInfoDef);
+			var virtualMethodList = GetOrderedVirtualMethods(type, !isRuntimeTypeSet);
 
 			// add runtime type methods
 			var rtType = FindTypeDefinitionByFullName("System.RuntimeType");
-			var typeDef = FindTypeDefinitionByFullName("System.Type");
-			if (type != typeDef && !HasBaseType(type, typeDef))
+			if (!isRuntimeTypeSet)
 			{
-				var rtTypeVirtualMethodList = GetOrderedVirtualMethods(rtType);
+				var rtTypeVirtualMethodList = GetOrderedVirtualMethods(rtType, false);
 				virtualMethodList.AddRange(rtTypeVirtualMethodList);
 			}
 
@@ -573,8 +576,12 @@ namespace IL2X.Core
 			// write runtime type metadata memory
 			if (options.storeRuntimeTypeStringLiteralMetadata)
 			{
-				if (options.stringLiteralMemoryLocation == StringLiteralMemoryLocation.ReadonlyProgramMemory_AVR) writer.Write("const PROGMEM ");
 				// TODO: allow metadata to be stored and loaded from external file to save memory / RAM
+
+				if (options.stringLiteralMemoryLocation == StringLiteralMemoryLocation.ReadonlyProgramMemory_AVR) writer.Write("const PROGMEM ");
+				writer.WriteLine($"char {GetRuntimeTypeMetadataFullName(type)}_Name[{GetStringMemorySize(type.Name)}] = {StringToLiteral(type.Name)};");
+
+				if (options.stringLiteralMemoryLocation == StringLiteralMemoryLocation.ReadonlyProgramMemory_AVR) writer.Write("const PROGMEM ");
 				writer.WriteLine($"char {GetRuntimeTypeMetadataFullName(type)}_FullName[{GetStringMemorySize(type.FullName)}] = {StringToLiteral(type.FullName)};");
 			}
 
@@ -949,11 +956,11 @@ namespace IL2X.Core
 				else StackPush(GetMetadataTypeDefinition(castingType), $"(({nativeCastingTypeName})*(({nativePtrType}*){item.value}))", false);
 			}
 
-			void Stind_X()
+			void Stind_X(string nativePtrType)
 			{
 				var value = stack.Pop();
 				var address = stack.Pop();
-				writer.WriteLinePrefix($"(*{address.value}) = {value.value};");
+				writer.WriteLinePrefix($"*(({nativePtrType}*){address.value}) = {value.value};");
 			}
 
 			void Ldloc_X(int variableIndex, bool isAddress)
@@ -1585,11 +1592,12 @@ namespace IL2X.Core
 						break;
 					}
 
-					case Code.Stind_I1: Stind_X(); break;
-					case Code.Stind_I2: Stind_X(); break;
-					case Code.Stind_I4: Stind_X(); break;
-					case Code.Stind_R4: Stind_X(); break;
-					case Code.Stind_R8: Stind_X(); break;
+					case Code.Stind_I1: Stind_X("int8_t"); break;
+					case Code.Stind_I2: Stind_X("int16_t"); break;
+					case Code.Stind_I4: Stind_X("int32_t"); break;
+					case Code.Stind_I8: Stind_X("int64_t"); break;
+					case Code.Stind_R4: Stind_X("float"); break;
+					case Code.Stind_R8: Stind_X("double"); break;
 					//case Code.Stind_Ref: Stind_X(); break;
 
 					//case Code.Stelem_I: Stelem_X(instruction); break;// as void* (native int)

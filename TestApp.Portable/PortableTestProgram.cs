@@ -1,4 +1,4 @@
-﻿using System;
+﻿/*using System;
 
 namespace TestApp.Portable
 {
@@ -41,7 +41,8 @@ namespace TestApp.Portable
 		{
 			A a = new B();
 			a.Foo();
-			Console.WriteLine("B Type: " + a.GetType().FullName);
+			Console.WriteLine("B Type: " + a.GetType().ToString());
+			Console.WriteLine("B Type: " + a.GetType().Name);
 
 			var type = typeof(object);
 			Console.WriteLine("Type: " + type.FullName);
@@ -64,4 +65,4 @@ namespace TestApp.Portable
 			//Console.WriteLine("Should not hit");
 		}
 	}
-}
+}*/

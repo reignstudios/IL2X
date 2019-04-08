@@ -306,12 +306,13 @@ namespace IL2X.Core
 			throw new Exception("Failed to find virtual method index (this should never happen)");
 		}
 
-		protected List<MethodDefinition> GetOrderedVirtualMethods(TypeDefinition type)
+		protected List<MethodDefinition> GetOrderedVirtualMethods(TypeDefinition type, bool ignoreSystemObjectVirtuals)
 		{
 			var virtualMethodList = new List<MethodDefinition>();
 			var baseType = (TypeReference)type;
 			do
 			{
+				if (ignoreSystemObjectVirtuals && baseType.FullName == "System.Object") break;
 				var baseTypeDef = GetTypeDefinition(baseType);
 				foreach (var method in baseTypeDef.Methods.Reverse())
 				{

@@ -1,8 +1,9 @@
+using System.Reflection;
 using System.Runtime.CompilerServices;
 
 namespace System
 {
-	public abstract class Type
+	public abstract class Type : MemberInfo
 	{
 		public abstract Type BaseType { get; }
 		public abstract string FullName { get; }
