@@ -47,13 +47,13 @@ namespace IL2X.Core
 		public enum StringLiteralMemoryLocation
 		{
 			/// <summary>
-			/// Stores string literals in shared global memory (RAM)
+			/// Stores string literals in shared global memory (RAM).
 			/// This allows for runtime type info such as: "Abc".GetType()
 			/// </summary>
 			GlobalProgramMemory_RAM,
 
 			/// <summary>
-			/// Stores string literals in AVR program flash memory
+			/// Stores string literals in AVR program flash memory.
 			/// Runtime type info will not work: "Abc".GetType() = null ref error
 			/// </summary>
 			ReadonlyProgramMemory_AVR
@@ -83,7 +83,7 @@ namespace IL2X.Core
 			public Endianness endianness;
 
 			/// <summary>
-			/// Whether or not to store runtime type string literal metadata
+			/// Whether or not to store runtime type string literal metadata.
 			/// Metadata such as Type.FullName etc
 			/// </summary>
 			public bool storeRuntimeTypeStringLiteralMetadata;
@@ -92,6 +92,18 @@ namespace IL2X.Core
 			/// Memory location string literals are stored
 			/// </summary>
 			public StringLiteralMemoryLocation stringLiteralMemoryLocation;
+
+			/// <summary>
+			/// Ignore '.locals init' IL on methods in all libraries for better performance.
+			/// This can be normally be done on projects compiled with C#
+			/// </summary>
+			public bool ignoreInitLocalsOnAllLibs;
+
+			/// <summary>
+			/// Ignore '.locals init' IL on methods in specific libraries for better performance.
+			/// This can be normally be done on projects compiled with C#
+			/// </summary>
+			public string[] ignoreInitLocalsLibs;
 		}
 
 		public readonly Options options;
@@ -119,8 +131,6 @@ namespace IL2X.Core
 
 		private void TranslateAssembly(ILAssembly assembly, string outputPath, bool translateReferences, List<ILAssembly> translatedAssemblies)
 		{
-			activeAssembly = assembly;
-
 			// validate assembly wasn't already translated
 			if (translatedAssemblies.Exists(x => x.assemblyDefinition.FullName == assembly.assemblyDefinition.FullName)) return;
 			translatedAssemblies.Add(assembly);
@@ -138,6 +148,7 @@ namespace IL2X.Core
 				if (!Directory.Exists(outputPath)) Directory.CreateDirectory(outputPath);
 
 				// translate module
+				activeAssembly = assembly;
 				TranslateModule(module, outputPath);
 			}
 		}
@@ -833,9 +844,35 @@ namespace IL2X.Core
 			var variables = new List<LocalVariable>();
 			if (body.HasVariables)
 			{
+				bool initLocals = body.InitLocals && !options.ignoreInitLocalsOnAllLibs;
+				if (initLocals && options.ignoreInitLocalsLibs != null)
+				{
+					foreach (string lib in options.ignoreInitLocalsLibs)
+					{
+						if (activeAssembly.assemblyDefinition.Name.Name == lib)
+						{
+							initLocals = false;
+							break;
+						}
+					}
+				}
+
+				List<LocalVariable> memsetLocals = null;
+				if (initLocals) memsetLocals = new List<LocalVariable>();
 				foreach (var variable in body.Variables)
 				{
-					variables.Add(WriteVariableDefinition(variable));
+					bool initLocal = initLocals;
+					var local = WriteVariableDefinition(variable, ref initLocal);
+					variables.Add(local);
+					if (initLocals && !initLocal) memsetLocals.Add(local);
+				}
+
+				if (initLocals)
+				{
+					foreach (var variable in memsetLocals)
+					{
+						writer.WriteLinePrefix($"memset({variable.name}, 0, sizeof({GetTypeReferenceFullName(variable.definition.VariableType)}));");
+					}
 				}
 			}
 
@@ -1708,7 +1745,7 @@ namespace IL2X.Core
 			writerCache.BaseStream.CopyTo(writer.BaseStream);
 		}
 
-		private LocalVariable WriteVariableDefinition(VariableDefinition variable)
+		private LocalVariable WriteVariableDefinition(VariableDefinition variable, ref bool initLocal)
 		{
 			var local = new LocalVariable();
 			local.definition = variable;
@@ -1718,7 +1755,16 @@ namespace IL2X.Core
 			}
 			
 			local.name = $"l_{local.name}_{variable.Index}";
-			writer.WriteLinePrefix($"{GetTypeReferenceFullName(variable.VariableType)} {local.name};");
+			writer.WritePrefix($"{GetTypeReferenceFullName(variable.VariableType)} {local.name}");
+			if (initLocal && (variable.VariableType.IsPrimitive || !variable.VariableType.IsValueType || variable.VariableType.IsPointer || variable.VariableType.IsByReference))
+			{
+				writer.Write(" = 0");
+			}
+			else
+			{
+				initLocal = false;
+			}
+			writer.WriteLine(';');
 			return local;
 		}
 		#endregion

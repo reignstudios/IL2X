@@ -27,7 +27,9 @@ namespace IL2X.Core.Test
 				ptrSize = ILAssemblyTranslator_C.Ptr_Size.Bit_64,
 				endianness = ILAssemblyTranslator_C.Endianness.Little,
 				storeRuntimeTypeStringLiteralMetadata = true,
-				stringLiteralMemoryLocation = ILAssemblyTranslator_C.StringLiteralMemoryLocation.GlobalProgramMemory_RAM
+				stringLiteralMemoryLocation = ILAssemblyTranslator_C.StringLiteralMemoryLocation.GlobalProgramMemory_RAM,
+				ignoreInitLocalsOnAllLibs = true,
+				//ignoreInitLocalsLibs = new string[] {"TestApp.Portable"}
 			};
 
 			string outputPath = $@"..\..\..\..\{testName}\bin\{target}\netcoreapp2.2\TestOutput";
