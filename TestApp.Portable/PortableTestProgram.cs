@@ -1,4 +1,4 @@
-﻿/*using System;
+﻿using System;
 
 namespace TestApp.Portable
 {
@@ -65,4 +65,4 @@ namespace TestApp.Portable
 			//Console.WriteLine("Should not hit");
 		}
 	}
-}*/
+}

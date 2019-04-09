@@ -57,7 +57,6 @@ namespace System
 			fixed (char* pSrc = &src._firstChar)
 			{
 				Buffer.memcpy(pDest + destPos, pSrc, (void*)(src.Length * sizeof(char)));
-				pDest[dest.Length] = '\0';// TODO: why is the escape char not already null?
 			}
 		}
 
