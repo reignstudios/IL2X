@@ -844,6 +844,7 @@ namespace IL2X.Core
 			var variables = new List<LocalVariable>();
 			if (body.HasVariables)
 			{
+				// validate we can init locals
 				bool initLocals = body.InitLocals && !options.ignoreInitLocalsOnAllLibs;
 				if (initLocals && options.ignoreInitLocalsLibs != null)
 				{
@@ -857,6 +858,7 @@ namespace IL2X.Core
 					}
 				}
 
+				// write locals and back up their values
 				List<LocalVariable> memsetLocals = null;
 				if (initLocals) memsetLocals = new List<LocalVariable>();
 				foreach (var variable in body.Variables)
@@ -867,6 +869,7 @@ namespace IL2X.Core
 					if (initLocals && !initLocal) memsetLocals.Add(local);
 				}
 
+				// write init locals that require memset
 				if (initLocals)
 				{
 					foreach (var variable in memsetLocals)
@@ -1239,7 +1242,7 @@ namespace IL2X.Core
 						{
 							if (e.HandlerStart == instruction)
 							{
-								var objectType = FindTypeDefinitionByFullName("System.Object");
+								var objectType = FindTypeDefinitionByFullName("System.Exception");
 								StackPush(objectType, "IL2X_ThreadExceptionObject", false);
 							}
 
@@ -1248,13 +1251,17 @@ namespace IL2X.Core
 								
 							}*/
 						}
+						else
+						{
+							throw new NotImplementedException("Unsupported exception handler type: " + e.HandlerType);
+						}
 
 						// check for try end
-						/*if (e.TryEnd == instruction)
+						if (e.TryEnd == instruction)
 						{
 							writer.WriteLinePrefix("IL2X_TRY_END");
 							--tryBuffNext;
-						}*/
+						}
 					}
 				}
 

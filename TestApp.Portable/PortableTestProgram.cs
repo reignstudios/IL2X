@@ -2,12 +2,12 @@
 
 namespace TestApp.Portable
 {
-	//public class MyException : Exception
-	//{
-		
-	//}
+	public class MyException : Exception
+	{
 
-	class A
+	}
+
+	/*class A
 	{
 		public virtual void Foo()
 		{
@@ -27,7 +27,7 @@ namespace TestApp.Portable
 	struct TestStruct
 	{
 		
-	}
+	}*/
 
 	static class Program
 	{
@@ -39,30 +39,30 @@ namespace TestApp.Portable
 
         static void Main()
 		{
-			A a = new B();
+			/*A a = new B();
 			a.Foo();
 			Console.WriteLine("B Type: " + a.GetType().ToString());
 			Console.WriteLine("B Type: " + a.GetType().Name);
 
 			var type = typeof(object);
 			Console.WriteLine("Type: " + type.FullName);
-			Console.WriteLine("String Type: ".GetType().FullName);
+			Console.WriteLine("String Type: ".GetType().FullName);*/
 
 			//Foo(44);
-			//Console.WriteLine("Starting");
-			//try
-			//{
-				//throw new Exception("Test exception!");
-			//}
-			//catch (MyException e)
-			//{
-			//	Console.WriteLine("Caught my: " + e.Message);
-			//}
-			//catch (Exception e)
-			//{
-				//Console.WriteLine("Caught: " + e.Message);
-			//}
-			//Console.WriteLine("Should not hit");
+			Console.WriteLine("Starting");
+			try
+			{
+				throw new Exception("Test exception!");
+			}
+			catch (MyException e)
+			{
+				Console.WriteLine("Caught my ex: " + e.Message);
+			}
+			catch (Exception e)
+			{
+				Console.WriteLine("Caught ex: " + e.Message);
+			}
+			Console.WriteLine("Should not hit");
 		}
 	}
 }
