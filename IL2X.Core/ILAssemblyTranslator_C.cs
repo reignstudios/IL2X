@@ -1242,7 +1242,8 @@ namespace IL2X.Core
 						{
 							if (e.HandlerStart == instruction)
 							{
-								var objectType = FindTypeDefinitionByFullName("System.Exception");
+								//writer.WriteLinePrefix($"IL2X_CATCH{tryBuffNext};");
+								var objectType = FindTypeDefinitionByFullName("System.Object");
 								StackPush(objectType, "IL2X_ThreadExceptionObject", false);
 							}
 
