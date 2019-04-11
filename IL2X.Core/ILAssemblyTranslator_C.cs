@@ -884,7 +884,6 @@ namespace IL2X.Core
 			var stackTypes = new Dictionary<int, List<TypeReference>>();// possible types a particular stack slot may represent
 			var stackByRefTypes = new Dictionary<TypeReference, ByReferenceType>();// helper to keep evaluation stack "ByReferenceType" all using the same ptrs
 			var instructionJumpModify = new Dictionary<Instruction, BranchJumpModify>();// helper to keep track of branch predicted jump modifications
-			int tryBuffNext = 0;// name mangle helper for jmp buffs
 
 			string FormatedEvalStackTypeName(int stackKey, int typeIndex)
 			{
@@ -1170,10 +1169,9 @@ namespace IL2X.Core
 
 			void ProcessInstruction(Instruction instruction, bool writeBrJumps)
 			{
-				// check if this instruction can be jumped to
+				// validate instruction isnt jump to only handled
 				if (writeBrJumps)
 				{
-					// validate instruction isnt jump to only handled
 					foreach (var brModify in instructionJumpModify)
 					{
 						if (brModify.Value.stackCountBeforeJump == 0 && stack.Count == 0) continue;
@@ -1184,8 +1182,65 @@ namespace IL2X.Core
 							return;
 						}
 					}
+				}
 
-					// write jump name
+				// check for exception handlers
+				if (body.HasExceptionHandlers)
+				{
+					var eFirst = body.ExceptionHandlers.First();
+					var eLast = body.ExceptionHandlers.Last();
+					foreach (var e in body.ExceptionHandlers)
+					{
+						int tryUUID = e.TryStart.Offset;
+
+						// check for try
+						if (e.TryStart == instruction && e == eFirst)
+						{
+							writer.WriteLinePrefix(string.Format("jmp_buf IL2X_LOCAL_JMP_{0}, IL2X_LOCAL_JMP_LAST_{0};", tryUUID));
+							writer.WriteLinePrefix($"int IL2X_IS_JMP_{tryUUID};");
+							writer.WriteLinePrefix(string.Format("IL2X_TRY(IL2X_LOCAL_JMP_{0}, IL2X_LOCAL_JMP_LAST_{0}, IL2X_IS_JMP_{0})", tryUUID));
+							writer.AddTab();
+							break;
+						}
+
+						// check for try end
+						if (e.TryEnd == instruction && e == eFirst)
+						{
+							writer.RemoveTab();
+							writer.WriteLinePrefix("/* end .try */");
+						}
+
+						if (e.HandlerType == ExceptionHandlerType.Catch)
+						{
+							if (e.HandlerStart == instruction)
+							{
+								if (e == eFirst) writer.WriteLinePrefix("IL2X_CATCH_START");
+								var catchTypeDef = GetTypeDefinition(e.CatchType);
+								writer.WriteLinePrefix($"if (((t_IL2XPortableCoreLibdll_System_Object*)IL2X_ThreadExceptionObject)->IL2X_RuntimeType == &{GetRuntimeTypeReferenceFullName(catchTypeDef)}) IL2X_CATCH(IL2X_LOCAL_JMP_LAST_{tryUUID})");
+								writer.AddTab();
+
+								var objectType = FindTypeDefinitionByFullName("System.Object");
+								StackPush(objectType, "IL2X_ThreadExceptionObject", false);// pushed exception on eval stack
+								writer.WriteLinePrefix("IL2X_ThreadExceptionObject = 0;");// null thread exception as its been handled
+							}
+
+							if (e.HandlerEnd == instruction)
+							{
+								writer.RemoveTab();
+								writer.WriteLinePrefix("IL2X_CATCH_END");
+								if (e == eLast) writer.WriteLinePrefix("IL2X_TRY_END");
+							}
+						}
+						else
+						{
+							throw new NotImplementedException("Unsupported exception handler type: " + e.HandlerType);
+						}
+					}
+				}
+
+				// check if this instruction can be jumped to
+				if (writeBrJumps)
+				{
 					bool CanBeJumpedTo(params Code[] codes)
 					{
 						return body.Instructions.Any(x =>
@@ -1202,7 +1257,8 @@ namespace IL2X.Core
 						Code.Bgt_S, Code.Bgt_Un_S,
 						Code.Beq_S,
 						Code.Blt_S, Code.Blt_Un_S,
-						Code.Ble_S, Code.Ble_Un_S
+						Code.Ble_S, Code.Ble_Un_S,
+						Code.Leave_S
 					))
 					{
 						writer.WriteLinePrefix($"IL_{instruction.Offset.ToString("x4")}:;");// write goto jump label short form
@@ -1216,53 +1272,11 @@ namespace IL2X.Core
 						Code.Bne_Un,
 						Code.Beq,
 						Code.Blt, Code.Blt_Un,
-						Code.Ble, Code.Ble_Un
+						Code.Ble, Code.Ble_Un,
+						Code.Leave
 					))
 					{
 						writer.WriteLinePrefix($"IL_{instruction.Offset.ToString("x8")}:;");// write goto jump label long form
-					}
-				}
-
-				// check for exception handlers
-				if (body.HasExceptionHandlers)
-				{
-					foreach (var e in body.ExceptionHandlers)
-					{
-						// check for try
-						if (e.TryStart == instruction)
-						{
-							writer.WriteLinePrefix(string.Format("jmp_buf IL2X_LOCAL_JMP_{0}, IL2X_LOCAL_JMP_LAST_{0};", tryBuffNext));
-							writer.WriteLinePrefix($"int IL2X_EX_{tryBuffNext};");
-							writer.WriteLinePrefix(string.Format("IL2X_TRY(jmp_buf IL2X_LOCAL_JMP_{0}, IL2X_LOCAL_JMP_LAST_{0}, IL2X_EX_{0})", tryBuffNext));
-							++tryBuffNext;
-							break;
-						}
-
-						if (e.HandlerType == ExceptionHandlerType.Catch)
-						{
-							if (e.HandlerStart == instruction)
-							{
-								//writer.WriteLinePrefix($"IL2X_CATCH{tryBuffNext};");
-								var objectType = FindTypeDefinitionByFullName("System.Object");
-								StackPush(objectType, "IL2X_ThreadExceptionObject", false);
-							}
-
-							/*if (e.HandlerEnd == instruction)
-							{
-								
-							}*/
-						}
-						else
-						{
-							throw new NotImplementedException("Unsupported exception handler type: " + e.HandlerType);
-						}
-
-						// check for try end
-						if (e.TryEnd == instruction)
-						{
-							writer.WriteLinePrefix("IL2X_TRY_END");
-							--tryBuffNext;
-						}
 					}
 				}
 
@@ -1713,8 +1727,7 @@ namespace IL2X.Core
 					case Code.Throw:
 					{
 						var e = stack.Pop();
-						writer.WriteLinePrefix($"IL2X_ThreadExceptionObject = {e.value};");
-						writer.WriteLinePrefix($"IL2X_THROW(1);");
+						writer.WriteLinePrefix($"IL2X_THROW({e.value});");
 						break;
 					}
 

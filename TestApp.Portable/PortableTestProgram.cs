@@ -53,6 +53,7 @@ namespace TestApp.Portable
 			try
 			{
 				throw new Exception("Test exception!");
+				//throw new MyException();
 			}
 			catch (MyException e)
 			{
@@ -62,7 +63,8 @@ namespace TestApp.Portable
 			{
 				Console.WriteLine("Caught ex: " + e.Message);
 			}
-			Console.WriteLine("Should not hit");
+
+			Console.WriteLine("End program");
 		}
 	}
 }
