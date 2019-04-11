@@ -746,7 +746,7 @@ namespace IL2X.Core
 						if (method.Name == "FastAllocateString")
 						{
 							string lengthName = GetParameterDefinitionName(method.Parameters[0]);
-							writer.WriteLinePrefix($"{GetTypeDefinitionFullName(method.DeclaringType)}* result = IL2X_GC_NewAtomic(sizeof(intptr_t) + sizeof(int) + sizeof(char16_t) + (sizeof(char16_t) * {lengthName}));");
+							writer.WriteLinePrefix($"{GetTypeDefinitionFullName(method.DeclaringType)}* result = IL2X_GC_NewAtomic(sizeof(intptr_t) + sizeof(int32_t) + sizeof(char16_t) + (sizeof(char16_t) * {lengthName}));");
 							writer.WriteLinePrefix($"result->IL2X_RuntimeType = &{GetRuntimeTypeReferenceFullName(method.DeclaringType)};");
 							writer.WriteLinePrefix($"result->{GetFieldDefinitionName(method.DeclaringType.Fields[0])} = {lengthName};");
 							writer.WriteLinePrefix("return result;");
