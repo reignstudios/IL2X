@@ -879,6 +879,20 @@ namespace IL2X.Core
 				}
 			}
 
+			// write exception handler local variable helpers
+			if (body.HasExceptionHandlers)
+			{
+				var exceptionHandlers = new List<int>();
+				foreach (var e in body.ExceptionHandlers)
+				{
+					int handlerID = e.TryEnd.Offset;
+					if (exceptionHandlers.Contains(handlerID)) continue;
+					writer.WriteLinePrefix(string.Format("jmp_buf IL2X_LOCAL_JMP_{0}, IL2X_LOCAL_JMP_LAST_{0};", handlerID));
+					writer.WriteLinePrefix($"int IL2X_IS_JMP_{handlerID};");
+					exceptionHandlers.Add(handlerID);
+				}
+			}
+
 			// write instructions
 			var stack = new Stack<EvaluationObject>();// objects currently on the stack
 			var stackTypes = new Dictionary<int, List<TypeReference>>();// possible types a particular stack slot may represent
@@ -1187,20 +1201,20 @@ namespace IL2X.Core
 				// check for exception handlers
 				if (body.HasExceptionHandlers)
 				{
+					int nestedTry = 0;
 					var eFirst = body.ExceptionHandlers.First();
 					var eLast = body.ExceptionHandlers.Last();
 					foreach (var e in body.ExceptionHandlers)
 					{
-						int tryUUID = e.TryStart.Offset;
+						int handlerID = e.TryEnd.Offset;
 
 						// check for try
 						if (e.TryStart == instruction && e == eFirst)
 						{
-							writer.WriteLinePrefix(string.Format("jmp_buf IL2X_LOCAL_JMP_{0}, IL2X_LOCAL_JMP_LAST_{0};", tryUUID));
-							writer.WriteLinePrefix($"int IL2X_IS_JMP_{tryUUID};");
-							writer.WriteLinePrefix(string.Format("IL2X_TRY(IL2X_LOCAL_JMP_{0}, IL2X_LOCAL_JMP_LAST_{0}, IL2X_IS_JMP_{0})", tryUUID));
+							writer.WriteLinePrefix("/* .try */");
+							writer.WriteLinePrefix(string.Format("IL2X_TRY(IL2X_LOCAL_JMP_{0}, IL2X_LOCAL_JMP_LAST_{0}, IL2X_IS_JMP_{0})", handlerID));
 							writer.AddTab();
-							break;
+							++nestedTry;
 						}
 
 						// check for try end
@@ -1208,15 +1222,22 @@ namespace IL2X.Core
 						{
 							writer.RemoveTab();
 							writer.WriteLinePrefix("/* end .try */");
+							--nestedTry;
 						}
 
+						// detect catch start
+						if (e.HandlerStart == instruction && e == eFirst)
+						{
+							writer.WriteLinePrefix("IL2X_CATCH_START");
+						}
+
+						// handler types
 						if (e.HandlerType == ExceptionHandlerType.Catch)
 						{
 							if (e.HandlerStart == instruction)
 							{
-								if (e == eFirst) writer.WriteLinePrefix("IL2X_CATCH_START");
 								var catchTypeDef = GetTypeDefinition(e.CatchType);
-								writer.WriteLinePrefix($"if (((t_IL2XPortableCoreLibdll_System_Object*)IL2X_ThreadExceptionObject)->IL2X_RuntimeType == &{GetRuntimeTypeReferenceFullName(catchTypeDef)}) IL2X_CATCH(IL2X_LOCAL_JMP_LAST_{tryUUID})");
+								writer.WriteLinePrefix($"if (((t_IL2XPortableCoreLibdll_System_Object*)IL2X_ThreadExceptionObject)->IL2X_RuntimeType == &{GetRuntimeTypeReferenceFullName(catchTypeDef)}) IL2X_CATCH(IL2X_LOCAL_JMP_LAST_{handlerID})");
 								writer.AddTab();
 
 								var objectType = FindTypeDefinitionByFullName("System.Object");
@@ -1228,12 +1249,17 @@ namespace IL2X.Core
 							{
 								writer.RemoveTab();
 								writer.WriteLinePrefix("IL2X_CATCH_END");
-								if (e == eLast) writer.WriteLinePrefix("IL2X_TRY_END");
 							}
 						}
 						else
 						{
 							throw new NotImplementedException("Unsupported exception handler type: " + e.HandlerType);
+						}
+
+						// detect catch end
+						if (e.HandlerEnd == instruction && e == eLast)
+						{
+							writer.WriteLinePrefix("IL2X_TRY_END");
 						}
 					}
 				}
