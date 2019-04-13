@@ -891,26 +891,30 @@ namespace IL2X.Core
 					// check if start handler already processed
 					if (exceptionHandlerGroups.ContainsKey(handlerID))
 					{
-						// check if end handler
+						// check if end handler has been set
 						var myHanlder = exceptionHandlerGroups[handlerID];
-						bool canCheck = false;
-						ExceptionHandler lastE = null;
-						foreach (var e2 in body.ExceptionHandlers)
+						if (myHanlder.end == null)
 						{
-							if (e == e2)
+							bool canCheck = false;
+							ExceptionHandler lastE = null;
+							foreach (var e2 in body.ExceptionHandlers)
 							{
-								canCheck = true;
-							}
-							else if (canCheck && e2.TryEnd.Offset != handlerID)
-							{
-								myHanlder.end = lastE;
-								break;
+								if (e == e2)
+								{
+									canCheck = true;
+								}
+								else if (canCheck && e2.TryEnd.Offset != handlerID)
+								{
+									myHanlder.end = lastE;
+									break;
+								}
+
+								lastE = e2;
 							}
 
-							lastE = e2;
+							if (myHanlder.end == null) myHanlder.end = e;
 						}
 
-						if (myHanlder.end == null) myHanlder.end = e;
 						continue;
 					}
 
@@ -1243,8 +1247,6 @@ namespace IL2X.Core
 				if (body.HasExceptionHandlers)
 				{
 					int nestedTry = 0;
-					//var eFirst = body.ExceptionHandlers.First();
-					//var eLast = body.ExceptionHandlers.Last();
 					foreach (var e in body.ExceptionHandlers)
 					{
 						int handlerID = e.TryEnd.Offset;
@@ -1254,8 +1256,12 @@ namespace IL2X.Core
 						if (e.TryStart == instruction && e == group.start)
 						{
 							writer.WriteLinePrefix("/* .try */");
-							writer.WriteLinePrefix(string.Format("IL2X_TRY(IL2X_LOCAL_JMP_{0}, IL2X_LOCAL_JMP_LAST_{0}, IL2X_IS_JMP_{0})", handlerID));
+							writer.WriteLinePrefix($"memcpy(IL2X_LOCAL_JMP_LAST_{handlerID}, IL2X_ThreadExceptionJmpBuff, sizeof(jmp_buf));");
+							writer.WriteLinePrefix($"IL2X_IS_JMP_{handlerID} = setjmp(IL2X_LOCAL_JMP_{handlerID});");
+							writer.WriteLinePrefix($"if (IL2X_IS_JMP_{handlerID} == 0)");
+							writer.WriteLinePrefix('{');
 							writer.AddTab();
+							writer.WriteLinePrefix($"memcpy(IL2X_ThreadExceptionJmpBuff, IL2X_LOCAL_JMP_{handlerID}, sizeof(jmp_buf));");
 							++nestedTry;
 						}
 
@@ -1263,14 +1269,16 @@ namespace IL2X.Core
 						if (e.TryEnd == instruction && e == group.start)
 						{
 							writer.RemoveTab();
-							writer.WriteLinePrefix("/* end .try */");
+							writer.WriteLinePrefix("} /* end .try */");
 							--nestedTry;
 						}
 
 						// detect catch start
 						if (e.HandlerStart == instruction && e == group.start)
 						{
-							writer.WriteLinePrefix("IL2X_CATCH_START");
+							writer.WriteLinePrefix("else");
+							writer.WriteLinePrefix('{');
+							writer.AddTab();
 						}
 
 						// handler types
@@ -1278,19 +1286,26 @@ namespace IL2X.Core
 						{
 							if (e.HandlerStart == instruction)
 							{
+								writer.WriteLinePrefix($"/* catch {e.CatchType.FullName} */");
 								var catchTypeDef = GetTypeDefinition(e.CatchType);
-								writer.WriteLinePrefix($"if (((t_IL2XPortableCoreLibdll_System_Object*)IL2X_ThreadExceptionObject)->IL2X_RuntimeType == &{GetRuntimeTypeReferenceFullName(catchTypeDef)}) IL2X_CATCH(IL2X_LOCAL_JMP_LAST_{handlerID})");
+								writer.WriteLinePrefix($"if (((t_IL2XPortableCoreLibdll_System_Object*)IL2X_ThreadExceptionObject)->IL2X_RuntimeType == &{GetRuntimeTypeReferenceFullName(catchTypeDef)})");
+								writer.WriteLinePrefix('{');
 								writer.AddTab();
+								writer.WriteLinePrefix($"memcpy(IL2X_ThreadExceptionJmpBuff, IL2X_LOCAL_JMP_LAST_{handlerID}, sizeof(jmp_buf));");
 
 								var objectType = FindTypeDefinitionByFullName("System.Object");
 								StackPush(objectType, "IL2X_ThreadExceptionObject", false);// pushed exception on eval stack
 								writer.WriteLinePrefix("IL2X_ThreadExceptionObject = 0;");// null thread exception as its been handled
 							}
-
-							if (e.HandlerEnd == instruction)
+						}
+						else if (e.HandlerType == ExceptionHandlerType.Finally)
+						{
+							if (e.HandlerStart == instruction)
 							{
-								writer.RemoveTab();
-								writer.WriteLinePrefix("IL2X_CATCH_END");
+								writer.WriteLinePrefix("/* finally */");
+								writer.WriteLinePrefix('{');
+								writer.AddTab();
+								writer.WriteLinePrefix($"memcpy(IL2X_ThreadExceptionJmpBuff, IL2X_LOCAL_JMP_LAST_{handlerID}, sizeof(jmp_buf));");
 							}
 						}
 						else
@@ -1299,9 +1314,16 @@ namespace IL2X.Core
 						}
 
 						// detect catch end
-						if (e.HandlerEnd == instruction && e == group.end)
+						if (e.HandlerEnd == instruction)
 						{
-							writer.WriteLinePrefix("IL2X_TRY_END");
+							writer.RemoveTab();
+							writer.WriteLinePrefix('}');
+							if (e == group.end)
+							{
+								writer.RemoveTab();
+								writer.WriteLinePrefix('}');
+								writer.WriteLinePrefix($"if (IL2X_ThreadExceptionObject != 0) longjmp(IL2X_ThreadExceptionJmpBuff, 1);");
+							}
 						}
 					}
 				}
@@ -1353,6 +1375,7 @@ namespace IL2X.Core
 				{
 					// evaluation operations
 					case Code.Nop: break;
+					case Code.Endfinally: break;
 
 					// push to stack
 					case Code.Ldnull:
@@ -1795,7 +1818,8 @@ namespace IL2X.Core
 					case Code.Throw:
 					{
 						var e = stack.Pop();
-						writer.WriteLinePrefix($"IL2X_THROW({e.value});");
+						writer.WriteLinePrefix($"IL2X_ThreadExceptionObject = {e.value};");
+						writer.WriteLinePrefix($"longjmp(IL2X_ThreadExceptionJmpBuff, 1); /* throw {e.type.FullName} */");
 						break;
 					}
 

@@ -147,18 +147,18 @@ void convert_utf16_to_utf32(const char16_t *input, size_t input_size, char32_t *
 __declspec(thread) jmp_buf IL2X_ThreadExceptionJmpBuff;
 __declspec(thread) void* IL2X_ThreadExceptionObject;
 
-#define IL2X_TRY(jmp, jmpLast, i) \
+/*#define IL2X_TRY(jmp, jmpLast, i) \
 	memcpy(jmpLast, IL2X_ThreadExceptionJmpBuff, sizeof(jmp_buf)); \
 	i = setjmp(jmp); \
 	if (i == 0) { memcpy(IL2X_ThreadExceptionJmpBuff, jmp, sizeof(jmp_buf));
 
 #define IL2X_CATCH_START } else {
 #define IL2X_CATCH(jmpLast) { memcpy(IL2X_ThreadExceptionJmpBuff, jmpLast, sizeof(jmp_buf));
-#define IL2X_FINALLY(jmpLast) } else { memcpy(IL2X_ThreadExceptionJmpBuff, jmpLast, sizeof(jmp_buf));
+#define IL2X_FINALLY(jmpLast) { memcpy(IL2X_ThreadExceptionJmpBuff, jmpLast, sizeof(jmp_buf));
 #define IL2X_CATCH_END }
 
 #define IL2X_TRY_END } if (IL2X_ThreadExceptionObject != 0) longjmp(IL2X_ThreadExceptionJmpBuff, 1);
-#define IL2X_THROW(e) IL2X_ThreadExceptionObject = e; longjmp(IL2X_ThreadExceptionJmpBuff, 1)
+#define IL2X_THROW(e) IL2X_ThreadExceptionObject = e; longjmp(IL2X_ThreadExceptionJmpBuff, 1)*/
 
 /* ====================================== */
 /* overflow helpers */
