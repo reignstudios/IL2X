@@ -880,16 +880,57 @@ namespace IL2X.Core
 			}
 
 			// write exception handler local variable helpers
+			Dictionary<int, ExceptionHandlerGroup> exceptionHandlerGroups = null;
 			if (body.HasExceptionHandlers)
 			{
-				var exceptionHandlers = new List<int>();
+				exceptionHandlerGroups = new Dictionary<int, ExceptionHandlerGroup>();
 				foreach (var e in body.ExceptionHandlers)
 				{
 					int handlerID = e.TryEnd.Offset;
-					if (exceptionHandlers.Contains(handlerID)) continue;
+
+					// check if start handler already processed
+					if (exceptionHandlerGroups.ContainsKey(handlerID))
+					{
+						// check if end handler
+						var myHanlder = exceptionHandlerGroups[handlerID];
+						bool canCheck = false;
+						ExceptionHandler lastE = null;
+						foreach (var e2 in body.ExceptionHandlers)
+						{
+							if (e == e2)
+							{
+								canCheck = true;
+							}
+							else if (canCheck && e2.TryEnd.Offset != handlerID)
+							{
+								myHanlder.end = lastE;
+								break;
+							}
+
+							lastE = e2;
+						}
+
+						if (myHanlder.end == null) myHanlder.end = e;
+						continue;
+					}
+
+					// write variable helpers
 					writer.WriteLinePrefix(string.Format("jmp_buf IL2X_LOCAL_JMP_{0}, IL2X_LOCAL_JMP_LAST_{0};", handlerID));
 					writer.WriteLinePrefix($"int IL2X_IS_JMP_{handlerID};");
-					exceptionHandlers.Add(handlerID);
+
+					// add start handler
+					var handler = new ExceptionHandlerGroup();
+					handler.start = e;
+					exceptionHandlerGroups.Add(handlerID, handler);
+				}
+
+				// set any handler ends that are null to last handler
+				var last = body.ExceptionHandlers.Last();
+				foreach (var e in body.ExceptionHandlers)
+				{
+					int handlerID = e.TryEnd.Offset;
+					var hanlder = exceptionHandlerGroups[handlerID];
+					if (hanlder.end == null) hanlder.end = last;
 				}
 			}
 
@@ -1202,14 +1243,15 @@ namespace IL2X.Core
 				if (body.HasExceptionHandlers)
 				{
 					int nestedTry = 0;
-					var eFirst = body.ExceptionHandlers.First();
-					var eLast = body.ExceptionHandlers.Last();
+					//var eFirst = body.ExceptionHandlers.First();
+					//var eLast = body.ExceptionHandlers.Last();
 					foreach (var e in body.ExceptionHandlers)
 					{
 						int handlerID = e.TryEnd.Offset;
+						var group = exceptionHandlerGroups[handlerID];
 
 						// check for try
-						if (e.TryStart == instruction && e == eFirst)
+						if (e.TryStart == instruction && e == group.start)
 						{
 							writer.WriteLinePrefix("/* .try */");
 							writer.WriteLinePrefix(string.Format("IL2X_TRY(IL2X_LOCAL_JMP_{0}, IL2X_LOCAL_JMP_LAST_{0}, IL2X_IS_JMP_{0})", handlerID));
@@ -1218,7 +1260,7 @@ namespace IL2X.Core
 						}
 
 						// check for try end
-						if (e.TryEnd == instruction && e == eFirst)
+						if (e.TryEnd == instruction && e == group.start)
 						{
 							writer.RemoveTab();
 							writer.WriteLinePrefix("/* end .try */");
@@ -1226,7 +1268,7 @@ namespace IL2X.Core
 						}
 
 						// detect catch start
-						if (e.HandlerStart == instruction && e == eFirst)
+						if (e.HandlerStart == instruction && e == group.start)
 						{
 							writer.WriteLinePrefix("IL2X_CATCH_START");
 						}
@@ -1257,7 +1299,7 @@ namespace IL2X.Core
 						}
 
 						// detect catch end
-						if (e.HandlerEnd == instruction && e == eLast)
+						if (e.HandlerEnd == instruction && e == group.end)
 						{
 							writer.WriteLinePrefix("IL2X_TRY_END");
 						}

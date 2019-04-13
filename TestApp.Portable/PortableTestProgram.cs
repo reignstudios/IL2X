@@ -52,16 +52,23 @@ namespace TestApp.Portable
 			Console.WriteLine("Starting");
 			try
 			{
-				throw new Exception("Test exception!");
-				//throw new MyException();
+				try
+				{
+					throw new Exception("Test exception!");
+					//throw new MyException();
+				}
+				catch (MyException e)
+				{
+					Console.WriteLine("Caught my ex: " + e.Message);
+				}
+				catch (Exception e)
+				{
+					Console.WriteLine("Caught ex: " + e.Message);
+				}
 			}
-			catch (MyException e)
+			catch
 			{
-				Console.WriteLine("Caught my ex: " + e.Message);
-			}
-			catch (Exception e)
-			{
-				Console.WriteLine("Caught ex: " + e.Message);
+				Console.WriteLine("First try");
 			}
 
 			Console.WriteLine("End program");

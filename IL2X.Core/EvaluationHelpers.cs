@@ -30,4 +30,9 @@ namespace IL2X.Core.EvaluationStack
 			this.value = value;
 		}
 	}
+
+	sealed class ExceptionHandlerGroup
+	{
+		public ExceptionHandler start, end;
+	}
 }
