@@ -1136,7 +1136,11 @@ namespace IL2X.Core
 
 				// write finally instructions
 				var handler = body.ExceptionHandlers.FirstOrDefault(x => instruction.Offset >= x.HandlerStart.Offset && instruction.Offset < x.HandlerEnd.Offset);// find the exception handler we are part of
-				if (handler == null) return;
+				if (handler == null)
+				{
+					BranchUnconditional(instruction, form);
+					return;
+				}
 				int handlerID = handler.TryEnd.Offset;
 				var handlerGroup = exceptionHandlerGroups[handlerID];// get your handler group
 				if (handlerGroup._finally != null)
