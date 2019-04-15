@@ -33,6 +33,7 @@ namespace IL2X.Core.EvaluationStack
 
 	sealed class ExceptionHandlerGroup
 	{
-		public ExceptionHandler start, end;
+		public ExceptionHandlerGroup parent;
+		public ExceptionHandler start, end, _finally;
 	}
 }

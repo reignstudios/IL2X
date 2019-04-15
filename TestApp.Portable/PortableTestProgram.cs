@@ -50,7 +50,7 @@ namespace TestApp.Portable
 
 			//Foo(44);
 			Console.WriteLine("Starting");
-			//try
+			try
 			{
 				try
 				{
@@ -61,18 +61,18 @@ namespace TestApp.Portable
 				{
 					Console.WriteLine("Caught my ex: " + e.Message);
 				}
-				catch (Exception e)
-				{
-					Console.WriteLine("Caught ex: " + e.Message);
-				}
+				//catch (Exception e)
+				//{
+				//	Console.WriteLine("Caught ex: " + e.Message);
+				//}
 				finally
 				{
 					Console.WriteLine("finally");
 				}
 			}
-			//catch
+			catch
 			{
-				//Console.WriteLine("First try");
+				Console.WriteLine("First try");
 			}
 
 			Console.WriteLine("End program");

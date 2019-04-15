@@ -183,6 +183,10 @@ namespace IL2X.Core
 
 			// get runtime type
 			var rtType = FindTypeDefinitionByFullName("System.RuntimeType");
+			string rtTypeFullName = GetTypeDefinitionFullName(rtType);
+			var rtTypeBaseTypeFieldName = GetFieldDefinitionName(rtType.Fields.First(x => x.Name == "_baseType"));
+			var rtTypeFullNameFieldName = GetFieldDefinitionName(rtType.Fields.First(x => x.Name == "_name"));
+			var rtTypeFullNameFieldFullName = GetFieldDefinitionName(rtType.Fields.First(x => x.Name == "_fullName"));
 
 			// write module
 			using (var stream = new FileStream(modulePath, FileMode.Create, FileAccess.Write, FileShare.Read))
@@ -246,6 +250,23 @@ namespace IL2X.Core
 				writer.WriteLine("/* Runtime Types */");
 				writer.WriteLine("/* =============================== */");
 				foreach (var type in module.typesDependencyOrdered) WriteRuntimeTypeDefinition(type);
+				if (module.assembly.isCoreLib)
+				{
+					writer.WriteLine($"char IL2X_IsType({rtTypeFullName}* runtimeType, {rtTypeFullName}* isRuntimeType)");
+					writer.WriteLine('{');
+					writer.AddTab();
+					writer.WriteLinePrefix($"{rtTypeFullName}* runtimeTypeBase = runtimeType;");
+					writer.WriteLinePrefix("while (runtimeTypeBase != 0)");
+					writer.WriteLinePrefix('{');
+					writer.AddTab();
+					writer.WriteLinePrefix("if (runtimeTypeBase == isRuntimeType) return 1;");
+					writer.WriteLinePrefix($"runtimeTypeBase = runtimeTypeBase->{rtTypeBaseTypeFieldName};");
+					writer.RemoveTab();
+					writer.WriteLinePrefix('}');
+					writer.WriteLinePrefix("return 0;");
+					writer.RemoveTab();
+					writer.WriteLine('}');
+				}
 
 				// write forward declare of type methods
 				writer.WriteLine("/* =============================== */");
@@ -291,9 +312,6 @@ namespace IL2X.Core
 				writer.WriteLine();
 
 				writer.WriteLinePrefix("/* Init runtime type metadata */");
-				var rtTypeBaseTypeFieldName = GetFieldDefinitionName(rtType.Fields.First(x => x.Name == "_baseType"));
-				var rtTypeFullNameFieldName = GetFieldDefinitionName(rtType.Fields.First(x => x.Name == "_name"));
-				var rtTypeFullNameFieldFullName = GetFieldDefinitionName(rtType.Fields.First(x => x.Name == "_fullName"));
 				foreach (var type in module.typesDependencyOrdered)
 				{
 					if (type == rtType) continue;
@@ -889,34 +907,7 @@ namespace IL2X.Core
 					int handlerID = e.TryEnd.Offset;
 
 					// check if start handler already processed
-					if (exceptionHandlerGroups.ContainsKey(handlerID))
-					{
-						// check if end handler has been set
-						var myHanlder = exceptionHandlerGroups[handlerID];
-						if (myHanlder.end == null)
-						{
-							bool canCheck = false;
-							ExceptionHandler lastE = null;
-							foreach (var e2 in body.ExceptionHandlers)
-							{
-								if (e == e2)
-								{
-									canCheck = true;
-								}
-								else if (canCheck && e2.TryEnd.Offset != handlerID)
-								{
-									myHanlder.end = lastE;
-									break;
-								}
-
-								lastE = e2;
-							}
-
-							if (myHanlder.end == null) myHanlder.end = e;
-						}
-
-						continue;
-					}
+					if (exceptionHandlerGroups.ContainsKey(handlerID)) continue;
 
 					// write variable helpers
 					writer.WriteLinePrefix(string.Format("jmp_buf IL2X_LOCAL_JMP_{0}, IL2X_LOCAL_JMP_LAST_{0};", handlerID));
@@ -928,13 +919,67 @@ namespace IL2X.Core
 					exceptionHandlerGroups.Add(handlerID, handler);
 				}
 
-				// set any handler ends that are null to last handler
+				// set end handlers
 				var last = body.ExceptionHandlers.Last();
-				foreach (var e in body.ExceptionHandlers)
+				foreach (var group in exceptionHandlerGroups)
 				{
-					int handlerID = e.TryEnd.Offset;
-					var hanlder = exceptionHandlerGroups[handlerID];
-					if (hanlder.end == null) hanlder.end = last;
+					int handlerID = group.Key;
+					var handler = group.Value;
+					
+					bool canCheck = false;
+					ExceptionHandler lastE = null;
+					foreach (var e2 in body.ExceptionHandlers)
+					{
+						if (handler.start == e2)
+						{
+							canCheck = true;
+						}
+						else if (canCheck && e2.TryEnd.Offset != handlerID)
+						{
+							handler.end = lastE;
+							break;
+						}
+
+						lastE = e2;
+					}
+
+					if (handler.end == null) handler.end = last;
+				}
+
+				// set parent group
+				foreach (var group in exceptionHandlerGroups)
+				{
+					foreach (var group2 in exceptionHandlerGroups)
+					{
+						if (group.Key == group2.Key) continue;
+						if (group2.Value.start.TryStart.Offset <= group.Value.start.TryStart.Offset && group2.Value.start.TryEnd.Offset >= group.Value.start.TryEnd.Offset)
+						{
+							group.Value.parent = group2.Value;
+							break;
+						}
+					}
+				}
+
+				// set finally handlers
+				foreach (var group in exceptionHandlerGroups)
+				{
+					if (group.Value.end.HandlerType == ExceptionHandlerType.Finally)
+					{
+						group.Value._finally = group.Value.end;
+					}
+					else
+					{
+						var parent = group.Value.parent;
+						while (parent != null)
+						{
+							if (parent.end.HandlerType == ExceptionHandlerType.Finally)
+							{
+								group.Value._finally = parent.end;
+								break;
+							}
+							parent = parent.parent;
+						}
+					}
 				}
 			}
 
@@ -1085,6 +1130,37 @@ namespace IL2X.Core
 				StackPush(GetMetadataTypeDefinition(castingType), $"(({nativeCastingTypeName}){item.value})", false);
 			}
 
+			void Leave_X(Instruction instruction, string form)
+			{
+				if (stack.Count != 0) throw new Exception("Leave_X error: eval stack didn't fully unwind");
+
+				// write finally instructions
+				var handler = body.ExceptionHandlers.FirstOrDefault(x => instruction.Offset >= x.HandlerStart.Offset && instruction.Offset < x.HandlerEnd.Offset);// find the exception handler we are part of
+				if (handler == null) return;
+				int handlerID = handler.TryEnd.Offset;
+				var handlerGroup = exceptionHandlerGroups[handlerID];// get your handler group
+				if (handlerGroup._finally != null)
+				{
+					writer.WriteLinePrefix("/* finally */");
+					writer.WriteLinePrefix('{');
+					writer.AddTab();
+
+					var i = handlerGroup._finally.HandlerStart;
+					while (i != handlerGroup._finally.HandlerEnd && i != null)
+					{
+						ProcessInstruction(i, true, true);
+						i = i.Next;
+						if (i.OpCode.Code == Code.Endfinally) break;
+					}
+
+					writer.RemoveTab();
+					writer.WriteLinePrefix('}');
+				}
+
+				// branch predict
+				BranchUnconditional(instruction, form);
+			}
+
 			void BranchUnconditional(Instruction instruction, string form)
 			{
 				var operand = (Instruction)instruction.Operand;
@@ -1210,7 +1286,7 @@ namespace IL2X.Core
 				int jmpOffset = jmpInstruction.Offset;
 				while (stack.Count != 0)
 				{
-					ProcessInstruction(jmpInstruction, false);
+					ProcessInstruction(jmpInstruction, false, false);
 					jmpOffset = jmpInstruction.Offset + 1;// if next instruction is null make sure we jump after it
 					jmpInstruction = jmpInstruction.Next;
 					if (jmpInstruction != null) jmpOffset = jmpInstruction.Offset;
@@ -1223,11 +1299,27 @@ namespace IL2X.Core
 
 			foreach (var instruction in body.Instructions)
 			{
-				ProcessInstruction(instruction, true);
+				ProcessInstruction(instruction, true, false);
 			}
 
-			void ProcessInstruction(Instruction instruction, bool writeBrJumps)
+			void ProcessInstruction(Instruction instruction, bool writeBrJumps, bool canWriteFinallyBlock)
 			{
+				// if instruction within finally block skip as these are forward processed
+				if (!canWriteFinallyBlock)
+				{
+					bool isFinallyBlock = false;
+					foreach (var handler in body.ExceptionHandlers)
+					{
+						if (handler.HandlerType != ExceptionHandlerType.Finally) continue;
+						if (instruction.Offset >= handler.HandlerStart.Offset && instruction.Offset < handler.HandlerEnd.Offset)
+						{
+							isFinallyBlock = true;
+							break;
+						}
+					}
+					if (isFinallyBlock) return;
+				}
+
 				// validate instruction isnt jump to only handled
 				if (writeBrJumps)
 				{
@@ -1244,7 +1336,7 @@ namespace IL2X.Core
 				}
 
 				// check for exception handlers
-				if (body.HasExceptionHandlers)
+				if (body.HasExceptionHandlers && !canWriteFinallyBlock)
 				{
 					int nestedTry = 0;
 					foreach (var e in body.ExceptionHandlers)
@@ -1279,6 +1371,7 @@ namespace IL2X.Core
 							writer.WriteLinePrefix("else");
 							writer.WriteLinePrefix('{');
 							writer.AddTab();
+							writer.WriteLinePrefix($"memcpy(IL2X_ThreadExceptionJmpBuff, IL2X_LOCAL_JMP_LAST_{handlerID}, sizeof(jmp_buf));");
 						}
 
 						// handler types
@@ -1288,10 +1381,9 @@ namespace IL2X.Core
 							{
 								writer.WriteLinePrefix($"/* catch {e.CatchType.FullName} */");
 								var catchTypeDef = GetTypeDefinition(e.CatchType);
-								writer.WriteLinePrefix($"if (((t_IL2XPortableCoreLibdll_System_Object*)IL2X_ThreadExceptionObject)->IL2X_RuntimeType == &{GetRuntimeTypeReferenceFullName(catchTypeDef)})");
+								writer.WriteLinePrefix($"if (IL2X_IsType(((t_IL2XPortableCoreLibdll_System_Object*)IL2X_ThreadExceptionObject)->IL2X_RuntimeType, &{GetRuntimeTypeReferenceFullName(catchTypeDef)}))");
 								writer.WriteLinePrefix('{');
 								writer.AddTab();
-								writer.WriteLinePrefix($"memcpy(IL2X_ThreadExceptionJmpBuff, IL2X_LOCAL_JMP_LAST_{handlerID}, sizeof(jmp_buf));");
 
 								var objectType = FindTypeDefinitionByFullName("System.Object");
 								StackPush(objectType, "IL2X_ThreadExceptionObject", false);// pushed exception on eval stack
@@ -1300,13 +1392,7 @@ namespace IL2X.Core
 						}
 						else if (e.HandlerType == ExceptionHandlerType.Finally)
 						{
-							if (e.HandlerStart == instruction)
-							{
-								writer.WriteLinePrefix("/* finally */");
-								writer.WriteLinePrefix('{');
-								writer.AddTab();
-								writer.WriteLinePrefix($"memcpy(IL2X_ThreadExceptionJmpBuff, IL2X_LOCAL_JMP_LAST_{handlerID}, sizeof(jmp_buf));");
-							}
+							// 'finally' instructions are injected before try, filter, catch exits or unhandled exceptions
 						}
 						else
 						{
@@ -1318,11 +1404,12 @@ namespace IL2X.Core
 						{
 							writer.RemoveTab();
 							writer.WriteLinePrefix('}');
-							if (e == group.end)
+							if (e == group.end && e.HandlerType != ExceptionHandlerType.Finally)
 							{
+								writer.WriteLinePrefix("/* throw unhandled exception */");
+								writer.WriteLinePrefix($"if (IL2X_ThreadExceptionObject != 0) longjmp(IL2X_ThreadExceptionJmpBuff, 1);");
 								writer.RemoveTab();
 								writer.WriteLinePrefix('}');
-								writer.WriteLinePrefix($"if (IL2X_ThreadExceptionObject != 0) longjmp(IL2X_ThreadExceptionJmpBuff, 1);");
 							}
 						}
 					}
@@ -1375,7 +1462,7 @@ namespace IL2X.Core
 				{
 					// evaluation operations
 					case Code.Nop: break;
-					case Code.Endfinally: break;
+					case Code.Endfinally: throw new Exception("Endfinally should be processed in Leave_X");
 
 					// push to stack
 					case Code.Ldnull:
@@ -1823,8 +1910,8 @@ namespace IL2X.Core
 						break;
 					}
 
-					case Code.Leave: BranchUnconditional(instruction, "x8"); break;
-					case Code.Leave_S: BranchUnconditional(instruction, "x4"); break;
+					case Code.Leave: Leave_X(instruction, "x8"); break;
+					case Code.Leave_S: Leave_X(instruction, "x4"); break;
 
 					default: throw new Exception("Unsuported opcode type: " + instruction.OpCode.Code);
 				}
