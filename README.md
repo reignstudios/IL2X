@@ -1,8 +1,8 @@
 [![Gitter](https://badges.gitter.im/IL2X/community.svg)](https://gitter.im/IL2X/community?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge)
 
 # IL2X (Currently Experimental)
-Translates .NET IL to supported and unsuported .NET platforms and architectures. (Powered by Mono.Cecil)<br>
-If you're looking for CS2X: https://github.com/reignstudios/CS2X
+Translates .NET IL to supported and unsuported .NET platforms and architectures. (Powered by Mono.Cecil)<br><br>
+<b>NOTE: this project is currently on hold while CS2X is focused on:</b> https://github.com/reignstudios/CS2X
 
 ## Goals
 This project will focus on translating .NET IL for non-supported .NET targets. Portibility is a huge focus.
