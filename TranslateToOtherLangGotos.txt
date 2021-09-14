@@ -1,0 +1,24 @@
+static void Foo()
+		{
+			while (true)
+			{
+				int jmp = 0;
+				switch (jmp)
+				{
+					case 0:// method start
+						// ... do some operations
+						if (true)// GOTO-JUMP: now perform 'goto' equivalent
+						{
+							jmp = 1;
+							continue;
+						}
+						break;
+
+					case 1:// each jump point gets its own 'case' statement
+						// ... do some operations
+						// if a jump point is hit in instructions, just jump to that 'case' statement to continue
+						return;// exit method
+						break;
+				}
+			}
+		}
