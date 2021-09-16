@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.IO;
 using System;
 using System.Text;
+using IL2X.Core.Jit;
 
 namespace IL2X.Core
 {
@@ -176,7 +177,8 @@ namespace IL2X.Core
 			if (method.Body.Instructions.Count == 0) return;
 
 			// jit instruction logic
-			var methodJit = Jit(method, activeModule, false);
+			var methodJit = new MethodJit(method, activeModule);
+			methodJit.Optimize();
 
 			// write jit-generated locals
 			foreach (var local in methodJit.asmEvalLocals)

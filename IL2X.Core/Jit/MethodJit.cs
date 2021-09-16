@@ -6,7 +6,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace IL2X.Core
+namespace IL2X.Core.Jit
 {
 	public partial class MethodJit
 	{
@@ -117,9 +117,6 @@ namespace IL2X.Core
 		{
 			while (op != null)
 			{
-				// write instruction helper
-				//if (writeDebugIL) WriteLineTab($"// {op}");
-
 				// process ops normally
 				switch (op.OpCode.Code)
 				{
@@ -419,8 +416,6 @@ namespace IL2X.Core
 					// ===================================
 					default:
 					{
-						//WriteLineTab($"ERROR-Unsupported-OP: '{op.OpCode.Name}'");
-						//return;
 						throw new NotImplementedException("Unsupported IL instruction: " + op.ToString());
 					}
 				}

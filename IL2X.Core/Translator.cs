@@ -12,23 +12,21 @@ namespace IL2X.Core
 	public abstract class Translator
 	{
 		public readonly Solution solution;
-		protected bool writeDebugIL;
 
 		public Translator(Solution solution)
 		{
 			this.solution = solution;
 		}
 
-		public virtual void Translate(string outputDirectory, bool writeDebugIL)
+		public virtual void Translate(string outputDirectory)
 		{
-			this.writeDebugIL = writeDebugIL;
 			if (!Directory.Exists(outputDirectory)) Directory.CreateDirectory(outputDirectory);
-			TranslateLibrary(solution.mainLibrary, outputDirectory);
+			TranslateAssembly(solution.mainAssembly, outputDirectory);
 		}
 
-		private void TranslateLibrary(Library library, string outputDirectory)
+		private void TranslateAssembly(Assembly assembly, string outputDirectory)
 		{
-			foreach (var module in library.modules)
+			foreach (var module in assembly.modules)
 			{
 				TranslateModule(module, outputDirectory);
 			}
@@ -44,13 +42,6 @@ namespace IL2X.Core
 		protected static string FormatFilename(string filename)
 		{
 			return filename.Replace('.', '_');
-		}
-
-		protected static MethodJit Jit(MethodDefinition method, Module module, bool optimize)
-		{
-			var result = new MethodJit(method, module);
-			if (optimize) result.Optimize();
-			return result;
 		}
 	}
 }

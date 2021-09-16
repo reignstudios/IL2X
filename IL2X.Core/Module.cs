@@ -9,33 +9,33 @@ namespace IL2X.Core
 {
 	public sealed class Module
 	{
-		public readonly Library library;
+		public readonly Assembly assembly;
 		public readonly ModuleDefinition cecilModule;
 		public ISymbolReader symbolReader;
-		public List<Library> libraryReferences;
+		public List<Assembly> assemblyReferences;
 
-		public Module(Library library, ModuleDefinition cecilModule, ISymbolReader symbolReader)
+		public Module(Assembly assembly, ModuleDefinition cecilModule, ISymbolReader symbolReader)
 		{
-			this.library = library;
+			this.assembly = assembly;
 			this.cecilModule = cecilModule;
 			this.symbolReader = symbolReader;
 		}
 
 		internal void Load(IAssemblyResolver assemblyResolver)
 		{
-			// load library references
-			libraryReferences = new List<Library>();
+			// load assembly references
+			assemblyReferences = new List<Assembly>();
 			foreach (var assemblyReference in cecilModule.AssemblyReferences)
 			{
 				using (var cecilAssembly = assemblyResolver.Resolve(assemblyReference))
 				{
-					Library l = library.solution.libraries.FirstOrDefault(x => x.cecilAssembly.FullName == cecilAssembly.FullName);
+					Assembly l = assembly.solution.assemblies.FirstOrDefault(x => x.cecilAssembly.FullName == cecilAssembly.FullName);
 					if (l == null)
 					{
-						l = library.solution.AddLibrary(cecilAssembly.MainModule.FileName);
+						l = assembly.solution.AddAssembly(cecilAssembly.MainModule.FileName);
 						l.Load(assemblyResolver);
 					}
-					libraryReferences.Add(l);
+					assemblyReferences.Add(l);
 				}
 			}
 		}

@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.IO;
 using Mono.Cecil;
+using IL2X.Core.Jit;
 
 namespace IL2X.Core
 {
@@ -18,8 +19,12 @@ namespace IL2X.Core
 
 		public readonly Type type;
 		public readonly string dllPath, dllFolderPath;
-		public Library mainLibrary, coreLibrary;
-		public List<Library> libraries;
+
+		public Assembly mainAssembly, coreAssembly;
+		public List<Assembly> assemblies;
+
+		public AssemblyJit mainProject, coreProject;
+		public List<AssemblyJit> projects;
 
 		public Solution(Type type, string dllPath)
 		{
@@ -32,31 +37,35 @@ namespace IL2X.Core
 
 		public void Dispose()
 		{
-			if (libraries != null)
+			if (assemblies != null)
 			{
-				foreach (var library in libraries) library.Dispose();
-				libraries = null;
+				foreach (var assembly in assemblies) assembly.Dispose();
+				assemblies = null;
 			}
 		}
 
-		internal Library AddLibrary(string binaryPath)
+		internal Assembly AddAssembly(string binaryPath)
 		{
-			var library = new Library(this, binaryPath);
-			libraries.Add(library);
-			return library;
+			var assembly = new Assembly(this, binaryPath);
+			assemblies.Add(assembly);
+			return assembly;
 		}
 
 		public void ReLoad()
 		{
-			libraries = new List<Library>();
-
-			// load assemblies
+			assemblies = new List<Assembly>();
 			using (var assemblyResolver = new DefaultAssemblyResolver())
 			{
 				assemblyResolver.AddSearchDirectory(dllFolderPath);
-				mainLibrary = AddLibrary(dllPath);
-				mainLibrary.Load(assemblyResolver);
+				mainAssembly = AddAssembly(dllPath);
+				mainAssembly.Load(assemblyResolver);
 			}
+		}
+
+		public void Jit()
+		{
+			projects = new List<AssemblyJit>();
+			mainProject = new AssemblyJit(this, mainAssembly);
 		}
 	}
 }

@@ -15,9 +15,10 @@ namespace IL2X.CLR
 			using (var solution = new Solution(Solution.Type.Executable, @$"F:\Dev\Reign\IL2X\RayTraceBenchmark\bin\{config}\net5.0\RayTraceBenchmark.dll"))
 			{
 				solution.ReLoad();
+				solution.Jit();
 
 				var translator = new Translator_C(solution);
-				translator.Translate(@"F:\Dev\Reign\IL2X\RayTraceBenchmark\bin\Debug\net5.0\IL2X_Output", false);
+				translator.Translate(@"F:\Dev\Reign\IL2X\RayTraceBenchmark\bin\Debug\net5.0\IL2X_Output");
 			}
 		}
 	}

@@ -7,14 +7,14 @@ using Mono.Cecil.Pdb;
 
 namespace IL2X.Core
 {
-	public sealed class Library : IDisposable
+	public sealed class Assembly : IDisposable
 	{
 		public readonly Solution solution;
 		public readonly string binaryPath;
 		public List<Module> modules;
 		public AssemblyDefinition cecilAssembly;
 
-		public Library(Solution solution, string binaryPath)
+		public Assembly(Solution solution, string binaryPath)
 		{
 			this.solution = solution;
 			this.binaryPath = binaryPath;

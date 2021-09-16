@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace IL2X.Core
+namespace IL2X.Core.Jit
 {
 	public partial class MethodJit
 	{
