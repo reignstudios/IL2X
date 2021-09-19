@@ -1,4 +1,5 @@
 ﻿using System;
+using System.IO;
 using IL2X.Core;
 
 namespace IL2X.CLR
@@ -12,13 +13,15 @@ namespace IL2X.CLR
 			#else
 			string config = "Release";
 			#endif
-			using (var solution = new Solution(Solution.Type.Executable, @$"F:\Dev\Reign\IL2X\RayTraceBenchmark\bin\{config}\net5.0\RayTraceBenchmark.dll"))
+
+			string path = Path.Combine(Environment.CurrentDirectory, "../../../../RayTraceBenchmark/bin");
+			using (var solution = new Solution(Solution.Type.Executable, Path.Combine(path, config, "net5.0/RayTraceBenchmark.dll").Replace('/', Path.DirectorySeparatorChar)))
 			{
 				solution.ReLoad();
 				solution.Jit();
 
 				var translator = new Translator_C(solution);
-				translator.Translate(@"F:\Dev\Reign\IL2X\RayTraceBenchmark\bin\Debug\net5.0\IL2X_Output");
+				translator.Translate(Path.Combine(path, "Debug/net5.0/IL2X_Output").Replace('/', Path.DirectorySeparatorChar));
 			}
 		}
 	}
