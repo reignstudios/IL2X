@@ -4,7 +4,7 @@ namespace System
 {
 	public class Object
 	{
-		[MethodImpl(MethodImplOptions.InternalCall)]
-		public extern Type GetType();
+		//[MethodImpl(MethodImplOptions.InternalCall)]
+		//public extern Type GetType();
 	}
 }

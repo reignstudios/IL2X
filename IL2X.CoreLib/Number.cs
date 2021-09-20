@@ -4,7 +4,7 @@ namespace System
 {
 	internal static class Number
 	{
-		internal const int Int8NumberBufferLength = 3 + 1;     // 3 for the longest input: 127
+		/*internal const int Int8NumberBufferLength = 3 + 1;     // 3 for the longest input: 127
 		internal const int Int16NumberBufferLength = 5 + 1;     // 5 for the longest input: 32,767
 		internal const int Int32NumberBufferLength = 10 + 1;    // 10 for the longest input: 2,147,483,647
 		internal const int Int64NumberBufferLength = 19 + 1;    // 19 for the longest input: 9,223,372,036,854,775,807
@@ -33,6 +33,6 @@ namespace System
 		public static unsafe extern int sprintf(byte* str, [NativeStringParam(NativeStringType.Char)] string format, Single number);
 
 		[NativeExtern(NativeTarget.C, "sprintf")]
-		public static unsafe extern int sprintf(byte* str, [NativeStringParam(NativeStringType.Char)] string format, Double number);
+		public static unsafe extern int sprintf(byte* str, [NativeStringParam(NativeStringType.Char)] string format, Double number);*/
 	}
 }

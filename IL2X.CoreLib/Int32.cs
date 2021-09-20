@@ -2,7 +2,7 @@ namespace System
 {
 	public readonly struct Int32
 	{
-		public const Int32 MaxValue = 2147483647;
+		/*public const Int32 MaxValue = 2147483647;
 		public const Int32 MinValue = -2147483648;
 
 		public unsafe string ToString()
@@ -14,6 +14,6 @@ namespace System
 			for (int i = 0; i != length; ++i) charArray[i] = (char)str[i];
 			charArray[length] = '\0';
 			return new string(charArray);
-		}
+		}*/
 	}
 }

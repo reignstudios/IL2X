@@ -2,7 +2,7 @@ namespace System
 {
 	public readonly struct Byte
 	{
-		public const Byte MaxValue = 255;
+		/*public const Byte MaxValue = 255;
 		public const Byte MinValue = 0;
 
 		public unsafe string ToString()
@@ -14,6 +14,6 @@ namespace System
 			for (int i = 0; i != length; ++i) charArray[i] = (char)str[i];
 			charArray[length] = '\0';
 			return new string(charArray);
-		}
+		}*/
 	}
 }

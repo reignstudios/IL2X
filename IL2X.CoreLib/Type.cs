@@ -6,7 +6,7 @@ namespace System
 	public abstract class Type
 	{
 		public Type BaseType { get; }
-		public string Name { get; }
+		/*public string Name { get; }
 		public string FullName { get; }
 
 		[MethodImpl(MethodImplOptions.InternalCall)]
@@ -26,6 +26,6 @@ namespace System
 		public string ToString()
 		{
 			return FullName;
-		}
+		}*/
 	}
 }

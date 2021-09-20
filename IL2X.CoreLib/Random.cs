@@ -4,7 +4,7 @@ namespace System
 {
 	public sealed class Random
 	{
-		private const uint rand_max = 32767;
+		/*private const uint rand_max = 32767;
 		private uint seed;
 
 		public Random() : this(GenerateSeed())
@@ -25,6 +25,6 @@ namespace System
 			seed = seed * 1103515245 + 12345;
 			int result = (int)((seed / 65536) % 32768);
 			return (int)(result / (float)rand_max) * int.MaxValue;
-		}
+		}*/
 	}
 }

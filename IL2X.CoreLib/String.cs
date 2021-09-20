@@ -7,7 +7,7 @@ namespace System
 		private int _stringLength;
 		internal char _firstChar;
 
-        public static readonly string Empty = "";
+        /*public static readonly string Empty = "";
 
 		[MethodImpl(MethodImplOptions.InternalCall)]
 		public unsafe extern String(char* value);
@@ -191,6 +191,6 @@ namespace System
 				}
 			}
 			return true;
-		}
+		}*/
 	}
 }

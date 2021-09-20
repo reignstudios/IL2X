@@ -1,6 +1,6 @@
 ﻿namespace System.IO
 {
-	public abstract class Stream : IDisposable
+	/*public abstract class Stream : IDisposable
 	{
         public abstract long Length
         {
@@ -30,5 +30,5 @@
         {
             Write(&value, 0, 1);
         }
-    }
+    }*/
 }

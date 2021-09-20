@@ -5,7 +5,7 @@ namespace System
 	[StructLayout(LayoutKind.Sequential)]
 	public unsafe struct Guid
 	{
-		private fixed byte data[16];
+		/*private fixed byte data[16];
 
 		private static readonly Random random = new Random();
 		public static readonly Guid Empty = new Guid();
@@ -52,6 +52,6 @@ namespace System
 			for (int i = 0; i != length; ++i) charArray[i] = (char)str[i];
 			charArray[length] = '\0';
 			return new string(charArray);
-		}
+		}*/
 	}
 }

@@ -4,7 +4,7 @@ namespace System
 {
 	public static class MathF
 	{
-		public const float E = 2.71828183f;
+		/*public const float E = 2.71828183f;
 		public const float PI = 3.14159265f;
 
 		[NativeExtern(NativeTarget.C, "fabsf")]
@@ -47,6 +47,6 @@ namespace System
 		public static extern float Floor(float x);
 
 		[NativeExtern(NativeTarget.C, "roundf")]
-		public static extern float Round(float x);
+		public static extern float Round(float x);*/
 	}
 }

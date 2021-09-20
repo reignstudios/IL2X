@@ -7,7 +7,7 @@ namespace System.IO
 {
 	public static class File
 	{
-		[NativeExtern(NativeTarget.C)]
+		/*[NativeExtern(NativeTarget.C)]
 		internal unsafe static extern int access(byte* path, int mode);
 
 		public unsafe static bool Exists(string path)
@@ -19,6 +19,6 @@ namespace System.IO
 		internal unsafe static bool ExistsInternal(byte* path)
 		{
 			return access(path, 0) == 0;
-		}
+		}*/
 	}
 }

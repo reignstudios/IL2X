@@ -6,7 +6,7 @@ namespace System
 	{
 		private IntPtr _internalDate;
 
-		[NativeExtern(NativeTarget.C)]
-		internal static extern IntPtr time(IntPtr _Time);
+		//[NativeExtern(NativeTarget.C)]
+		//internal static extern IntPtr time(IntPtr _Time);
 	}
 }

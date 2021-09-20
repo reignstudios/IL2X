@@ -29,7 +29,7 @@ namespace System.Text
 {
 	public abstract class Encoding
 	{
-		public static Encoding Default { get; }
+		/*public static Encoding Default { get; }
 		public static Encoding ASCII { get; }
 		public static Encoding UTF7 { get; }
 		public static Encoding UTF8 { get; }
@@ -240,6 +240,6 @@ namespace System.Text
 				return GetString(bytesPtr + index, count);
 			}
 		}
-		#endregion
+		#endregion*/
 	}
 }

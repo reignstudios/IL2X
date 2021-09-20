@@ -6,7 +6,7 @@ namespace System.Runtime.InteropServices
 {
 	public static class Marshal
 	{
-		[NativeExtern(NativeTarget.C)]
+		/*[NativeExtern(NativeTarget.C)]
 		internal static extern IntPtr strlen(IntPtr ptr);
 
 		[NativeExtern(NativeTarget.C)]
@@ -100,6 +100,6 @@ namespace System.Runtime.InteropServices
 		/// </summary>
 		/// <returns>hInstance</returns>
 		[MethodImpl(MethodImplOptions.InternalCall)]
-		public static extern IntPtr GetHINSTANCE();
+		public static extern IntPtr GetHINSTANCE();*/
 	}
 }

@@ -4,7 +4,7 @@ using System.Text;
 
 namespace System.Collections.ObjectModel
 {
-	enum ReadOnlyCollectionType
+	/*enum ReadOnlyCollectionType
 	{
 		Array,
 		List
@@ -107,5 +107,5 @@ namespace System.Collections.ObjectModel
 				i = -1;
 			}
 		}
-	}
+	}*/
 }

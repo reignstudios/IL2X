@@ -5,7 +5,7 @@ namespace System
 {
     public static class Console
     {
-		[NativeExtern(NativeTarget.C)]
+		/*[NativeExtern(NativeTarget.C)]
 		private static unsafe extern int printf(byte* text);
 
 		[NativeExtern(NativeTarget.C)]
@@ -37,6 +37,6 @@ namespace System
 			byte* str = stackalloc byte[1024];
 			if (gets(str) == null) return string.Empty;
 			return Encoding.ASCII.GetString(str, (int)strlen(str));
-		}
+		}*/
     }
 }

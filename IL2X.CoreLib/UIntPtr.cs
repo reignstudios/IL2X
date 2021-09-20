@@ -4,7 +4,7 @@ namespace System
 {
 	public struct UIntPtr
 	{
-		public static readonly UIntPtr Zero = new UIntPtr();
+		/*public static readonly UIntPtr Zero = new UIntPtr();
 		public static unsafe int Size => sizeof(void*);
 
 		[MethodImpl(MethodImplOptions.InternalCall)]
@@ -46,6 +46,6 @@ namespace System
 		public unsafe void* ToPointer()
 		{
 			return (void*)this;
-		}
+		}*/
 	}
 }

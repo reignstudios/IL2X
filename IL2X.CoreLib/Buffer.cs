@@ -4,7 +4,7 @@ namespace System
 {
 	public static class Buffer
 	{
-		[NativeExtern(NativeTarget.C)]
+		/*[NativeExtern(NativeTarget.C)]
 		internal static unsafe extern void* memcpy(void* _Dst, void* _Src, UIntPtr _Size);
 
 		[NativeExtern(NativeTarget.C)]
@@ -22,6 +22,6 @@ namespace System
 		{
 			if (sourceBytesToCopy > destinationSizeInBytes) throw new ArgumentOutOfRangeException();
 			memcpy(destination, source, (UIntPtr)sourceBytesToCopy);
-		}
+		}*/
 	}
 }

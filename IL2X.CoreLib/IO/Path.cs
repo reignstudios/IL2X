@@ -6,7 +6,7 @@ namespace System.IO
 {
 	public static class Path
 	{
-		public const char DirectorySeparatorChar = '\\';
+		/*public const char DirectorySeparatorChar = '\\';
 
 		public static string Combine(string path1, string path2)
 		{
@@ -69,6 +69,6 @@ namespace System.IO
 
 			string.FillStringChecked(result, offset, path4);
 			return result;
-		}
+		}*/
 	}
 }

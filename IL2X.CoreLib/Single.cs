@@ -4,7 +4,7 @@ namespace System
 {
 	public readonly struct Single
 	{
-		public const Single MaxValue = (float)3.40282346638528859e+38;
+		/*public const Single MaxValue = (float)3.40282346638528859e+38;
 		public const Single MinValue = (float)-3.40282346638528859e+38;
 		public const Single Epsilon = (float)1.4e-45;
 		public const Single PositiveInfinity = (float)1.0 / (float)0.0;
@@ -33,6 +33,6 @@ namespace System
 			for (int i = 0; i != length; ++i) charArray[i] = (char)str[i];
 			charArray[length] = '\0';
 			return new string(charArray);
-		}
+		}*/
 	}
 }

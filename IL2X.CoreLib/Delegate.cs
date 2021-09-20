@@ -7,7 +7,7 @@ namespace System
 		private object _target;
 		public object Target => _target;
 
-		public static bool operator==(Delegate a, Delegate b)
+		/*public static bool operator==(Delegate a, Delegate b)
 		{
 			return true;
 		}
@@ -96,6 +96,6 @@ namespace System
 			}
 
 			return source;
-		}
+		}*/
 	}
 }

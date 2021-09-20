@@ -2,7 +2,7 @@
 {
 	public static class BitConverter
 	{
-		public static char ToChar(byte[] value, int startIndex)
+		/*public static char ToChar(byte[] value, int startIndex)
         {
             return unchecked((char)ToInt16(value, startIndex));
         }
@@ -74,6 +74,6 @@
         public static unsafe float Int32BitsToSingle(int value)
         {
             return *((float*)&value);
-        }
+        }*/
     }
 }

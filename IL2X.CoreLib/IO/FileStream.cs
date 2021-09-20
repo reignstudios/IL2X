@@ -5,7 +5,7 @@ using IL2X;
 
 namespace System.IO
 {
-	public class FileStream : Stream
+	/*public class FileStream : Stream
 	{
 		[NativeExtern(NativeTarget.C)]
 		internal unsafe static extern IntPtr fopen(byte* filename, [NativeStringParam(NativeStringType.Char)] string mode);
@@ -126,5 +126,5 @@ namespace System.IO
 		{
 			fixed (byte* butterPtr = buffer) fwrite(butterPtr + offset, (UIntPtr)sizeof(byte), (UIntPtr)count, stream);
 		}
-	}
+	}*/
 }

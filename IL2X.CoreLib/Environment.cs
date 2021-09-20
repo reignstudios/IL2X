@@ -5,7 +5,7 @@ namespace System
 {
 	public static class Environment
 	{
-		[NativeExtern(NativeTarget.C, "_putenv")]
+		/*[NativeExtern(NativeTarget.C, "_putenv")]
 		private static unsafe extern int putenv(byte* _EnvString);
 
 		public static string NewLine => "\r\n";// TODO: POSIX version
@@ -18,6 +18,6 @@ namespace System
 			fixed (char* envVarPtr = envVar) Encoding.Default.GetBytes(envVarPtr, envVar.Length, encoded, encodedCount);
 			encoded[encodedCount - 1] = 0;
 			putenv(encoded);
-		}
+		}*/
 	}
 }

@@ -2,7 +2,7 @@ namespace System
 {
 	public readonly struct SByte
 	{
-		public const SByte MaxValue = 127;
+		/*public const SByte MaxValue = 127;
 		public const SByte MinValue = -128;
 
 		public unsafe string ToString()
@@ -14,6 +14,6 @@ namespace System
 			for (int i = 0; i != length; ++i) charArray[i] = (char)str[i];
 			charArray[length] = '\0';
 			return new string(charArray);
-		}
+		}*/
 	}
 }

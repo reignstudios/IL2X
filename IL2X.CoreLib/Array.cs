@@ -5,7 +5,7 @@ namespace System
 {
 	public abstract class Array
 	{
-		public extern int Length
+		/*public extern int Length
         {
             [MethodImpl(MethodImplOptions.InternalCall)]
             get;
@@ -71,6 +71,6 @@ namespace System
 		}
 
 		[MethodImpl(MethodImplOptions.InternalCall)]
-		private static extern void FastResize(ref Array array, int newSize, int elementSize);
+		private static extern void FastResize(ref Array array, int newSize, int elementSize);*/
 	}
 }

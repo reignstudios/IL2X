@@ -1,6 +1,6 @@
 namespace System.Collections.Generic
 {
-	public class List<T> : IEnumerable<T>
+	/*public class List<T> : IEnumerable<T>
 	{
 		private T[] _items;
 
@@ -194,5 +194,5 @@ namespace System.Collections.Generic
 				i = -1;
 			}
 		}
-	}
+	}*/
 }
