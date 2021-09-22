@@ -11,7 +11,7 @@ namespace IL2X.Core.Jit
 	public partial class MethodJit
 	{
 		public readonly MethodDefinition method;
-		public readonly MethodDebugInformation methodDebugInfo;
+		public readonly TypeJit type;
 
 		public LinkedList<ASMObject> asmOperations;
 		public List<ASMParameter> asmParameters;
@@ -23,28 +23,26 @@ namespace IL2X.Core.Jit
 		private Dictionary<Instruction, List<EvaluationStackProcessed>> processedInstructionPaths;
 		private int asmJumpIndex;
 
-		public MethodJit(MethodDefinition method, Module module)
+		public MethodJit(MethodDefinition method, Module module, TypeJit type)
 		{
 			this.method = method;
-
-			// load debug info if avaliable
-			if (module.symbolReader != null) methodDebugInfo = module.symbolReader.Read(method);
-
-			// skip if no instructions
-			if (!method.HasBody || method.Body.Instructions.Count == 0) return;
+			this.type = type;
 
 			// add parameters
 			asmParameters = new List<ASMParameter>();
 			foreach (var parameter in method.Parameters)
 			{
-				asmParameters.Add(new ASMParameter(parameter, parameter.Name));
+				asmParameters.Add(new ASMParameter(parameter));
 			}
+
+			// skip rest if no instructions
+			if (!method.HasBody || method.Body.Instructions.Count == 0) return;
 
 			// add locals
 			asmLocals = new List<ASMLocal>();
 			foreach (var variable in method.Body.Variables)
 			{
-				asmLocals.Add(new ASMLocal(variable, GetLocalVariableName(variable), method.Body.InitLocals));
+				asmLocals.Add(new ASMLocal(variable, method.Body.InitLocals));
 			}
 
 			// interpret instructions
@@ -58,7 +56,7 @@ namespace IL2X.Core.Jit
 			asmEvalLocals = new List<ASMEvalStackLocal>();
 			foreach (var variable in evalStackVars)
 			{
-				asmEvalLocals.Add(variable.Value);
+				if (!IsVoidType(variable.Key)) asmEvalLocals.Add(variable.Value);
 			}
 
 			// validate all IL instruction paths completed
@@ -76,41 +74,6 @@ namespace IL2X.Core.Jit
 			evalStack = null;
 			evalStackVars = null;
 			processedInstructionPaths = null;
-		}
-
-		private void AddASMOp(ASMObject asmOp)
-		{
-			asmOperations.AddLast(asmOp);
-		}
-
-		private ASMObject OperandToASMOperand(object obj)
-		{
-			var type = obj.GetType();
-
-			// primitive
-			if
-			(
-				type == typeof(Boolean) ||
-				type == typeof(Byte) || type == typeof(SByte) ||
-				type == typeof(Int16) || type == typeof(UInt16) ||
-				type == typeof(Int16) || type == typeof(UInt16) ||
-				type == typeof(Int32) || type == typeof(UInt32) ||
-				type == typeof(Int64) || type == typeof(UInt64)
-			)
-			{
-				return new ASMPrimitiveLiteral(obj);
-			}
-
-			// string
-			if (type == typeof(string)) return new ASMStringLiteral((string)obj);
-
-			// variables
-			if (obj is ASMEvalStackLocal) return (ASMEvalStackLocal)obj;
-			if (obj == method.DeclaringType) return ASMThisPtr.handle;
-			if (obj is VariableReference) return asmLocals.First(x => x.variable == obj);
-			if (obj is ParameterReference) return asmParameters.First(x => x.parameter == obj);
-
-			throw new NotImplementedException("Operand type not implimented: " + type.ToString());
 		}
 
 		private void InterpretInstructionFlow(Instruction op)
@@ -208,17 +171,39 @@ namespace IL2X.Core.Jit
 						break;
 					}
 
-					case Code.Ldarg_0: Ldarg_X(op, 0, false); break;
-					case Code.Ldarg_1: Ldarg_X(op, 1, false); break;
-					case Code.Ldarg_2: Ldarg_X(op, 2, false); break;
-					case Code.Ldarg_3: Ldarg_X(op, 3, false); break;
+					case Code.Ldarg_0: Ldarg_X(op, 0, true); break;
+					case Code.Ldarg_1: Ldarg_X(op, 1, true); break;
+					case Code.Ldarg_2: Ldarg_X(op, 2, true); break;
+					case Code.Ldarg_3: Ldarg_X(op, 3, true); break;
 					case Code.Ldarg:
 					case Code.Ldarg_S:
 					{
-						if (op.Operand is short) Ldarg_X(op, (short)op.Operand, false);
-						else if (op.Operand is int) Ldarg_X(op, (int)op.Operand, false);
-						else if (op.Operand is ParameterDefinition) Ldarg_X(op, ((ParameterDefinition)op.Operand).Index, false);
+						if (op.Operand is short) Ldarg_X(op, (short)op.Operand, true);
+						else if (op.Operand is int) Ldarg_X(op, (int)op.Operand, true);
+						else if (op.Operand is ParameterDefinition) Ldarg_X(op, ((ParameterDefinition)op.Operand).Index, true);
 						else throw new NotImplementedException("Ldarg_S unsupported operand: " + op.Operand.GetType());
+						break;
+					}
+
+					case Code.Ldfld:
+					{
+						var self = StackPop();
+						var field = (FieldReference)op.Operand;
+						Ldfld_X(op, self.obj, field);
+						break;
+					}
+
+					case Code.Ldflda:
+					{
+						var self = StackPop();
+						var field = (FieldReference)op.Operand;
+						Ldfld_X(op, self.obj, field);
+						break;
+					}
+
+					case Code.Sizeof:
+					{
+						StackPush(op, new ASMSizeOf((TypeReference)op.Operand));
 						break;
 					}
 
@@ -234,6 +219,16 @@ namespace IL2X.Core.Jit
 					{
 						var variable = (VariableDefinition)op.Operand;
 						Stloc_X(variable.Index);
+						break;
+					}
+
+					case Code.Stfld:
+					{
+						var itemRight = StackPop();
+						var self = StackPop();
+						var fieldLeft = (FieldDefinition)op.Operand;
+						var field = new ASMField(self.obj, fieldLeft);
+						AddASMOp(new ASMWriteField(field, OperandToASMOperand(itemRight.obj)));
 						break;
 					}
 
@@ -425,6 +420,45 @@ namespace IL2X.Core.Jit
 			}
 		}
 
+		private void AddASMOp(ASMObject asmOp)
+		{
+			asmOperations.AddLast(asmOp);
+		}
+
+		private ASMObject OperandToASMOperand(object obj)
+		{
+			var type = obj.GetType();
+
+			// primitive
+			if
+			(
+				type == typeof(Boolean) ||
+				type == typeof(Byte) || type == typeof(SByte) ||
+				type == typeof(Int16) || type == typeof(UInt16) ||
+				type == typeof(Int16) || type == typeof(UInt16) ||
+				type == typeof(Int32) || type == typeof(UInt32) ||
+				type == typeof(Int64) || type == typeof(UInt64)
+			)
+			{
+				return new ASMPrimitiveLiteral(obj);
+			}
+
+			// sizeof
+			if (obj is ASMSizeOf) return (ASMSizeOf)obj;
+
+			// string
+			if (type == typeof(string)) return new ASMStringLiteral((string)obj);
+
+			// variables
+			if (obj is ASMField) return (ASMField)obj;
+			if (obj is ASMEvalStackLocal) return (ASMEvalStackLocal)obj;
+			if (obj == method.DeclaringType) return ASMThisPtr.handle;
+			if (obj is VariableReference) return asmLocals.First(x => x.variable == obj);
+			if (obj is ParameterReference) return asmParameters.First(x => x.parameter == obj);
+
+			throw new NotImplementedException("Operand type not implimented: " + type.ToString());
+		}
+
 		private void StackPush(Instruction op, object obj)
 		{
 			evalStack.Push(new EvaluationStackItem(op, obj));
@@ -465,6 +499,11 @@ namespace IL2X.Core.Jit
 			StackPush(op, method.Body.Variables[index]);
 		}
 
+		private void Ldfld_X(Instruction op, object self, FieldReference field)
+		{
+			StackPush(op, new ASMField(self, field));
+		}
+
 		private ASMEvalStackLocal GetEvalStackVar(TypeReference type)
 		{
 			ASMEvalStackLocal result;
@@ -474,8 +513,7 @@ namespace IL2X.Core.Jit
 				++result.refCount;
 				return result;
 			}
-			string name = $"le_{evalStackVars.Count}";
-			result = new ASMEvalStackLocal(type, name);
+			result = new ASMEvalStackLocal(type, evalStackVars.Count);
 			evalStackVars.Add(type, result);
 			return result;
 		}
@@ -563,6 +601,7 @@ namespace IL2X.Core.Jit
 				if (value is UInt64) return GetTypeSystem().UInt64;
 				if (value is Single) return GetTypeSystem().Single;
 				if (value is Double) return GetTypeSystem().Double;
+				if (value is ASMSizeOf) return GetTypeSystem().Int32;
 				throw new NotImplementedException("Unsupported arithmatic object: " + value.GetType().ToString());
 			}
 
@@ -589,7 +628,7 @@ namespace IL2X.Core.Jit
 				if (type.MetadataType == MetadataType.Double) return 5;
 				throw new NotImplementedException("Unsupported arithmatic type: " + type.ToString());
 			}
-
+			
 			// validate type basics
 			var type1 = LowestType(GetType(value1));
 			var type2 = LowestType(GetType(value2));
@@ -620,12 +659,6 @@ namespace IL2X.Core.Jit
 		private bool IsVoidType(TypeReference type)
 		{
 			return type == GetTypeSystem().Void;
-		}
-
-		private string GetLocalVariableName(VariableDefinition variable)
-		{
-			if (methodDebugInfo.TryGetName(variable, out string name)) return $"l_{name}";
-			return $"l_{variable.Index}";
 		}
 	}
 }

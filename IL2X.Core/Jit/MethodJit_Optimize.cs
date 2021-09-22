@@ -8,8 +8,10 @@ namespace IL2X.Core.Jit
 {
 	public partial class MethodJit
 	{
-		public void Optimize()
+		internal void Optimize()
 		{
+			if (asmOperations == null || asmOperations.Count == 0) return;
+
 			// optimize out redundent eval-stack copies
 			Optimize_RedundentStackCopies();
 

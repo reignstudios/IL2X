@@ -1,6 +1,7 @@
 ﻿using System;
 using System.IO;
 using IL2X.Core;
+using IL2X.Core.Translators;
 
 namespace IL2X.CLR
 {
@@ -19,6 +20,7 @@ namespace IL2X.CLR
 			{
 				solution.ReLoad();
 				solution.Jit();
+				solution.Optimize();
 
 				var translator = new Translator_C(solution);
 				translator.Translate(Path.Combine(path, "Debug/net5.0/IL2X_Output").Replace('/', Path.DirectorySeparatorChar));

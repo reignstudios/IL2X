@@ -4,13 +4,13 @@ namespace IL2X.Core.Jit
 {
 	public class FieldJit
 	{
-		public TypeReference type;
-		public string name;
+		public readonly FieldDefinition field;
+		public readonly TypeReference type;
 
-		public FieldJit(TypeReference type)
+		public FieldJit(FieldDefinition field, TypeReference type)
 		{
+			this.field = field;
 			this.type = type;
-			name = "f_" + type.Name;
 		}
 	}
 }

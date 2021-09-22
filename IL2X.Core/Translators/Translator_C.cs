@@ -6,7 +6,7 @@ using System;
 using System.Text;
 using IL2X.Core.Jit;
 
-namespace IL2X.Core
+namespace IL2X.Core.Translators
 {
 	public sealed class Translator_C : Translator
 	{
@@ -20,8 +20,8 @@ namespace IL2X.Core
 		private void WriteLineTab(string value) => activeWriter.WriteLine(writerTab + value);
 		private void WriteLine() => activeWriter.WriteLine();
 
-		private Module activeModule;
-		private MethodDebugInformation activeMethodDebugInfo;
+		private ModuleJit activeModule;
+		private MethodDebugInformation activemethodDebugInfo;
 
 		public Translator_C(Solution solution)
 		: base(solution)
@@ -29,15 +29,14 @@ namespace IL2X.Core
 
 		}
 
-		protected override void TranslateModule(Module module, string outputDirectory)
+		protected override void TranslateModule(ModuleJit module, string outputDirectory)
 		{
 			activeModule = module;
 
 			// write header file
-			foreach (var type in module.cecilModule.Types)
+			foreach (var type in module.allTypes)
 			{
-				if (IsModuleType(type)) continue;
-				string filename = FormatFilename(type.FullName);
+				string filename = FormatTypeFilename(type.type.FullName);
 				using (var stream = new FileStream(Path.Combine(outputDirectory, filename) + ".h", FileMode.Create, FileAccess.Write, FileShare.Read))
 				using (var writer = new StreamWriter(stream))
 				{
@@ -55,10 +54,9 @@ namespace IL2X.Core
 			}
 
 			// write code file
-			foreach (var type in module.cecilModule.Types)
+			foreach (var type in module.allTypes)
 			{
-				if (IsModuleType(type)) continue;
-				string filename = FormatFilename(type.FullName);
+				string filename = FormatTypeFilename(type.type.FullName);
 				using (var stream = new FileStream(Path.Combine(outputDirectory, filename) + ".c", FileMode.Create, FileAccess.Write, FileShare.Read))
 				using (var writer = new StreamWriter(stream))
 				{
@@ -76,15 +74,15 @@ namespace IL2X.Core
 		private void WriteHackDefines()
 		{
 			WriteLine("#include <stdint.h>");
-			WriteLine("#define mscorlib_System_Void void");
-			WriteLine("#define mscorlib_System_Int32 int32_t");
-			WriteLine("#define mscorlib_System_Boolean int8_t");
+			WriteLine("#define t_System_Private_CoreLib_System_Void void");
+			WriteLine("#define t_System_Private_CoreLib_System_Int32 int32_t");
+			WriteLine("#define t_System_Private_CoreLib_System_Boolean int8_t");
 		}
 
-		private void WriteTypeDefinition(TypeDefinition type)
+		private void WriteTypeDefinition(TypeJit type)
 		{
-			string typename = GetTypeName(type);
-			if (type.HasFields)
+			string typename = GetTypeFullFlatName(type.type);
+			if (type.fields.Count != 0)
 			{
 				WriteLine($"typedef struct {typename}");
 				WriteLine("{");
@@ -98,97 +96,92 @@ namespace IL2X.Core
 			WriteLine();
 		}
 
-		private void WriteTypeFieldMetadata(TypeDefinition type)
+		private void WriteTypeFieldMetadata(TypeJit type)
 		{
 			// TODO
 		}
 
-		private void WriteMethodSignature(MethodDefinition method)
+		private void WriteTypeMethodDefinition(TypeJit type)
 		{
-			Write(GetTypeReferenceName(method.ReturnType));
-			Write(" ");
-			Write(GetMethodName(method));
-			Write("(");
-			WriteMethodParameters(method);
-			Write(")");
-		}
-
-		private void WriteMethodParameters(MethodDefinition method)
-		{
-			if (method.HasThis)
-			{
-				Write(GetTypeName(method.DeclaringType));
-				Write("* self");
-				if (method.Parameters.Count != 0) Write(", ");
-			}
-
-			for (int i = 0; i != method.Parameters.Count; ++i)
-			{
-				var p = method.Parameters[i];
-				Write(GetTypeReferenceName(p.ParameterType));
-				Write(" ");
-				Write(p.Name);
-				if (i != method.Parameters.Count - 1) Write(", ");
-			}
-		}
-
-		private void WriteTypeMethodDefinition(TypeDefinition type)
-		{
-			foreach (var method in type.Methods)
+			foreach (var method in type.methods)
 			{
 				WriteMethodSignature(method);
 				WriteLine(";");
 			}
 		}
 
-		private void WriteTypeMethodImplementation(TypeDefinition type)
+		private void WriteMethodSignature(MethodJit method)
 		{
-			foreach (var method in type.Methods)
+			Write(GetTypeReferenceName(method.method.ReturnType));
+			Write(" ");
+			Write(GetMethodFullFlatName(method.method));
+			Write("(");
+			WriteMethodParameters(method);
+			Write(")");
+		}
+
+		private void WriteMethodParameters(MethodJit method)
+		{
+			if (method.method.HasThis)
+			{
+				Write(GetTypeFullFlatName(method.type.type));
+				Write("* self");
+				if (method.asmParameters.Count != 0) Write(", ");
+			}
+
+			for (int i = 0; i != method.asmParameters.Count; ++i)
+			{
+				var p = method.asmParameters[i];
+				Write(GetTypeReferenceName(p.parameter.ParameterType));
+				Write(" ");
+				Write(GetParameterName(p.parameter));
+				if (i != method.asmParameters.Count - 1) Write(", ");
+			}
+		}
+
+		private void WriteTypeMethodImplementation(TypeJit type)
+		{
+			foreach (var method in type.methods)
 			{
 				// load debug info if avaliable
-				activeMethodDebugInfo = null;
-				if (activeModule.symbolReader != null) activeMethodDebugInfo = activeModule.symbolReader.Read(method);
+				if (activeModule.module.symbolReader != null) activemethodDebugInfo = activeModule.module.symbolReader.Read(method.method);
 
 				// write method
 				WriteLine();
 				WriteMethodSignature(method);
 				WriteLine();
 				WriteLine("{");
-				AddTab();
-				WriteMethodLocals(method);
-				WriteMethodInstructions(method);
-				RemoveTab();
+				if (method.asmOperations != null && method.asmOperations.Count != 0)
+				{
+					AddTab();
+					WriteMethodLocals(method);
+					WriteMethodInstructions(method);
+					RemoveTab();
+				}
 				WriteLine("}");
 			}
 		}
 
-		private void WriteMethodLocals(MethodDefinition method)
+		private void WriteMethodLocals(MethodJit method)
 		{
-			foreach (var variable in method.Body.Variables)
+			foreach (var local in method.asmLocals)
 			{
-				WriteTab($"{GetTypeReferenceName(variable.VariableType)} {GetLocalVariableName(variable)}");
-				if (method.Body.InitLocals) Write(" = {0}");
+				WriteTab($"{GetTypeReferenceName(local.type)} {GetLocalVariableName(local.variable)}");
+				if (method.method.Body.InitLocals) Write(" = {0}");
 				WriteLine(";");
 			}
 		}
 
-		private void WriteMethodInstructions(MethodDefinition method)
+		private void WriteMethodInstructions(MethodJit method)
 		{
-			if (method.Body.Instructions.Count == 0) return;
-
-			// jit instruction logic
-			var methodJit = new MethodJit(method, activeModule);
-			methodJit.Optimize();
-
 			// write jit-generated locals
-			foreach (var local in methodJit.asmEvalLocals)
+			foreach (var local in method.asmEvalLocals)
 			{
-				if (local.type == GetTypeSystem().Void) continue;
-				WriteLineTab($"{GetTypeReferenceName(local.type)} {local.name};");
+				WriteLineTab($"{GetTypeReferenceName(local.type)} {GetLocalEvalVariableName(local.index)};");
 			}
 
 			// write instructions
-			foreach (var op in methodJit.asmOperations)
+			foreach (var op in method.asmOperations)
 			{
 				var resultLocal = op.GetResultLocal();
 				if (resultLocal != null && !IsVoidType(resultLocal.type))
@@ -211,16 +204,22 @@ namespace IL2X.Core
 				// ===================================
 				// variables
 				// ===================================
+				case ASMCode.Field:
+				{
+					var field = (ASMField)op;
+					return GetFieldFlatName(field.field);
+				}
+
 				case ASMCode.Local:
 				{
 					var local = (ASMLocal)op;
-					return local.name;
+					return GetLocalVariableName(local.variable);
 				}
 
 				case ASMCode.EvalStackLocal:
 				{
 					var local = (ASMEvalStackLocal)op;
-					return local.name;
+					return GetLocalEvalVariableName(local.index);
 				}
 
 				case ASMCode.ThisPtr:
@@ -231,7 +230,7 @@ namespace IL2X.Core
 				case ASMCode.Parameter:
 				{
 					var parameter = (ASMParameter)op;
-					return parameter.name;
+					return GetParameterName(parameter.parameter);
 				}
 
 				case ASMCode.PrimitiveLiteral:
@@ -244,6 +243,12 @@ namespace IL2X.Core
 				{
 					var primitive = (ASMStringLiteral)op;
 					return primitive.value;
+				}
+
+				case ASMCode.SizeOf:
+				{
+					var size = (ASMSizeOf)op;
+					return $"sizeof({GetTypeReferenceName(size.type)})";
 				}
 
 				// ===================================
@@ -279,7 +284,13 @@ namespace IL2X.Core
 				case ASMCode.WriteLocal:
 				{
 					var writeOp = (ASMWriteLocal)op;
-					return $"{GetOperationValue(writeOp.value)}";
+					return GetOperationValue(writeOp.value);
+				}
+
+				case ASMCode.WriteField:
+				{
+					var writeOp = (ASMWriteField)op;
+					return GetOperationValue(writeOp.value);
 				}
 
 				// ===================================
@@ -387,7 +398,7 @@ namespace IL2X.Core
 				{
 					var invokeOp = (ASMCallMethod)op;
 					var result = new StringBuilder();
-					result.Append($"{GetMethodName(invokeOp.method)}(");
+					result.Append($"{GetMethodFullFlatName(invokeOp.method)}(");
 					int count = 0;
 					foreach (var p in invokeOp.parameters)
 					{
@@ -405,7 +416,7 @@ namespace IL2X.Core
 
 		private TypeSystem GetTypeSystem()
 		{
-			return activeModule.cecilModule.TypeSystem;
+			return activeModule.module.cecilModule.TypeSystem;
 		}
 
 		private bool IsVoidType(TypeReference type)
@@ -413,32 +424,57 @@ namespace IL2X.Core
 			return type == GetTypeSystem().Void;
 		}
 
-		private static string GetScopeName(IMetadataScope scope)
+		public static string GetTypeFlatName(TypeReference type)
 		{
-			return scope.Name.Replace('.', '_');
+			return type.FullName.Replace('.', '_');
 		}
 
-		private static string GetTypeName(TypeReference type)
+		public static string GetTypeFullFlatName(TypeReference type)
 		{
-			return $"{GetScopeName(type.Scope)}_{type.FullName.Replace('.', '_')}";
+			return $"t_{AssemblyJit.GetFlatScopeName(type.Scope)}_{GetTypeFlatName(type)}";
 		}
 
 		private static string GetTypeReferenceName(TypeReference type)
 		{
-			string result = GetTypeName(type);
+			string result = GetTypeFullFlatName(type);
 			if (type.IsPointer) result += "*";
 			return result;
 		}
 
-		private static string GetMethodName(MethodReference method)
-		{
-			return $"{GetTypeName(method.DeclaringType)}_{method.Name.Replace('.', '_')}";
-		}
-
 		private string GetLocalVariableName(VariableDefinition variable)
 		{
-			if (activeMethodDebugInfo.TryGetName(variable, out string name)) return $"l_{name}";
-			return $"l_{variable.Index}";
+			if (activemethodDebugInfo.TryGetName(variable, out string name)) return "l_" + name;
+			return "l_" + variable.Index.ToString();
+		}
+
+		private string GetLocalEvalVariableName(int index)
+		{
+			return "le_" + index.ToString();
+		}
+
+		public static string GetFieldFlatName(FieldReference field)
+		{
+			return "f_" + field.Name;
+		}
+
+		public static string GetFieldFullFlatName(FieldReference field)
+		{
+			return $"f_{AssemblyJit.GetFlatScopeName(field.DeclaringType.Scope)}_{field.FullName}";
+		}
+
+		public static string GetParameterName(ParameterReference parameter)
+		{
+			return "p_" + parameter.Name;
+		}
+
+		public static string GetMethodFlatName(MethodReference method)
+		{
+			return method.Name.Replace('.', '_');
+		}
+
+		public static string GetMethodFullFlatName(MethodReference method)
+		{
+			return $"{GetTypeFullFlatName(method.DeclaringType)}_{method.Name.Replace('.', '_')}";
 		}
 
 		private string GetJumpIndexName(int jumpIndex)

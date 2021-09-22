@@ -7,6 +7,7 @@ namespace IL2X.Core
 {
 	public enum ASMCode
 	{
+		Field,
 		ThisPtr,
 		Local,
 		EvalStackLocal,
@@ -14,6 +15,8 @@ namespace IL2X.Core
 
 		PrimitiveLiteral,
 		StringLiteral,
+
+		SizeOf,
 
 		// arithmatic
 		Add,
@@ -23,6 +26,7 @@ namespace IL2X.Core
 
 		// writes
 		WriteLocal,
+		WriteField,
 
 		// branching
 		ReturnVoid,
@@ -60,7 +64,6 @@ namespace IL2X.Core
 
 	public abstract class IASMLocal : ASMObject
 	{
-		public virtual string name { get; set; }
 		public virtual TypeReference type { get; set; }
 
 		public IASMLocal(ASMCode code)
@@ -93,52 +96,69 @@ namespace IL2X.Core
 		public override TypeReference type => variable.VariableType;
 		public bool canInit;
 
-		public ASMLocal(VariableDefinition variable, string name, bool canInit)
+		public ASMLocal(VariableDefinition variable, bool canInit)
 		: base(ASMCode.Local)
 		{
 			this.variable = variable;
-			this.name = name;
 			this.canInit = canInit;
 		}
 
 		public override string ToString()
 		{
-			return "ASMLocal: " + name;
+			return "ASMLocal: " + variable.Index.ToString();
 		}
 	}
 
 	public class ASMEvalStackLocal : IASMLocal
 	{
 		public int refCount = 1;
+		public int index;
 
-		public ASMEvalStackLocal(TypeReference type, string name)
+		public ASMEvalStackLocal(TypeReference type, int index)
 		: base(ASMCode.EvalStackLocal)
 		{
 			this.type = type;
-			this.name = name;
+			this.index = index;
 		}
 
 		public override string ToString()
 		{
-			return "ASMEvalStackLocal: " + name;
+			return "ASMEvalStackLocal: " + index.ToString();
 		}
 	}
 
 	public class ASMParameter : ASMObject
 	{
-		public ParameterDefinition parameter;
-		public string name;
+		public ParameterReference parameter;
 
-		public ASMParameter(ParameterDefinition parameter, string name)
+		public ASMParameter(ParameterReference parameter)
 		: base(ASMCode.Parameter)
 		{
 			this.parameter = parameter;
-			this.name = name;
 		}
 
 		public override string ToString()
 		{
-			return "ASMLocal: " + name;
+			return "ASMParameter: " + parameter.Name;
+		}
+	}
+
+	public class ASMField : ASMObject
+	{
+		public object self;
+		public FieldReference field;
+		public TypeReference type => field.FieldType;
+
+		public ASMField(object self, FieldReference field)
+		: base(ASMCode.Field)
+		{
+			this.self = self;
+			this.field = field;
+		}
+
+		public override string ToString()
+		{
+			return "ASMField: " + field.Name;
 		}
 	}
 
@@ -266,6 +286,19 @@ namespace IL2X.Core
 		public override void SetResultLocal(IASMLocal local) => resultLocal = (ASMLocal)local;
 	}
 
+	public class ASMWriteField : ASMObject
+	{
+		public ASMField resultField;
+		public ASMObject value;
+
+		public ASMWriteField(ASMField resultField, ASMObject value)
+		: base(ASMCode.WriteField)
+		{
+			this.resultField = resultField;
+			this.value = value;
+		}
+	}
+
 	public class ASMReturnValue : ASMObject
 	{
 		public ASMObject value;
@@ -274,6 +307,38 @@ namespace IL2X.Core
 		: base(ASMCode.ReturnValue)
 		{
 			this.value = value;
+		}
+	}
+
+	public class ASMSizeOf : ASMObject
+	{
+		public TypeReference type;
+
+		public ASMSizeOf(TypeReference type)
+		: base(ASMCode.SizeOf)
+		{
+			this.type = type;
+		}
+
+		public int GetAgnosticJitValue(int pointerSize)
+		{
+			if (type is PointerType) return pointerSize;
+			if (type.IsPrimitive)
+			{
+				switch (type.MetadataType)
+				{
+					case MetadataType.Boolean: return sizeof(bool);
+					case MetadataType.SByte: return sizeof(SByte);
+					case MetadataType.Byte: return sizeof(Byte);
+					case MetadataType.Char: return sizeof(char);
+					case MetadataType.Int16: return sizeof(Int16);
+					case MetadataType.Int32: return sizeof(Int32);
+					case MetadataType.Int64: return sizeof(Int64);
+					case MetadataType.Single: return sizeof(Single);
+					case MetadataType.Double: return sizeof(Double);
+				}
+			}
+			throw new NotImplementedException("Unknown Jit size for type: " + type.ToString());
 		}
 	}
 }

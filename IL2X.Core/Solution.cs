@@ -23,8 +23,8 @@ namespace IL2X.Core
 		public Assembly mainAssembly, coreAssembly;
 		public List<Assembly> assemblies;
 
-		public AssemblyJit mainProject, coreProject;
-		public List<AssemblyJit> projects;
+		public AssemblyJit mainAssemblyJit, coreAssemblyJit;
+		public List<AssemblyJit> assemblyJits;
 
 		public Solution(Type type, string dllPath)
 		{
@@ -64,8 +64,23 @@ namespace IL2X.Core
 
 		public void Jit()
 		{
-			projects = new List<AssemblyJit>();
-			mainProject = new AssemblyJit(this, mainAssembly);
+			assemblyJits = new List<AssemblyJit>();
+			mainAssemblyJit = new AssemblyJit(this, mainAssembly);
+		}
+
+		public void Optimize()
+		{
+			if (!mainAssemblyJit.optimized) mainAssemblyJit.Optimize();
+		}
+
+		public TypeJit FindJitTypeRecursive(TypeDefinition type)
+		{
+			return mainAssemblyJit.FindJitTypeRecursive(type);
+		}
+
+		public FieldJit FindJitFieldRecursive(FieldDefinition field)
+		{
+			return mainAssemblyJit.FindJitFieldRecursive(field);
 		}
 	}
 }
