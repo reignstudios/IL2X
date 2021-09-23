@@ -184,9 +184,15 @@ namespace IL2X.Core.Translators
 			foreach (var op in method.asmOperations)
 			{
 				var resultLocal = op.GetResultLocal();
+				var resultField = op.GetResultField();
 				if (resultLocal != null && !IsVoidType(resultLocal.type))
 				{
 					WriteTab($"{GetOperationValue(resultLocal)} = ");
+					Write(GetOperationValue(op));
+				}
+				else if (resultField != null)
+				{
+					WriteTab($"{GetOperationValue(resultField)} = ");
 					Write(GetOperationValue(op));
 				}
 				else
@@ -206,8 +212,17 @@ namespace IL2X.Core.Translators
 				// ===================================
 				case ASMCode.Field:
 				{
+					string result;
 					var field = (ASMField)op;
-					return GetFieldFlatName(field.field);
+					if (field.self is ASMThisPtr)
+					{
+						result = "self->";
+					}
+					else
+					{
+						throw new Exception("Unsupported field accesor: " + field.self.ToString());
+					}
+					return result + GetFieldFlatName(field.field);
 				}
 
 				case ASMCode.Local:

@@ -54,6 +54,7 @@ namespace IL2X.Core
 	{
 		public readonly ASMCode code;
 		public virtual IASMLocal GetResultLocal() => null;
+		public virtual ASMField GetResultField() => null;
 		public virtual void SetResultLocal(IASMLocal local) => throw new NotSupportedException();
 
 		public ASMObject(ASMCode code)
@@ -297,6 +298,8 @@ namespace IL2X.Core
 			this.resultField = resultField;
 			this.value = value;
 		}
+
+		public override ASMField GetResultField() => resultField;
 	}
 
 	public class ASMReturnValue : ASMObject

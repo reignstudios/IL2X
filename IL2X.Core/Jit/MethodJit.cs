@@ -451,6 +451,7 @@ namespace IL2X.Core.Jit
 
 			// variables
 			if (obj is ASMField) return (ASMField)obj;
+			if (obj is ASMThisPtr) return (ASMThisPtr)obj;
 			if (obj is ASMEvalStackLocal) return (ASMEvalStackLocal)obj;
 			if (obj == method.DeclaringType) return ASMThisPtr.handle;
 			if (obj is VariableReference) return asmLocals.First(x => x.variable == obj);
@@ -473,7 +474,7 @@ namespace IL2X.Core.Jit
 		{
 			if (index == 0 && method.HasThis)
 			{
-				StackPush(op, method.DeclaringType);
+				StackPush(op, new ASMThisPtr());
 			}
 			else
 			{
