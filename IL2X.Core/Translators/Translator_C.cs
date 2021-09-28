@@ -213,7 +213,7 @@ namespace IL2X.Core.Translators
 				case ASMCode.Field:
 				{
 					var fieldOp = (ASMField)op;
-					string result = string.Empty;
+					string result = GetFieldName(fieldOp.field);
 					ASMObject accessorOp = op;
 					while (true)
 					{
@@ -237,7 +237,7 @@ namespace IL2X.Core.Translators
 							throw new Exception("Unsupported field accesor: " + field.self.ToString());
 						}
 
-						return result + GetFieldName(fieldOp.field);
+						return result;
 					}
 				}
 
