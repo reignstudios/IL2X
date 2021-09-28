@@ -212,17 +212,33 @@ namespace IL2X.Core.Translators
 				// ===================================
 				case ASMCode.Field:
 				{
-					string result;
-					var field = (ASMField)op;
-					if (field.self is ASMThisPtr)
+					var fieldOp = (ASMField)op;
+					string result = string.Empty;
+					ASMObject accessorOp = op;
+					while (true)
 					{
-						result = "self->";
+						var field = (ASMField)accessorOp;
+						if (field.self is ASMThisPtr)
+						{
+							return "self->" + result;
+						}
+						else if (field.self is ASMField f)
+						{
+							result = GetFieldName(f.field) + GetTypeReferenceMemberAccessor(f.field.FieldType) + result;
+							accessorOp = f;
+							continue;
+						}
+						else if (field.self is ParameterReference p)
+						{
+							result = GetParameterName(p) + GetTypeReferenceMemberAccessor(p.ParameterType) + result;
+						}
+						else
+						{
+							throw new Exception("Unsupported field accesor: " + field.self.ToString());
+						}
+
+						return result + GetFieldName(fieldOp.field);
 					}
-					else
-					{
-						throw new Exception("Unsupported field accesor: " + field.self.ToString());
-					}
-					return result + GetFieldFlatName(field.field);
 				}
 
 				case ASMCode.Local:
@@ -449,11 +465,20 @@ namespace IL2X.Core.Translators
 			return $"t_{AssemblyJit.GetFlatScopeName(type.Scope)}_{GetTypeFlatName(type)}";
 		}
 
-		private static string GetTypeReferenceName(TypeReference type)
+		private string GetTypeReferenceName(TypeReference type)
 		{
 			string result = GetTypeFullFlatName(type);
-			if (type.IsPointer) result += "*";
+			if (!IsVoidType(type))
+			{
+				if (type.IsPointer || type.IsByReference || !type.IsValueType) result += "*";
+			}
 			return result;
+		}
+
+		private static string GetTypeReferenceMemberAccessor(TypeReference type)
+		{
+			if (type.IsPointer || type.IsByReference || !type.IsValueType) return "->";
+			return ".";
 		}
 
 		private string GetLocalVariableName(VariableDefinition variable)
@@ -467,12 +492,12 @@ namespace IL2X.Core.Translators
 			return "le_" + index.ToString();
 		}
 
-		public static string GetFieldFlatName(FieldReference field)
+		public static string GetFieldName(FieldReference field)
 		{
 			return "f_" + field.Name;
 		}
 
-		public static string GetFieldFullFlatName(FieldReference field)
+		public static string GetFieldFullName(FieldReference field)
 		{
 			return $"f_{AssemblyJit.GetFlatScopeName(field.DeclaringType.Scope)}_{field.FullName}";
 		}

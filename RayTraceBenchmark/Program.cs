@@ -2,6 +2,9 @@
 {
 	public class Program
 	{
+		private Program p;
+		private int i;
+
 		static void Main()
 		{
 			int a = Foo(123);
@@ -20,6 +23,11 @@
 		static int Foo(int value)
 		{
 			return value + 1;
+		}
+
+		static void Foo(Program value)
+		{
+			value.p.i = 123;
 		}
 	}
 }
