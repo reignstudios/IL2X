@@ -1,5 +1,15 @@
 ﻿namespace RayTraceBenchmark
 {
+	class MyGeneric<T>
+	{
+		public T t;
+
+		public class NestedClass
+		{
+			public int i;
+		}
+	}
+
 	public class Program
 	{
 		private Program p;
@@ -28,6 +38,11 @@
 		static void Foo(Program value)
 		{
 			value.p.i = 123;
+		}
+
+		static void FooGeneric(MyGeneric<int> wow, MyGeneric<int>.NestedClass nested)
+		{
+
 		}
 	}
 }

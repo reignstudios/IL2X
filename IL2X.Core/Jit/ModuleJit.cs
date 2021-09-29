@@ -18,7 +18,10 @@ namespace IL2X.Core.Jit
 		{
 			this.assembly = assembly;
 			this.module = module;
+		}
 
+		internal void Jit()
+		{
 			// jit dependencies first
 			assemblyReferences = new List<AssemblyJit>();
 			foreach (var assemblyRef in module.assemblyReferences)
@@ -32,6 +35,7 @@ namespace IL2X.Core.Jit
 				{
 					var assemblyJit = new AssemblyJit(assembly.solution, assemblyRef);
 					assemblyReferences.Add(assemblyJit);
+					assemblyJit.Jit();
 				}
 			}
 
@@ -43,8 +47,10 @@ namespace IL2X.Core.Jit
 			foreach (var type in module.cecilModule.Types)
 			{
 				if (IsModuleType(type)) continue;// skip auto-generated module type
-				var typeJit = new TypeJit(type, this);
+				if (type.HasGenericParameters) continue;// don't JIT generic definition types
+				var typeJit = new TypeJit(type, type, this);
 				allTypes.Add(typeJit);
+				typeJit.Jit();
 			}
 		}
 
@@ -63,6 +69,21 @@ namespace IL2X.Core.Jit
 			}
 		}
 
+		public ModuleJit FindJitModuleRecursive(ModuleDefinition module)
+		{
+			// check if we match
+			if (module == this.module.cecilModule) return this;
+
+			// search references
+			foreach (var assemblyRef in assemblyReferences)
+			{
+				var result = assemblyRef.FindJitModuleRecursive(module);
+				if (result != null) return result;
+			}
+
+			return null;
+		}
+
 		public TypeJit FindJitTypeRecursive(TypeDefinition type)
 		{
 			// search references first
@@ -75,8 +96,8 @@ namespace IL2X.Core.Jit
 			// search types
 			foreach (var t in allTypes)
 			{
-				if (t.type == type) return t;
-				if (t.type.Scope.Name == type.Scope.Name && t.type.FullName == type.FullName) return t;
+				if (t.typeDefinition == type) return t;
+				if (t.typeDefinition.Scope.Name == type.Scope.Name && t.typeDefinition.FullName == type.FullName) return t;
 			}
 
 			return null;

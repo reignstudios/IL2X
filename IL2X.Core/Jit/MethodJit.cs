@@ -27,11 +27,21 @@ namespace IL2X.Core.Jit
 		{
 			this.method = method;
 			this.type = type;
+		}
 
+		internal void Jit()
+		{
 			// add parameters
 			asmParameters = new List<ASMParameter>();
 			foreach (var parameter in method.Parameters)
 			{
+				if (parameter.ParameterType.IsGenericInstance)
+				{
+					var declaringModule = type.module.assembly.solution.FindJitModuleRecursive(parameter.ParameterType.Module);
+					if (declaringModule == null) throw new Exception("Failed to find declaring module for generic type: " + parameter.ParameterType.FullName);
+					var t = new TypeJit(null, parameter.ParameterType, declaringModule);
+					t.Jit();
+				}
 				asmParameters.Add(new ASMParameter(parameter));
 			}
 

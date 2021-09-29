@@ -46,7 +46,7 @@ namespace IL2X.Core.Translators
 
 		public static string FormatTypeFilename(string filename)
 		{
-			return filename.Replace('.', '_');
+			return filename.Replace('.', '_').Replace('`', '_').Replace('<', '_').Replace('>', '_').Replace('/', '_');
 		}
 	}
 }

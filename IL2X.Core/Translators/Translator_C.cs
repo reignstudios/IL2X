@@ -36,7 +36,7 @@ namespace IL2X.Core.Translators
 			// write header file
 			foreach (var type in module.allTypes)
 			{
-				string filename = FormatTypeFilename(type.type.FullName);
+				string filename = FormatTypeFilename(type.typeReference.FullName);
 				using (var stream = new FileStream(Path.Combine(outputDirectory, filename) + ".h", FileMode.Create, FileAccess.Write, FileShare.Read))
 				using (var writer = new StreamWriter(stream))
 				{
@@ -56,7 +56,7 @@ namespace IL2X.Core.Translators
 			// write code file
 			foreach (var type in module.allTypes)
 			{
-				string filename = FormatTypeFilename(type.type.FullName);
+				string filename = FormatTypeFilename(type.typeReference.FullName);
 				using (var stream = new FileStream(Path.Combine(outputDirectory, filename) + ".c", FileMode.Create, FileAccess.Write, FileShare.Read))
 				using (var writer = new StreamWriter(stream))
 				{
@@ -81,7 +81,7 @@ namespace IL2X.Core.Translators
 
 		private void WriteTypeDefinition(TypeJit type)
 		{
-			string typename = GetTypeFullFlatName(type.type);
+			string typename = GetTypeFullFlatName(type.typeReference);
 			if (type.fields.Count != 0)
 			{
 				WriteLine($"typedef struct {typename}");
@@ -124,7 +124,7 @@ namespace IL2X.Core.Translators
 		{
 			if (method.method.HasThis)
 			{
-				Write(GetTypeFullFlatName(method.type.type));
+				Write(GetTypeFullFlatName(method.type.typeReference));
 				Write("* self");
 				if (method.asmParameters.Count != 0) Write(", ");
 			}
@@ -457,7 +457,9 @@ namespace IL2X.Core.Translators
 
 		public static string GetTypeFlatName(TypeReference type)
 		{
-			return type.FullName.Replace('.', '_');
+			string result = type.FullName.Replace('.', '_').Replace('`', '_').Replace('<', '_').Replace('>', '_').Replace('/', '_');
+			if (type.IsGenericInstance) result = "g_" + result;
+			return result;
 		}
 
 		public static string GetTypeFullFlatName(TypeReference type)

@@ -66,11 +66,17 @@ namespace IL2X.Core
 		{
 			assemblyJits = new List<AssemblyJit>();
 			mainAssemblyJit = new AssemblyJit(this, mainAssembly);
+			mainAssemblyJit.Jit();
 		}
 
 		public void Optimize()
 		{
 			if (!mainAssemblyJit.optimized) mainAssemblyJit.Optimize();
+		}
+
+		public ModuleJit FindJitModuleRecursive(ModuleDefinition module)
+		{
+			return mainAssemblyJit.FindJitModuleRecursive(module);
 		}
 
 		public TypeJit FindJitTypeRecursive(TypeDefinition type)

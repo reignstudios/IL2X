@@ -19,12 +19,16 @@ namespace IL2X.Core.Jit
 			this.solution = solution;
 			this.assembly = assembly;
 			solution.assemblyJits.Add(this);
+		}
 
-			// jit modules
+		public void Jit()
+		{
 			modules = new List<ModuleJit>();
 			foreach (var module in assembly.modules)
 			{
-				modules.Add(new ModuleJit(this, module));
+				var m = new ModuleJit(this, module);
+				modules.Add(m);
+				m.Jit();
 			}
 		}
 
@@ -36,6 +40,17 @@ namespace IL2X.Core.Jit
 			{
 				module.Optimize();
 			}
+		}
+
+		public ModuleJit FindJitModuleRecursive(ModuleDefinition module)
+		{
+			foreach (var moduleJit in modules)
+			{
+				var result = moduleJit.FindJitModuleRecursive(module);
+				if (result != null) return result;
+			}
+
+			return null;
 		}
 
 		public TypeJit FindJitTypeRecursive(TypeDefinition type)

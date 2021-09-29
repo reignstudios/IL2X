@@ -20,7 +20,7 @@ namespace IL2X.CLR
 			{
 				solution.ReLoad();
 				solution.Jit();
-				solution.Optimize();
+				//solution.Optimize();
 
 				var translator = new Translator_C(solution);
 				translator.Translate(Path.Combine(path, "Debug/net5.0/IL2X_Output").Replace('/', Path.DirectorySeparatorChar));

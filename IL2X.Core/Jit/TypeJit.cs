@@ -9,40 +9,59 @@ namespace IL2X.Core.Jit
 {
 	public class TypeJit
 	{
-		public readonly TypeDefinition type;
+		public readonly bool isGeneric;
+		public readonly TypeDefinition typeDefinition;
+		public readonly TypeReference typeReference;
+		public readonly IGenericInstance genericTypeReference;
 		public readonly ModuleJit module;
 		public List<FieldJit> fields;
 		public List<MethodJit> methods;
 
-		public TypeJit(TypeDefinition type, ModuleJit module)
+		public TypeJit(TypeDefinition typeDefinition, TypeReference typeReference, ModuleJit module)
 		{
-			this.type = type;
+			// resolve definition if needed
+			if (typeDefinition == null)
+			{
+				typeDefinition = typeReference.Resolve();
+				if (typeDefinition == null) throw new Exception("Type could not be reolved: " + typeReference.FullName);
+			}
+
+			isGeneric = typeDefinition.HasGenericParameters;
+			this.typeDefinition = typeDefinition;
+			this.typeReference = typeReference;
+			genericTypeReference = typeReference as IGenericInstance;
 			this.module = module;
 
 			// add to module
 			module.allTypes.Add(this);
-			if (type.IsValueType) module.structTypes.Add(this);
-			else if (type.IsEnum) module.enumTypes.Add(this);
+			if (typeDefinition.IsValueType) module.structTypes.Add(this);
+			else if (typeDefinition.IsEnum) module.enumTypes.Add(this);
 			else module.classTypes.Add(this);
+		}
 
+		internal void Jit()
+		{
 			// jit fields
 			fields = new List<FieldJit>();
-			foreach (var field in type.Fields)
+			foreach (var field in typeDefinition.Fields)
 			{
-				var fieldJit = new FieldJit(field, type);
+				var fieldJit = new FieldJit(field, this);
 				fields.Add(fieldJit);
+				fieldJit.Jit();
 			}
 
 			// jit methods
 			methods = new List<MethodJit>();
-			foreach (var method in type.Methods)
+			foreach (var method in typeDefinition.Methods)
 			{
+				if (method.HasGenericParameters) continue;// don't JIT generic definition methods
 				var methodJit = new MethodJit(method, module.module, this);
 				methods.Add(methodJit);
+				methodJit.Jit();
 			}
 		}
 
-		public void Optimize()
+		internal void Optimize()
 		{
 			foreach (var method in methods)
 			{
