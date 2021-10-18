@@ -5,7 +5,19 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Include="..\IL2X.CoreLib\IL2X\NativeExternAttribute.cs" Link="CoreLibRef\NativeExternAttribute.cs" />
+    <Compile Include="..\IL2X.CoreLib\IL2X\NativeStringParamAttribute.cs" Link="CoreLibRef\NativeStringParamAttribute.cs" />
+    <Compile Include="..\IL2X.CoreLib\IL2X\NativeStringType.cs" Link="CoreLibRef\NativeStringType.cs" />
+    <Compile Include="..\IL2X.CoreLib\IL2X\NativeTarget.cs" Link="CoreLibRef\NativeTarget.cs" />
+    <Compile Include="..\IL2X.CoreLib\IL2X\NativeTypeAttribute.cs" Link="CoreLibRef\NativeTypeAttribute.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Mono.Cecil" Version="0.11.4" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="CoreLibRef\" />
   </ItemGroup>
 
 </Project>

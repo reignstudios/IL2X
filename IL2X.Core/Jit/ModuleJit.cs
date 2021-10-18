@@ -18,6 +18,7 @@ namespace IL2X.Core.Jit
 		{
 			this.assembly = assembly;
 			this.module = module;
+			assembly.modules.Add(this);
 		}
 
 		internal void Jit()
@@ -49,7 +50,6 @@ namespace IL2X.Core.Jit
 				if (IsModuleType(type)) continue;// skip auto-generated module type
 				if (type.HasGenericParameters) continue;// don't JIT generic definition types
 				var typeJit = new TypeJit(type, type, this);
-				allTypes.Add(typeJit);
 				typeJit.Jit();
 			}
 		}
@@ -96,8 +96,7 @@ namespace IL2X.Core.Jit
 			// search types
 			foreach (var t in allTypes)
 			{
-				if (t.typeDefinition == type) return t;
-				if (t.typeDefinition.Scope.Name == type.Scope.Name && t.typeDefinition.FullName == type.FullName) return t;
+				if (TypeJit.TypesEqual(t.typeDefinition, type)) return t;
 			}
 
 			return null;

@@ -3,10 +3,19 @@
 	class MyGeneric<T>
 	{
 		public T t;
+		//NestedClass n;
 
 		public class NestedClass
 		{
 			public int i;
+			MyGeneric<T> n;
+		}
+
+		public MyGeneric(T t)
+		{
+			this.t = t;
+			T localT = default;
+			this.t = localT;
 		}
 	}
 

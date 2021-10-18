@@ -27,6 +27,7 @@ namespace IL2X.Core
 		// writes
 		WriteLocal,
 		WriteField,
+		InitObject,
 
 		// branching
 		ReturnVoid,
@@ -300,6 +301,17 @@ namespace IL2X.Core
 		}
 
 		public override ASMField GetResultField() => resultField;
+	}
+
+	public class ASMInitObject : ASMObject
+	{
+		public ASMObject obj;
+
+		public ASMInitObject(ASMObject obj)
+		: base(ASMCode.InitObject)
+		{
+			this.obj = obj;
+		}
 	}
 
 	public class ASMReturnValue : ASMObject

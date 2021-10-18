@@ -1,5 +1,8 @@
+using IL2X;
+
 namespace System
 {
+	[NativeType(NativeTarget.C, "int8_t", "stdint.h")]
 	public readonly struct SByte
 	{
 		/*public const SByte MaxValue = 127;

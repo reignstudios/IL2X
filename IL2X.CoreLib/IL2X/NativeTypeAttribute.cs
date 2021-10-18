@@ -8,7 +8,7 @@ namespace IL2X
 		public readonly NativeTarget target;
 		public readonly string typeName;
 
-		public NativeTypeAttribute(NativeTarget target, string typeName = null)
+		public NativeTypeAttribute(NativeTarget target, string typeName, params string[] dependencyIncludes)
 		{
 			this.target = target;
 			this.typeName = typeName;

@@ -44,11 +44,10 @@ namespace IL2X.Core.Translators
 
 					// write standard header
 					WriteLine("#pragma once");
-					WriteHackDefines();// TODO: REMOVE: for testing only!!!
-					WriteLine();
 
 					// write type
 					WriteTypeDefinition(type);
+					WriteLine();
 					WriteTypeMethodDefinition(type);
 				}
 			}
@@ -64,6 +63,7 @@ namespace IL2X.Core.Translators
 
 					// write type field metadata
 					WriteLine($"#include \"{filename}.h\"");
+					IncludeSTD(type);
 
 					// write type method metadata
 					WriteTypeMethodImplementation(type);
@@ -71,34 +71,108 @@ namespace IL2X.Core.Translators
 			}
 		}
 
-		private void WriteHackDefines()
+		private void IncludeSTD(TypeJit type)
 		{
-			WriteLine("#include <stdint.h>");
-			WriteLine("#define t_System_Private_CoreLib_System_Void void");
-			WriteLine("#define t_System_Private_CoreLib_System_Int32 int32_t");
-			WriteLine("#define t_System_Private_CoreLib_System_Boolean int8_t");
+			foreach (var method in type.methods)
+			{
+				if (method.asmOperations == null) continue;
+				foreach (var op in method.asmOperations)
+				{
+					if (op.code == ASMCode.InitObject)
+					{
+						WriteLine("#include <stdio.h>");
+						break;
+					}
+				}
+			}
 		}
 
 		private void WriteTypeDefinition(TypeJit type)
 		{
-			string typename = GetTypeFullFlatName(type.typeReference);
-			if (type.fields.Count != 0)
+			// include native dependencies or get native type name
+			string nativeTypeName = null;
+			if (type.typeDefinition.HasCustomAttributes)
 			{
-				WriteLine($"typedef struct {typename}");
-				WriteLine("{");
-				WriteTypeFieldMetadata(type);
-				Write($"}} {typename};");
+				foreach (var a in type.typeDefinition.CustomAttributes)
+				{
+					if (a.AttributeType.FullName == "IL2X.NativeTypeAttribute")
+					{
+						var args = a.ConstructorArguments;
+						var arg1 = (NativeTarget)args[0].Value;
+						if (arg1 == NativeTarget.C)
+						{
+							nativeTypeName = (string)args[1].Value;
+							var arg3 = (CustomAttributeArgument[])args[2].Value;
+							foreach (var p in arg3)
+							{
+								var pVal = (string)p.Value;
+								WriteLine($"#include <{pVal}>");
+							}
+						}
+					}
+				}
+			}
+
+			// include dependencies
+			foreach (var d in type.dependencies)
+			{
+				char s = Path.DirectorySeparatorChar;
+				if (d.Scope != type.typeReference.Scope) WriteLine($"#include \"..{s}{GetScopeName(d.Scope)}{s}{FormatTypeFilename(d.FullName)}.h\"");
+				else WriteLine($"#include \"{FormatTypeFilename(d.FullName)}.h\"");
+			}
+
+			// write type
+			string typename = GetTypeFullName(type.typeReference);
+			if (nativeTypeName != null)
+			{
+				WriteLine($"#define {typename} {nativeTypeName}");
+			}
+			else if (type.typeDefinition.IsEnum)
+			{
+				var field = type.typeDefinition.Fields[0];
+				WriteLine($"#define {typename} {GetTypeFullName(field.FieldType)}");
 			}
 			else
 			{
-				WriteLine($"#define {typename} void");
+				if (type.fields.Count != 0)
+				{
+					WriteLine($"typedef struct {typename} {typename};");
+					WriteLine($"struct {typename}");
+					WriteLine("{");
+					AddTab();
+					WriteTypeNonStaticFieldDefinition(type);
+					RemoveTab();
+					Write("};");
+				}
+				else
+				{
+					WriteLine($"#define {typename} void");
+				}
+
+				WriteLine();
+				WriteLine();
+				WriteTypeStaticFieldDefinition(type);
 			}
 			WriteLine();
 		}
 
-		private void WriteTypeFieldMetadata(TypeJit type)
+		private void WriteTypeNonStaticFieldDefinition(TypeJit type)
 		{
-			// TODO
+			foreach (var field in type.fields)
+			{
+				if (field.field.IsStatic) continue;
+				WriteTab(GetTypeReferenceName(field.resolvedFieldType));
+				WriteLine($" {GetFieldName(field.field)};");
+			}
+		}
+
+		private void WriteTypeStaticFieldDefinition(TypeJit type)
+		{
+			foreach (var field in type.fields)
+			{
+				if (!field.field.IsStatic) continue;
+				WriteLineTab($"{GetTypeReferenceName(field.resolvedFieldType)} {GetFieldFullName(field.field)};");
+			}
 		}
 
 		private void WriteTypeMethodDefinition(TypeJit type)
@@ -114,7 +188,7 @@ namespace IL2X.Core.Translators
 		{
 			Write(GetTypeReferenceName(method.method.ReturnType));
 			Write(" ");
-			Write(GetMethodFullFlatName(method.method));
+			Write(GetMethodName(method.method));
 			Write("(");
 			WriteMethodParameters(method);
 			Write(")");
@@ -124,7 +198,7 @@ namespace IL2X.Core.Translators
 		{
 			if (method.method.HasThis)
 			{
-				Write(GetTypeFullFlatName(method.type.typeReference));
+				Write(GetTypeFullName(method.type.typeReference));
 				Write("* self");
 				if (method.asmParameters.Count != 0) Write(", ");
 			}
@@ -324,6 +398,13 @@ namespace IL2X.Core.Translators
 					return GetOperationValue(writeOp.value);
 				}
 
+				case ASMCode.InitObject:
+				{
+					var writeOp = (ASMInitObject)op;
+					var o = GetOperationValue(writeOp.obj);
+					return $"memset({o}, 0, sizeof({o}))";
+				}
+
 				// ===================================
 				// branching
 				// ===================================
@@ -429,7 +510,7 @@ namespace IL2X.Core.Translators
 				{
 					var invokeOp = (ASMCallMethod)op;
 					var result = new StringBuilder();
-					result.Append($"{GetMethodFullFlatName(invokeOp.method)}(");
+					result.Append($"{GetMethodName(invokeOp.method)}(");
 					int count = 0;
 					foreach (var p in invokeOp.parameters)
 					{
@@ -455,24 +536,31 @@ namespace IL2X.Core.Translators
 			return type == GetTypeSystem().Void;
 		}
 
-		public static string GetTypeFlatName(TypeReference type)
+		public static string GetTypeName(TypeReference type)
 		{
 			string result = type.FullName.Replace('.', '_').Replace('`', '_').Replace('<', '_').Replace('>', '_').Replace('/', '_');
+			if (type.IsArray) result = result.Replace("[]", "");
 			if (type.IsGenericInstance) result = "g_" + result;
 			return result;
 		}
 
-		public static string GetTypeFullFlatName(TypeReference type)
+		public static string GetTypeFullName(TypeReference type)
 		{
-			return $"t_{AssemblyJit.GetFlatScopeName(type.Scope)}_{GetTypeFlatName(type)}";
+			return $"t_{GetScopeName(type.Scope)}_{GetTypeName(type)}";
 		}
 
 		private string GetTypeReferenceName(TypeReference type)
 		{
-			string result = GetTypeFullFlatName(type);
+			string result = GetTypeFullName(type);
 			if (!IsVoidType(type))
 			{
-				if (type.IsPointer || type.IsByReference || !type.IsValueType) result += "*";
+				while (!type.IsValueType)
+				{
+					result += "*";
+					var lastType = type;
+					type = type.GetElementType();
+					if (type == lastType) break;
+				}
 			}
 			return result;
 		}
@@ -486,7 +574,7 @@ namespace IL2X.Core.Translators
 		private string GetLocalVariableName(VariableDefinition variable)
 		{
 			if (activemethodDebugInfo.TryGetName(variable, out string name)) return "l_" + name;
-			return "l_" + variable.Index.ToString();
+			return "l_" + variable.GetHashCode().ToString();//variable.Index.ToString();
 		}
 
 		private string GetLocalEvalVariableName(int index)
@@ -494,29 +582,25 @@ namespace IL2X.Core.Translators
 			return "le_" + index.ToString();
 		}
 
-		public static string GetFieldName(FieldReference field)
+		private static string GetFieldName(FieldReference field)
 		{
-			return "f_" + field.Name;
+			return "f_" + field.Name.Replace('<', '_').Replace('>', '_');
 		}
 
-		public static string GetFieldFullName(FieldReference field)
+		private static string GetFieldFullName(FieldDefinition field)
 		{
-			return $"f_{AssemblyJit.GetFlatScopeName(field.DeclaringType.Scope)}_{field.FullName}";
+			return $"f_{GetScopeName(field.DeclaringType.Scope)}_{field.FullName}".Replace('.', '_').Replace(' ', '_').Replace("::", "_");
 		}
 
-		public static string GetParameterName(ParameterReference parameter)
+		private static string GetParameterName(ParameterReference parameter)
 		{
 			return "p_" + parameter.Name;
 		}
 
-		public static string GetMethodFlatName(MethodReference method)
+		private static string GetMethodName(MethodReference method)
 		{
-			return method.Name.Replace('.', '_');
-		}
-
-		public static string GetMethodFullFlatName(MethodReference method)
-		{
-			return $"{GetTypeFullFlatName(method.DeclaringType)}_{method.Name.Replace('.', '_')}";
+			int overload = GetMethodOverloadIndex(method);
+			return $"{GetTypeFullName(method.DeclaringType)}_{method.Name.Replace('.', '_')}_{overload}";
 		}
 
 		private string GetJumpIndexName(int jumpIndex)

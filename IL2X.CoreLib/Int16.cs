@@ -1,5 +1,8 @@
+using IL2X;
+
 namespace System
 {
+	[NativeType(NativeTarget.C, "int16_t", "stdint.h")]
 	public readonly struct Int16
 	{
 		/*public const Int16 MaxValue = 32767;

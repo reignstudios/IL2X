@@ -27,7 +27,6 @@ namespace IL2X.Core.Jit
 			foreach (var module in assembly.modules)
 			{
 				var m = new ModuleJit(this, module);
-				modules.Add(m);
 				m.Jit();
 			}
 		}
@@ -73,11 +72,6 @@ namespace IL2X.Core.Jit
 			}
 
 			return null;
-		}
-
-		public static string GetFlatScopeName(IMetadataScope scope)
-		{
-			return scope.Name.Replace('.', '_');
 		}
 	}
 }

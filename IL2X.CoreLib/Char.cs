@@ -1,5 +1,8 @@
+using IL2X;
+
 namespace System
 {
+	[NativeType(NativeTarget.C, "uint16_t", "stdint.h")]
 	public readonly struct Char
 	{
 		/*public const Char MaxValue = '\uffff';

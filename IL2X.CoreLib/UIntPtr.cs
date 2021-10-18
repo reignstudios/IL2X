@@ -1,7 +1,9 @@
 ﻿using System.Runtime.CompilerServices;
+using IL2X;
 
 namespace System
 {
+	[NativeType(NativeTarget.C, "intptr_t", "stdint.h")]
 	public struct UIntPtr
 	{
 		/*public static readonly UIntPtr Zero = new UIntPtr();

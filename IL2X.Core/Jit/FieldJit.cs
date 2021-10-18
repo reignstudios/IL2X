@@ -13,14 +13,28 @@ namespace IL2X.Core.Jit
 		{
 			this.field = field;
 			this.type = type;
+			type.fields.Add(this);
 		}
 
 		internal void Jit()
 		{
-			// resolve field type
-			if (field.FieldType.IsGenericParameter)
+			if (field.FieldType.IsGenericInstance)
 			{
-				int index = type.typeDefinition.Fields.IndexOf(field);
+				var genericInstance = (IGenericInstance)field.FieldType;
+				foreach (var arg in genericInstance.GenericArguments)
+				{
+					if (arg.IsGenericParameter)
+					{
+						var genericParamArg = (GenericParameter)arg;
+						int index = type.typeDefinition.GenericParameters.IndexOf(genericParamArg);
+						resolvedFieldType = type.genericTypeReference.GenericArguments[index];
+					}
+				}
+			}
+			else if (field.FieldType.IsGenericParameter)
+			{
+				var genericParamArg = (GenericParameter)field.FieldType;
+				int index = type.typeDefinition.GenericParameters.IndexOf(genericParamArg);
 				resolvedFieldType = type.genericTypeReference.GenericArguments[index];
 			}
 			else

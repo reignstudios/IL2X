@@ -16,8 +16,9 @@ namespace IL2X.Core.Jit
 		public readonly ModuleJit module;
 		public List<FieldJit> fields;
 		public List<MethodJit> methods;
+		public HashSet<TypeReference> dependencies;
 
-		public TypeJit(TypeDefinition typeDefinition, TypeReference typeReference, ModuleJit module)
+		public TypeJit(TypeDefinition typeDefinition, TypeReference typeReference, ModuleJit module, List<TypeJit> genericParameters)
 		{
 			// resolve definition if needed
 			if (typeDefinition == null)
@@ -46,7 +47,6 @@ namespace IL2X.Core.Jit
 			foreach (var field in typeDefinition.Fields)
 			{
 				var fieldJit = new FieldJit(field, this);
-				fields.Add(fieldJit);
 				fieldJit.Jit();
 			}
 
@@ -55,10 +55,69 @@ namespace IL2X.Core.Jit
 			foreach (var method in typeDefinition.Methods)
 			{
 				if (method.HasGenericParameters) continue;// don't JIT generic definition methods
-				var methodJit = new MethodJit(method, module.module, this);
-				methods.Add(methodJit);
+				var methodJit = new MethodJit(method, this);
 				methodJit.Jit();
 			}
+
+			// gather dependencies
+			dependencies = new HashSet<TypeReference>();
+			foreach (var field in fields)
+			{
+				if (!TypesEqual(field.resolvedFieldType, typeReference)) AddDependency(field.resolvedFieldType);
+			}
+
+			foreach (var method in methods)
+			{
+				if (!TypesEqual(method.method.ReturnType, typeReference)) AddDependency(method.method.ReturnType);
+
+				if (method.asmParameters != null)
+				{
+					foreach (var p in method.asmParameters)
+					{
+						if (!TypesEqual(p.parameter.ParameterType, typeReference)) AddDependency(p.parameter.ParameterType);
+					}
+				}
+
+				if (method.asmLocals != null)
+				{
+					foreach (var l in method.asmLocals)
+					{
+						if (!TypesEqual(l.type, typeReference)) AddDependency(l.type);
+					}
+				}
+
+				if (method.asmEvalLocals != null)
+				{
+					foreach (var l in method.asmEvalLocals)
+					{
+						if (!TypesEqual(l.type, typeReference)) AddDependency(l.type);
+					}
+				}
+
+				if (method.sizeofTypes != null)
+				{
+					foreach (var s in method.sizeofTypes)
+					{
+						if (!TypesEqual(s, typeReference)) AddDependency(s);
+					}
+				}
+			}
+		}
+
+		private void AddDependency(TypeReference type)
+		{
+			while (type.IsPointer || type.IsArray)
+			{
+				type = type.GetElementType();
+			}
+			dependencies.Add(type);
+		}
+
+		public static bool TypesEqual(TypeReference t1, TypeReference t2)
+		{
+			if (t1 == t2) return true;
+			if (t1.Scope.Name.Replace(".dll", "") == t2.Scope.Name.Replace(".dll", "") && t1.FullName == t2.FullName) return true;
+			return false;
 		}
 
 		internal void Optimize()

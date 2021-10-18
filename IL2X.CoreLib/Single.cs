@@ -1,7 +1,9 @@
 using System.Runtime.CompilerServices;
+using IL2X;
 
 namespace System
 {
+	[NativeType(NativeTarget.C, "float")]
 	public readonly struct Single
 	{
 		/*public const Single MaxValue = (float)3.40282346638528859e+38;

@@ -17,16 +17,35 @@ namespace IL2X.Core.Jit
 		public List<ASMParameter> asmParameters;
 		public List<ASMLocal> asmLocals;
 		public List<ASMEvalStackLocal> asmEvalLocals;
+		public HashSet<TypeReference> sizeofTypes;
 
 		private Stack<EvaluationStackItem> evalStack;
 		private Dictionary<TypeReference, ASMEvalStackLocal> evalStackVars;
 		private Dictionary<Instruction, List<EvaluationStackProcessed>> processedInstructionPaths;
 		private int asmJumpIndex;
 
-		public MethodJit(MethodDefinition method, Module module, TypeJit type)
+		public MethodJit(MethodDefinition method, TypeJit type)
 		{
 			this.method = method;
 			this.type = type;
+			type.methods.Add(this);
+		}
+
+		private TypeReference ResolveGenericParameter(TypeReference type)
+		{
+			var declaringType = type.DeclaringType.Resolve();
+			if (declaringType == null) throw new Exception("Failed to resolve generic parameter types declaration: " + type.FullName);
+			int index = -1;
+			for (int i = 0; i != declaringType.GenericParameters.Count; ++i)
+			{
+				if (TypeJit.TypesEqual(type, declaringType.GenericParameters[i]))
+				{
+					index = i;
+					break;
+				}
+			}
+			if (index == -1) throw new Exception("Failed to find generic argument for parameter: " + type.FullName);
+			return this.type.genericTypeReference.GenericArguments[index];
 		}
 
 		internal void Jit()
@@ -35,6 +54,7 @@ namespace IL2X.Core.Jit
 			asmParameters = new List<ASMParameter>();
 			foreach (var parameter in method.Parameters)
 			{
+				var p = parameter;
 				if (parameter.ParameterType.IsGenericInstance)
 				{
 					var declaringModule = type.module.assembly.solution.FindJitModuleRecursive(parameter.ParameterType.Module);
@@ -42,7 +62,12 @@ namespace IL2X.Core.Jit
 					var t = new TypeJit(null, parameter.ParameterType, declaringModule);
 					t.Jit();
 				}
-				asmParameters.Add(new ASMParameter(parameter));
+				else if (parameter.ParameterType.IsGenericParameter)
+				{
+					var result = ResolveGenericParameter(parameter.ParameterType);
+					p = new ParameterDefinition(p.Name, p.Attributes, result);
+				}
+				asmParameters.Add(new ASMParameter(p));
 			}
 
 			// skip rest if no instructions
@@ -52,10 +77,17 @@ namespace IL2X.Core.Jit
 			asmLocals = new List<ASMLocal>();
 			foreach (var variable in method.Body.Variables)
 			{
-				asmLocals.Add(new ASMLocal(variable, method.Body.InitLocals));
+				var v = variable;
+				if (variable.VariableType.IsGenericParameter)
+				{
+					var result = ResolveGenericParameter(variable.VariableType);
+					v = new VariableDefinition(result);
+				}
+				asmLocals.Add(new ASMLocal(v, method.Body.InitLocals));
 			}
 
 			// interpret instructions
+			sizeofTypes = new HashSet<TypeReference>();
 			asmOperations = new LinkedList<ASMObject>();
 			evalStack = new Stack<EvaluationStackItem>();
 			evalStackVars = new Dictionary<TypeReference, ASMEvalStackLocal>();
@@ -181,6 +213,18 @@ namespace IL2X.Core.Jit
 						break;
 					}
 
+					case Code.Ldloca:
+					case Code.Ldloca_S:
+					{
+						var variable = (VariableDefinition)op.Operand;
+						if (variable.VariableType.IsGenericParameter)
+						{
+							variable = asmLocals[variable.Index].variable;
+						}
+						StackPush(op, variable);
+						break;
+					}
+
 					case Code.Ldarg_0: Ldarg_X(op, 0, true); break;
 					case Code.Ldarg_1: Ldarg_X(op, 1, true); break;
 					case Code.Ldarg_2: Ldarg_X(op, 2, true); break;
@@ -190,7 +234,11 @@ namespace IL2X.Core.Jit
 					{
 						if (op.Operand is short) Ldarg_X(op, (short)op.Operand, true);
 						else if (op.Operand is int) Ldarg_X(op, (int)op.Operand, true);
-						else if (op.Operand is ParameterDefinition) Ldarg_X(op, ((ParameterDefinition)op.Operand).Index, true);
+						else if (op.Operand is ParameterDefinition)
+						{
+							var p = (ParameterDefinition)op.Operand;
+							Ldarg_X(op, p.Index, true);
+						}
 						else throw new NotImplementedException("Ldarg_S unsupported operand: " + op.Operand.GetType());
 						break;
 					}
@@ -199,6 +247,11 @@ namespace IL2X.Core.Jit
 					{
 						var self = StackPop();
 						var field = (FieldReference)op.Operand;
+						if (field.FieldType.IsGenericParameter)
+						{
+							var t = ResolveGenericParameter(field.FieldType);
+							field = new FieldReference(field.Name, t);
+						}
 						Ldfld_X(op, self.obj, field);
 						break;
 					}
@@ -207,13 +260,20 @@ namespace IL2X.Core.Jit
 					{
 						var self = StackPop();
 						var field = (FieldReference)op.Operand;
+						if (field.FieldType.IsGenericParameter)
+						{
+							var t = ResolveGenericParameter(field.FieldType);
+							field = new FieldReference(field.Name, t);
+						}
 						Ldfld_X(op, self.obj, field);
 						break;
 					}
 
 					case Code.Sizeof:
 					{
-						StackPush(op, new ASMSizeOf((TypeReference)op.Operand));
+						var type = (TypeReference)op.Operand;
+						if (!sizeofTypes.Any(x => TypeJit.TypesEqual(x, type))) sizeofTypes.Add(type);
+						StackPush(op, new ASMSizeOf(type));
 						break;
 					}
 
@@ -236,9 +296,31 @@ namespace IL2X.Core.Jit
 					{
 						var itemRight = StackPop();
 						var self = StackPop();
-						var fieldLeft = (FieldDefinition)op.Operand;
+						var fieldLeft = (FieldReference)op.Operand;
+						if (fieldLeft.FieldType.IsGenericParameter)
+						{
+							var t = ResolveGenericParameter(fieldLeft.FieldType);
+							fieldLeft = new FieldReference(fieldLeft.Name, t);
+						}
 						var field = new ASMField(self.obj, fieldLeft);
 						AddASMOp(new ASMWriteField(field, OperandToASMOperand(itemRight.obj)));
+						break;
+					}
+
+					case Code.Initobj:
+					{
+						var t = StackPop();
+						ASMObject o;
+						if (t.obj is VariableDefinition v)
+						{
+							int index = asmLocals.FindIndex(x => x.variable == v);
+							o = asmLocals[index];
+						}
+						else
+						{
+							throw new NotImplementedException("Unknown initobj type: " + t.obj.ToString());
+						}
+						AddASMOp(new ASMInitObject(o));
 						break;
 					}
 
@@ -465,9 +547,16 @@ namespace IL2X.Core.Jit
 			if (obj is ASMEvalStackLocal) return (ASMEvalStackLocal)obj;
 			if (obj == method.DeclaringType) return ASMThisPtr.handle;
 			if (obj is VariableReference) return asmLocals.First(x => x.variable == obj);
-			if (obj is ParameterReference) return asmParameters.First(x => x.parameter == obj);
+			if (obj is ParameterReference) return asmParameters.First(x => TypesEqual(x.parameter, (ParameterReference)obj));
 
 			throw new NotImplementedException("Operand type not implimented: " + type.ToString());
+		}
+
+		public static bool TypesEqual(ParameterReference p1, ParameterReference p2)
+		{
+			if (p1 == p2) return true;
+			if (TypeJit.TypesEqual(p1.ParameterType, p2.ParameterType) && p1.Name == p2.Name) return true;
+			return false;
 		}
 
 		private void StackPush(Instruction op, object obj)
@@ -489,7 +578,7 @@ namespace IL2X.Core.Jit
 			else
 			{
 				if (indexCanThisOffset && method.HasThis) --index;
-				var p = method.Parameters[index];
+				var p = asmParameters[index].parameter;
 				StackPush(op, p);
 			}
 		}
@@ -507,7 +596,12 @@ namespace IL2X.Core.Jit
 
 		private void Ldloc_X(Instruction op, int index)
 		{
-			StackPush(op, method.Body.Variables[index]);
+			var variable = method.Body.Variables[index];
+			if (variable.VariableType.IsGenericParameter)
+			{
+				variable = asmLocals[variable.Index].variable;
+			}
+			StackPush(op, variable);
 		}
 
 		private void Ldfld_X(Instruction op, object self, FieldReference field)

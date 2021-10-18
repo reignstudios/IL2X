@@ -1,5 +1,8 @@
+using IL2X;
+
 namespace System
 {
+	[NativeType(NativeTarget.C, "uint32_t", "stdint.h")]
 	public readonly struct UInt32
 	{
 		/*public const UInt32 MaxValue = 4294967295;

@@ -1,5 +1,8 @@
+using IL2X;
+
 namespace System
 {
+	[NativeType(NativeTarget.C, "double")]
 	public readonly struct Double
 	{
 		/*public const double MaxValue = 1.7976931348623157E+308;

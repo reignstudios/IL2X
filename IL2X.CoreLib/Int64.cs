@@ -1,5 +1,8 @@
+using IL2X;
+
 namespace System
 {
+	[NativeType(NativeTarget.C, "int64_t", "stdint.h")]
 	public readonly struct Int64
 	{
 		/*public const Int64 MaxValue = 9223372036854775807;
