@@ -9,29 +9,33 @@ namespace IL2X.Core.Jit
 {
 	public class TypeJit
 	{
-		public readonly bool isGeneric;
+		public readonly bool isGeneric, isValueType;
 		public readonly TypeDefinition typeDefinition;
 		public readonly TypeReference typeReference;
 		public readonly IGenericInstance genericTypeReference;
 		public readonly ModuleJit module;
+		public List<TypeJit> genericArguments;
 		public List<FieldJit> fields;
 		public List<MethodJit> methods;
 		public HashSet<TypeReference> dependencies;
 
-		public TypeJit(TypeDefinition typeDefinition, TypeReference typeReference, ModuleJit module, List<TypeJit> genericParameters)
+		public TypeJit(TypeDefinition typeDefinition, TypeReference typeReference, ModuleJit module)
 		{
-			// resolve definition if needed
+			// resolve definition
 			if (typeDefinition == null)
 			{
 				typeDefinition = typeReference.Resolve();
 				if (typeDefinition == null) throw new Exception("Type could not be reolved: " + typeReference.FullName);
 			}
 
-			isGeneric = typeDefinition.HasGenericParameters;
 			this.typeDefinition = typeDefinition;
 			this.typeReference = typeReference;
 			genericTypeReference = typeReference as IGenericInstance;
 			this.module = module;
+
+			// capture type info
+			isGeneric = typeDefinition.HasGenericParameters;
+			isValueType = typeDefinition.IsValueType;
 
 			// add to module
 			module.allTypes.Add(this);
@@ -42,6 +46,17 @@ namespace IL2X.Core.Jit
 
 		internal void Jit()
 		{
+			// jit generic arguments
+			if (isGeneric)
+			{
+				genericArguments = new List<TypeJit>();
+				foreach (var arg in genericTypeReference.GenericArguments)
+				{
+					var typeJit = module.assembly.solution.ResolveType(arg, this);
+					genericArguments.Add(typeJit);
+				}
+			}
+
 			// jit fields
 			fields = new List<FieldJit>();
 			foreach (var field in typeDefinition.Fields)
@@ -130,9 +145,12 @@ namespace IL2X.Core.Jit
 
 		public FieldJit FindJitFieldRecursive(FieldDefinition field)
 		{
-			foreach (var f in fields)
+			if (fields != null)
 			{
-				if (f.field == field) return f;
+				foreach (var f in fields)
+				{
+					if (f.field == field) return f;
+				}
 			}
 			return null;
 		}

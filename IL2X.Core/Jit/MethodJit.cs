@@ -57,10 +57,12 @@ namespace IL2X.Core.Jit
 				var p = parameter;
 				if (parameter.ParameterType.IsGenericInstance)
 				{
-					var declaringModule = type.module.assembly.solution.FindJitModuleRecursive(parameter.ParameterType.Module);
-					if (declaringModule == null) throw new Exception("Failed to find declaring module for generic type: " + parameter.ParameterType.FullName);
-					var t = new TypeJit(null, parameter.ParameterType, declaringModule);
-					t.Jit();
+					var ttt = type.module.assembly.solution.ResolveType(p.ParameterType, type.typeReference);
+					//var declaringModule = type.module.assembly.solution.FindJitModuleRecursive(parameter.ParameterType.Module);
+					//if (declaringModule == null) throw new Exception("Failed to find declaring module for generic type: " + parameter.ParameterType.FullName);
+					//var t = new TypeJit(null, parameter.ParameterType, declaringModule);
+					//t.Jit();
+					type.module.assembly.solution.ResolveType(p.ParameterType, type);
 				}
 				else if (parameter.ParameterType.IsGenericParameter)
 				{

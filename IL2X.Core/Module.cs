@@ -12,6 +12,7 @@ namespace IL2X.Core
 		public readonly Assembly assembly;
 		public readonly ModuleDefinition cecilModule;
 		public ISymbolReader symbolReader;
+		public List<Module> moduleReferences;
 		public List<Assembly> assemblyReferences;
 
 		public Module(Assembly assembly, ModuleDefinition cecilModule, ISymbolReader symbolReader)
@@ -23,6 +24,14 @@ namespace IL2X.Core
 
 		internal void Load(IAssemblyResolver assemblyResolver)
 		{
+			// load module references
+			moduleReferences = new List<Module>();
+			foreach (var moduleReference in cecilModule.ModuleReferences)
+			{
+				var found = assembly.modules.First(x => x.cecilModule == moduleReference);
+				moduleReferences.Add(found);
+			}
+
 			// load assembly references
 			assemblyReferences = new List<Assembly>();
 			foreach (var assemblyReference in cecilModule.AssemblyReferences)

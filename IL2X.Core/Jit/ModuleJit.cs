@@ -11,6 +11,7 @@ namespace IL2X.Core.Jit
 	{
 		public readonly AssemblyJit assembly;
 		public readonly Module module;
+		public List<ModuleJit> moduleReferences;
 		public List<AssemblyJit> assemblyReferences;
 		public List<TypeJit> allTypes, classTypes, structTypes, enumTypes;
 
@@ -23,7 +24,24 @@ namespace IL2X.Core.Jit
 
 		internal void Jit()
 		{
-			// jit dependencies first
+			// jit module dependencies
+			moduleReferences = new List<ModuleJit>();
+			foreach (var moduleRef in module.moduleReferences)
+			{
+				var existingModule = assembly.modules.FirstOrDefault(x => x.module == moduleRef);
+				if (existingModule != null)
+				{
+					moduleReferences.Add(existingModule);
+				}
+				else
+				{
+					var moduleJit = new ModuleJit(assembly, moduleRef);
+					moduleReferences.Add(moduleJit);
+					moduleJit.Jit();
+				}
+			}
+
+			// jit assembly dependencies
 			assemblyReferences = new List<AssemblyJit>();
 			foreach (var assemblyRef in module.assemblyReferences)
 			{
@@ -75,28 +93,37 @@ namespace IL2X.Core.Jit
 			if (module == this.module.cecilModule) return this;
 
 			// search references
-			foreach (var assemblyRef in assemblyReferences)
+			if (assemblyReferences != null)
 			{
-				var result = assemblyRef.FindJitModuleRecursive(module);
-				if (result != null) return result;
+				foreach (var assemblyRef in assemblyReferences)
+				{
+					var result = assemblyRef.FindJitModuleRecursive(module);
+					if (result != null) return result;
+				}
 			}
 
 			return null;
 		}
 
-		public TypeJit FindJitTypeRecursive(TypeDefinition type)
+		public TypeJit FindJitTypeRecursive(TypeReference type)
 		{
 			// search references first
-			foreach (var assemblyRef in assemblyReferences)
+			if (assemblyReferences != null)
 			{
-				var result = assemblyRef.FindJitTypeRecursive(type);
-				if (result != null) return result;
+				foreach (var assemblyRef in assemblyReferences)
+				{
+					var result = assemblyRef.FindJitTypeRecursive(type);
+					if (result != null) return result;
+				}
 			}
 
 			// search types
-			foreach (var t in allTypes)
+			if (allTypes != null)
 			{
-				if (TypeJit.TypesEqual(t.typeDefinition, type)) return t;
+				foreach (var t in allTypes)
+				{
+					if (TypeJit.TypesEqual(t.typeReference, type)) return t;
+				}
 			}
 
 			return null;
@@ -105,17 +132,23 @@ namespace IL2X.Core.Jit
 		public FieldJit FindJitFieldRecursive(FieldDefinition field)
 		{
 			// search references first
-			foreach (var assemblyRef in assemblyReferences)
+			if (assemblyReferences != null)
 			{
-				var result = assemblyRef.FindJitFieldRecursive(field);
-				if (result != null) return result;
+				foreach (var assemblyRef in assemblyReferences)
+				{
+					var result = assemblyRef.FindJitFieldRecursive(field);
+					if (result != null) return result;
+				}
 			}
 
 			// search types
-			foreach (var type in allTypes)
+			if (allTypes != null)
 			{
-				var result = type.FindJitFieldRecursive(field);
-				if (result != null) return result;
+				foreach (var type in allTypes)
+				{
+					var result = type.FindJitFieldRecursive(field);
+					if (result != null) return result;
+				}
 			}
 
 			return null;

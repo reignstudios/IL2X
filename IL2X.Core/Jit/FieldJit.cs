@@ -20,16 +20,9 @@ namespace IL2X.Core.Jit
 		{
 			if (field.FieldType.IsGenericInstance)
 			{
-				var genericInstance = (IGenericInstance)field.FieldType;
-				foreach (var arg in genericInstance.GenericArguments)
-				{
-					if (arg.IsGenericParameter)
-					{
-						var genericParamArg = (GenericParameter)arg;
-						int index = type.typeDefinition.GenericParameters.IndexOf(genericParamArg);
-						resolvedFieldType = type.genericTypeReference.GenericArguments[index];
-					}
-				}
+				var ttt = type.module.assembly.solution.ResolveType(field.FieldType, type.typeReference);
+				//var typeJit = type.module.assembly.solution.ResolveType(field.FieldType, type);
+				//resolvedFieldType = typeJit.typeReference;
 			}
 			else if (field.FieldType.IsGenericParameter)
 			{

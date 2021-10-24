@@ -3,12 +3,12 @@
 	class MyGeneric<T>
 	{
 		public T t;
-		//NestedClass n;
+		NestedClass n;
 
 		public class NestedClass
 		{
 			public int i;
-			MyGeneric<T> n;
+			//MyGeneric<T> n;
 		}
 
 		public MyGeneric(T t)
@@ -49,7 +49,7 @@
 			value.p.i = 123;
 		}
 
-		static void FooGeneric(MyGeneric<int> wow, MyGeneric<int>.NestedClass nested)
+		static void FooGeneric(MyGeneric<int> wow)//, MyGeneric<int>.NestedClass nested)
 		{
 
 		}
