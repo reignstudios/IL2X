@@ -28,6 +28,7 @@ namespace IL2X.Core
 
 		public Solution(Type type, string dllPath)
 		{
+			TypeSystem.CustomCoreLibName = "IL2X.CoreLib";
 			this.type = type;
 			this.dllPath = dllPath;
 			dllFolderPath = Path.GetDirectoryName(dllPath);
@@ -91,21 +92,21 @@ namespace IL2X.Core
 
 		internal TypeReference ResolveType(TypeReference type, TypeReference usedInType)
 		{
-			//var typeDef = type.Resolve();
-			//TypeReference baseType = null;
-			//if (typeDef.BaseType != null) baseType = ResolveType(typeDef.BaseType, usedInType);
-
 			// resolve generic instance
 			if (type.IsGenericInstance)
 			{
 				var g = (IGenericInstance)type;
-				var result = new GenericInstanceType(type);
-				foreach (var arg in g.GenericArguments)
+				if (g.GenericArguments.Any((x => x.IsGenericParameter)))
 				{
-					var argResolved = ResolveType(arg, usedInType);
-					result.GenericArguments.Add(argResolved);
+					var element = type.GetElementType();
+					var result = new GenericInstanceType(element);
+					foreach (var arg in g.GenericArguments)
+					{
+						var argResolved = ResolveType(arg, usedInType);
+						result.GenericArguments.Add(argResolved);
+					}
+					return result;
 				}
-				return result;
 			}
 
 			// resolve generic parameter
@@ -119,9 +120,19 @@ namespace IL2X.Core
 			return type;
 		}
 
-		internal TypeJit ResolveType(TypeReference type, TypeJit declaredInType)
+		internal TypeJit ResolveType(TypeReference type, TypeJit usedInType)
 		{
-			// resolve generic parameter
+			var resolvedType = ResolveType(type, usedInType.typeReference);
+			var resolvedTypeJit = FindJitTypeRecursive(resolvedType);
+			if (resolvedTypeJit == null)
+			{
+				var moduleJit = FindJitModuleRecursive(type.Module);
+				resolvedTypeJit = new TypeJit(null, type, moduleJit);
+				resolvedTypeJit.Jit();
+			}
+			return resolvedTypeJit;
+
+			/*// resolve generic parameter
 			if (type.IsGenericParameter)
 			{
 				var genericParamArg = (GenericParameter)type;
@@ -144,7 +155,7 @@ namespace IL2X.Core
 				typeJit = new TypeJit(null, type, moduleJit);
 				typeJit.Jit();
 			}
-			return typeJit;
+			return typeJit;*/
 		}
 
 		//internal TypeJit ResolveType(TypeReference type, TypeJit declaredInType)
