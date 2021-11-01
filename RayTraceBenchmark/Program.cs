@@ -8,7 +8,7 @@
 		public class NestedClass
 		{
 			public int i;
-			//MyGeneric<T> n;
+			MyGeneric<T> n;
 		}
 
 		public MyGeneric(T t)

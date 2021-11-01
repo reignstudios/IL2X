@@ -127,7 +127,7 @@ namespace IL2X.Core
 			if (resolvedTypeJit == null)
 			{
 				var moduleJit = FindJitModuleRecursive(type.Module);
-				resolvedTypeJit = new TypeJit(null, type, moduleJit);
+				resolvedTypeJit = new TypeJit(null, resolvedType, moduleJit);
 				resolvedTypeJit.Jit();
 			}
 			return resolvedTypeJit;

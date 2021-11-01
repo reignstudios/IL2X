@@ -55,7 +55,7 @@ namespace IL2X.Core.Jit
 			foreach (var parameter in method.Parameters)
 			{
 				var p = parameter;
-				if (parameter.ParameterType.IsGenericInstance)
+				/*if (parameter.ParameterType.IsGenericInstance)
 				{
 					var ttt = type.module.assembly.solution.ResolveType(p.ParameterType, type.typeReference);
 					//var declaringModule = type.module.assembly.solution.FindJitModuleRecursive(parameter.ParameterType.Module);
@@ -68,6 +68,13 @@ namespace IL2X.Core.Jit
 				{
 					var result = ResolveGenericParameter(parameter.ParameterType);
 					p = new ParameterDefinition(p.Name, p.Attributes, result);
+				}*/
+				var t = type.module.assembly.solution.ResolveType(p.ParameterType, type);
+				if (t.typeReference != p.ParameterType)
+				{
+					int index = p.index;
+					p = new ParameterDefinition(p.Name, p.Attributes, t.typeReference);
+					p.index = index;
 				}
 				asmParameters.Add(new ASMParameter(p));
 			}

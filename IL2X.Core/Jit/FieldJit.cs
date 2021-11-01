@@ -18,7 +18,7 @@ namespace IL2X.Core.Jit
 
 		internal void Jit()
 		{
-			if (field.FieldType.IsGenericInstance)
+			/*if (field.FieldType.IsGenericInstance)
 			{
 				var ttt = type.module.assembly.solution.ResolveType(field.FieldType, type.typeReference);
 				//var typeJit = type.module.assembly.solution.ResolveType(field.FieldType, type);
@@ -33,7 +33,9 @@ namespace IL2X.Core.Jit
 			else
 			{
 				resolvedFieldType = field.FieldType;
-			}
+			}*/
+			var t = type.module.assembly.solution.ResolveType(field.FieldType, type);
+			resolvedFieldType = t.typeReference;
 		}
 	}
 }
