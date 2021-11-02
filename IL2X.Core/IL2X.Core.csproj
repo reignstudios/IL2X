@@ -13,11 +13,22 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Mono.Cecil" Version="0.11.4" />
+    <Folder Include="CoreLibRef\" />
   </ItemGroup>
 
   <ItemGroup>
-    <Folder Include="CoreLibRef\" />
+    <Reference Include="Mono.Cecil">
+      <HintPath>..\3rdParty\Mono.Cecil\Debug\Mono.Cecil.dll</HintPath>
+    </Reference>
+    <Reference Include="Mono.Cecil.Mdb">
+      <HintPath>..\3rdParty\Mono.Cecil\Debug\Mono.Cecil.Mdb.dll</HintPath>
+    </Reference>
+    <Reference Include="Mono.Cecil.Pdb">
+      <HintPath>..\3rdParty\Mono.Cecil\Debug\Mono.Cecil.Pdb.dll</HintPath>
+    </Reference>
+    <Reference Include="Mono.Cecil.Rocks">
+      <HintPath>..\3rdParty\Mono.Cecil\Debug\Mono.Cecil.Rocks.dll</HintPath>
+    </Reference>
   </ItemGroup>
 
 </Project>

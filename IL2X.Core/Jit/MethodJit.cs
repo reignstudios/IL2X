@@ -31,52 +31,18 @@ namespace IL2X.Core.Jit
 			type.methods.Add(this);
 		}
 
-		private TypeReference ResolveGenericParameter(TypeReference type)
-		{
-			var declaringType = type.DeclaringType.Resolve();
-			if (declaringType == null) throw new Exception("Failed to resolve generic parameter types declaration: " + type.FullName);
-			int index = -1;
-			for (int i = 0; i != declaringType.GenericParameters.Count; ++i)
-			{
-				if (TypeJit.TypesEqual(type, declaringType.GenericParameters[i]))
-				{
-					index = i;
-					break;
-				}
-			}
-			if (index == -1) throw new Exception("Failed to find generic argument for parameter: " + type.FullName);
-			return this.type.genericTypeReference.GenericArguments[index];
-		}
-
 		internal void Jit()
 		{
 			// add parameters
 			asmParameters = new List<ASMParameter>();
 			foreach (var parameter in method.Parameters)
 			{
-				var p = parameter;
-				/*if (parameter.ParameterType.IsGenericInstance)
+				var t = type.module.assembly.solution.ResolveType(parameter.ParameterType, type);
+				if (t.typeReference != parameter.ParameterType)
 				{
-					var ttt = type.module.assembly.solution.ResolveType(p.ParameterType, type.typeReference);
-					//var declaringModule = type.module.assembly.solution.FindJitModuleRecursive(parameter.ParameterType.Module);
-					//if (declaringModule == null) throw new Exception("Failed to find declaring module for generic type: " + parameter.ParameterType.FullName);
-					//var t = new TypeJit(null, parameter.ParameterType, declaringModule);
-					//t.Jit();
-					type.module.assembly.solution.ResolveType(p.ParameterType, type);
+					parameter.ParameterType = t.typeReference;
 				}
-				else if (parameter.ParameterType.IsGenericParameter)
-				{
-					var result = ResolveGenericParameter(parameter.ParameterType);
-					p = new ParameterDefinition(p.Name, p.Attributes, result);
-				}*/
-				var t = type.module.assembly.solution.ResolveType(p.ParameterType, type);
-				if (t.typeReference != p.ParameterType)
-				{
-					int index = p.index;
-					p = new ParameterDefinition(p.Name, p.Attributes, t.typeReference);
-					p.index = index;
-				}
-				asmParameters.Add(new ASMParameter(p));
+				asmParameters.Add(new ASMParameter(parameter));
 			}
 
 			// skip rest if no instructions
@@ -86,13 +52,12 @@ namespace IL2X.Core.Jit
 			asmLocals = new List<ASMLocal>();
 			foreach (var variable in method.Body.Variables)
 			{
-				var v = variable;
-				if (variable.VariableType.IsGenericParameter)
+				var t = type.module.assembly.solution.ResolveType(variable.VariableType, type);
+				if (t.typeReference != variable.VariableType)
 				{
-					var result = ResolveGenericParameter(variable.VariableType);
-					v = new VariableDefinition(result);
+					variable.VariableType = t.typeReference;
 				}
-				asmLocals.Add(new ASMLocal(v, method.Body.InitLocals));
+				asmLocals.Add(new ASMLocal(variable, method.Body.InitLocals));
 			}
 
 			// interpret instructions
@@ -125,6 +90,16 @@ namespace IL2X.Core.Jit
 			evalStack = null;
 			evalStackVars = null;
 			processedInstructionPaths = null;
+		}
+
+		private FieldReference ResolveFieldReference(FieldReference field)
+		{
+			var t = type.module.assembly.solution.ResolveType(field.FieldType, type);
+			if (t.typeReference != field.FieldType)
+			{
+				field.FieldType = t.typeReference;
+			}
+			return field;
 		}
 
 		private void InterpretInstructionFlow(Instruction op)
@@ -256,11 +231,7 @@ namespace IL2X.Core.Jit
 					{
 						var self = StackPop();
 						var field = (FieldReference)op.Operand;
-						if (field.FieldType.IsGenericParameter)
-						{
-							var t = ResolveGenericParameter(field.FieldType);
-							field = new FieldReference(field.Name, t);
-						}
+						field = ResolveFieldReference(field);
 						Ldfld_X(op, self.obj, field);
 						break;
 					}
@@ -269,11 +240,7 @@ namespace IL2X.Core.Jit
 					{
 						var self = StackPop();
 						var field = (FieldReference)op.Operand;
-						if (field.FieldType.IsGenericParameter)
-						{
-							var t = ResolveGenericParameter(field.FieldType);
-							field = new FieldReference(field.Name, t);
-						}
+						field = ResolveFieldReference(field);
 						Ldfld_X(op, self.obj, field);
 						break;
 					}
@@ -306,11 +273,7 @@ namespace IL2X.Core.Jit
 						var itemRight = StackPop();
 						var self = StackPop();
 						var fieldLeft = (FieldReference)op.Operand;
-						if (fieldLeft.FieldType.IsGenericParameter)
-						{
-							var t = ResolveGenericParameter(fieldLeft.FieldType);
-							fieldLeft = new FieldReference(fieldLeft.Name, t);
-						}
+						fieldLeft = ResolveFieldReference(fieldLeft);
 						var field = new ASMField(self.obj, fieldLeft);
 						AddASMOp(new ASMWriteField(field, OperandToASMOperand(itemRight.obj)));
 						break;

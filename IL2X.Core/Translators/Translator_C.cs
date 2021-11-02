@@ -558,6 +558,7 @@ namespace IL2X.Core.Translators
 				{
 					result += "*";
 					var lastType = type;
+					if (type.IsGenericInstance) break;
 					type = type.GetElementType();
 					if (type == lastType) break;
 				}

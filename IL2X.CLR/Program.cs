@@ -15,15 +15,23 @@ namespace IL2X.CLR
 			string config = "Release";
 			#endif
 
-			string path = Path.Combine(Environment.CurrentDirectory, "../../../../RayTraceBenchmark/bin");
-			using (var solution = new Solution(Solution.Type.Executable, Path.Combine(path, config, "net5.0/RayTraceBenchmark.dll").Replace('/', Path.DirectorySeparatorChar)))
+			string projPath = Environment.CurrentDirectory;
+			for (int i = 0; i != 4; ++i) projPath = Path.GetDirectoryName(projPath);
+			//path = Path.Combine(Environment.CurrentDirectory, "../../../../RayTraceBenchmark/bin");
+			projPath = Path.Combine(projPath, "RayTraceBenchmark/bin");
+			projPath = Path.Combine(projPath, config, "net5.0/RayTraceBenchmark.dll");
+			projPath = projPath.Replace('/', Path.DirectorySeparatorChar);
+			using (var solution = new Solution(Solution.Type.Executable, projPath))
 			{
 				solution.ReLoad();
 				solution.Jit();
 				//solution.Optimize();
 
+				string outputPath = Path.GetDirectoryName(projPath);
+				outputPath = Path.Combine(outputPath, "IL2X_Output");
+
 				var translator = new Translator_C(solution);
-				translator.Translate(Path.Combine(path, "Debug/net5.0/IL2X_Output").Replace('/', Path.DirectorySeparatorChar));
+				translator.Translate(outputPath);
 			}
 		}
 	}

@@ -14,7 +14,7 @@
 
     <!-- Set CoreLib settings -->
 	<RuntimeMetadataVersion>v4.0.30319</RuntimeMetadataVersion>
-	<AssemblyName>System.Private.CoreLib</AssemblyName>
+	<AssemblyName>IL2X.CoreLib</AssemblyName>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
