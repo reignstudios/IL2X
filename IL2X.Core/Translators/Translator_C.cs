@@ -122,15 +122,18 @@ namespace IL2X.Core.Translators
 			}
 
 			// write type
+			WriteLine();
 			string typename = GetTypeFullName(type.typeReference);
 			if (nativeTypeName != null)
 			{
 				WriteLine($"#define {typename} {nativeTypeName}");
+				WriteLine();
 			}
 			else if (type.typeDefinition.IsEnum)
 			{
 				var field = type.typeDefinition.Fields[0];
 				WriteLine($"#define {typename} {GetTypeFullName(field.FieldType)}");
+				WriteLine();
 			}
 			else
 			{
@@ -150,10 +153,8 @@ namespace IL2X.Core.Translators
 				}
 
 				WriteLine();
-				WriteLine();
 				WriteTypeStaticFieldDefinition(type);
 			}
-			WriteLine();
 		}
 
 		private void WriteTypeNonStaticFieldDefinition(TypeJit type)
