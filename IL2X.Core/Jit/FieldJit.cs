@@ -18,24 +18,7 @@ namespace IL2X.Core.Jit
 
 		internal void Jit()
 		{
-			/*if (field.FieldType.IsGenericInstance)
-			{
-				var ttt = type.module.assembly.solution.ResolveType(field.FieldType, type.typeReference);
-				//var typeJit = type.module.assembly.solution.ResolveType(field.FieldType, type);
-				//resolvedFieldType = typeJit.typeReference;
-			}
-			else if (field.FieldType.IsGenericParameter)
-			{
-				var genericParamArg = (GenericParameter)field.FieldType;
-				int index = type.typeDefinition.GenericParameters.IndexOf(genericParamArg);
-				resolvedFieldType = type.genericTypeReference.GenericArguments[index];
-			}
-			else
-			{
-				resolvedFieldType = field.FieldType;
-			}*/
-			var t = type.module.assembly.solution.ResolveType(field.FieldType, type);
-			resolvedFieldType = t.typeReference;
+			resolvedFieldType = type.module.assembly.solution.ResolveType(field.FieldType, type);
 		}
 	}
 }

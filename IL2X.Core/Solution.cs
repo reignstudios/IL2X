@@ -90,8 +90,47 @@ namespace IL2X.Core
 			return mainAssemblyJit.FindJitFieldRecursive(field);
 		}
 
-		internal TypeReference ResolveType(TypeReference type, TypeReference usedInType)
+		internal TypeReference ResolveCecilType(TypeReference type, TypeReference usedInType, bool canModifyExistingType)
 		{
+			// resolve array
+			if (type.IsArray)
+			{
+				var arrayType = (ArrayType)type;
+				var elementType = ResolveCecilType(arrayType.ElementType, usedInType, canModifyExistingType);
+				if (elementType != arrayType)
+				{
+					if (canModifyExistingType) arrayType.SetElementType(elementType);
+					else arrayType = new ArrayType(elementType, arrayType.Rank);
+				}
+				return arrayType;
+			}
+
+			// resolve array
+			if (type.IsPointer)
+			{
+				var pointerType = (PointerType)type;
+				var elementType = ResolveCecilType(pointerType.ElementType, usedInType, canModifyExistingType);
+				if (elementType != pointerType)
+				{
+					if (canModifyExistingType) pointerType.SetElementType(elementType);
+					else pointerType = new PointerType(elementType);
+				}
+				return pointerType;
+			}
+
+			// resolve array
+			if (type.IsByReference)
+			{
+				var byRefType = (ByReferenceType)type;
+				var elementType = ResolveCecilType(byRefType.ElementType, usedInType, canModifyExistingType);
+				if (elementType != byRefType)
+				{
+					if (canModifyExistingType) byRefType.SetElementType(elementType);
+					else byRefType = new ByReferenceType(elementType);
+				}
+				return byRefType;
+			}
+
 			// resolve generic instance
 			if (type.IsGenericInstance)
 			{
@@ -99,13 +138,25 @@ namespace IL2X.Core
 				if (g.GenericArguments.Any((x => x.IsGenericParameter)))
 				{
 					var element = type.GetElementType();
-					var result = new GenericInstanceType(element);
-					foreach (var arg in g.GenericArguments)
+					if (canModifyExistingType)
 					{
-						var argResolved = ResolveType(arg, usedInType);
-						result.GenericArguments.Add(argResolved);
+						for (int i = 0; i != g.GenericArguments.Count; ++i)
+						{
+							var arg = g.GenericArguments[i];
+							var argResolved = ResolveCecilType(arg, usedInType, canModifyExistingType);
+							g.GenericArguments[i] = argResolved;
+						}
 					}
-					return result;
+					else
+					{
+						var result = new GenericInstanceType(element);
+						foreach (var arg in g.GenericArguments)
+						{
+							var argResolved = ResolveCecilType(arg, usedInType, canModifyExistingType);
+							result.GenericArguments.Add(argResolved);
+						}
+						return result;
+					}
 				}
 			}
 
@@ -120,31 +171,57 @@ namespace IL2X.Core
 			return type;
 		}
 
-		private TypeJit ResolveElementType(TypeReference type, TypeJit usedInType)
+		private TypeJit ResolveNormalType(TypeReference type)
 		{
-			var resolvedType = ResolveType(type, usedInType.typeReference);
-			var resolvedTypeJit = FindJitTypeRecursive(resolvedType);
+			var resolvedTypeJit = FindJitTypeRecursive(type);
 			if (resolvedTypeJit == null)
 			{
 				var moduleJit = FindJitModuleRecursive(type.Module);
-				resolvedTypeJit = new TypeJit(null, resolvedType, moduleJit);
+				if (moduleJit == null) throw new Exception("Failed to find jit module: " + type.Module.Name);
+				resolvedTypeJit = new TypeJit(null, type, moduleJit);
 				resolvedTypeJit.Jit();
 			}
 			return resolvedTypeJit;
 		}
 
-		internal TypeJit ResolveType(TypeReference type, TypeJit usedInType)
+		internal TypeReference ResolveType(TypeReference type, TypeJit usedInType)
 		{
-			// resolve all elements first
+			// resolve types with elements
 			if (type.IsArray || type.IsByReference || type.IsPointer)
 			{
-				var elementType = type.GetElementType();
-				var elementTypeJit = ResolveType(elementType, usedInType);
-				throw new NotImplementedException();// TODO: Add Mono.Cecil SetElementType method
+				var elementType = ResolveType(type.GetElementType(), usedInType);
+				type.SetElementType(elementType);
+				return type;
 			}
 
-			// resolve main type
-			return ResolveElementType(type, usedInType);
+			// resolve generic instance
+			else if (type.IsGenericInstance)
+			{
+				var g = (IGenericInstance)type;
+				if (g.GenericArguments.Any((x => x.IsGenericParameter)))
+				{
+					var element = type.GetElementType();
+					for (int i = 0; i != g.GenericArguments.Count; ++i)
+					{
+						var arg = g.GenericArguments[i];
+						var argResolved = ResolveType(arg, usedInType);
+						g.GenericArguments[i] = argResolved;
+					}
+				}
+			}
+
+			// resolve generic parameter
+			else if (type.IsGenericParameter)
+			{
+				var genericParamArg = (GenericParameter)type;
+				var g = (IGenericInstance)usedInType.typeReference;
+				var argType = g.GenericArguments[genericParamArg.Position];
+				return ResolveType(argType, usedInType);
+			}
+
+			// resolve normal type
+			var resultJit = ResolveNormalType(type);
+			return resultJit.typeReference;
 		}
 	}
 }

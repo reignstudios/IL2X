@@ -533,7 +533,7 @@ namespace IL2X.Core.Translators
 
 		private bool IsVoidType(TypeReference type)
 		{
-			return type == GetTypeSystem().Void;
+			return type == GetTypeSystem().Void || type.FullName == "System.Void";
 		}
 
 		public static string GetTypeName(TypeReference type)

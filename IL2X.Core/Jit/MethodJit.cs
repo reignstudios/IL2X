@@ -38,9 +38,9 @@ namespace IL2X.Core.Jit
 			foreach (var parameter in method.Parameters)
 			{
 				var t = type.module.assembly.solution.ResolveType(parameter.ParameterType, type);
-				if (t.typeReference != parameter.ParameterType)
+				if (t != parameter.ParameterType)
 				{
-					parameter.ParameterType = t.typeReference;
+					parameter.ParameterType = t;
 				}
 				asmParameters.Add(new ASMParameter(parameter));
 			}
@@ -53,9 +53,9 @@ namespace IL2X.Core.Jit
 			foreach (var variable in method.Body.Variables)
 			{
 				var t = type.module.assembly.solution.ResolveType(variable.VariableType, type);
-				if (t.typeReference != variable.VariableType)
+				if (t != variable.VariableType)
 				{
-					variable.VariableType = t.typeReference;
+					variable.VariableType = t;
 				}
 				asmLocals.Add(new ASMLocal(variable, method.Body.InitLocals));
 			}
@@ -95,9 +95,9 @@ namespace IL2X.Core.Jit
 		private FieldReference ResolveFieldReference(FieldReference field)
 		{
 			var t = type.module.assembly.solution.ResolveType(field.FieldType, type);
-			if (t.typeReference != field.FieldType)
+			if (t != field.FieldType)
 			{
-				field.FieldType = t.typeReference;
+				field.FieldType = t;
 			}
 			return field;
 		}
@@ -248,6 +248,7 @@ namespace IL2X.Core.Jit
 					case Code.Sizeof:
 					{
 						var type = (TypeReference)op.Operand;
+						var t = this.type.module.assembly.solution.ResolveType(type, this.type);
 						if (!sizeofTypes.Any(x => TypeJit.TypesEqual(x, type))) sizeofTypes.Add(type);
 						StackPush(op, new ASMSizeOf(type));
 						break;
@@ -590,7 +591,8 @@ namespace IL2X.Core.Jit
 				++result.refCount;
 				return result;
 			}
-			result = new ASMEvalStackLocal(type, evalStackVars.Count);
+			var t = this.type.module.assembly.solution.ResolveType(type, this.type);
+			result = new ASMEvalStackLocal(t, evalStackVars.Count);
 			evalStackVars.Add(type, result);
 			return result;
 		}
@@ -642,7 +644,7 @@ namespace IL2X.Core.Jit
 			return processedInstructionStack;
 		}
 
-		private void BranchOnCondition(Instruction op, Instruction jmpToOp, ASMCode branchConditionCode, object[] values)//, string condition)
+		private void BranchOnCondition(Instruction op, Instruction jmpToOp, ASMCode branchConditionCode, object[] values)
 		{
 			if (IsInstructionPathProcessed(op, out var processedInstructionPath))
 			{

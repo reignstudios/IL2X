@@ -14,7 +14,7 @@ namespace IL2X.Core.Jit
 		public readonly TypeReference typeReference;
 		public readonly IGenericInstance genericTypeReference;
 		public readonly ModuleJit module;
-		public List<TypeJit> genericArguments;
+		public List<TypeReference> genericArguments;
 		public List<FieldJit> fields;
 		public List<MethodJit> methods;
 		public HashSet<TypeReference> dependencies;
@@ -24,7 +24,8 @@ namespace IL2X.Core.Jit
 			// resolve definition
 			if (typeDefinition == null)
 			{
-				typeDefinition = typeReference.Resolve();
+				if (typeReference.IsDefinition) typeDefinition = (TypeDefinition)typeReference;
+				else typeDefinition = typeReference.Resolve();
 				if (typeDefinition == null) throw new Exception("Type could not be reolved: " + typeReference.FullName);
 			}
 
@@ -49,7 +50,7 @@ namespace IL2X.Core.Jit
 			// jit generic arguments
 			if (isGeneric)
 			{
-				genericArguments = new List<TypeJit>();
+				genericArguments = new List<TypeReference>();
 				foreach (var arg in genericTypeReference.GenericArguments)
 				{
 					var typeJit = module.assembly.solution.ResolveType(arg, this);
@@ -121,7 +122,7 @@ namespace IL2X.Core.Jit
 
 		private void AddDependency(TypeReference type)
 		{
-			while (type.IsPointer || type.IsArray)
+			while (type.IsArray || type.IsByReference || type.IsPointer)
 			{
 				type = type.GetElementType();
 			}
