@@ -17,7 +17,7 @@ namespace IL2X.Core.Jit
 		public List<TypeReference> genericArguments;
 		public List<FieldJit> fields;
 		public List<MethodJit> methods;
-		public HashSet<TypeReference> dependencies;
+		public HashSet<TypeReference> dependencies, dependenciesBaseTypes;
 
 		public TypeJit(TypeDefinition typeDefinition, TypeReference typeReference, ModuleJit module)
 		{
@@ -77,20 +77,30 @@ namespace IL2X.Core.Jit
 
 			// gather dependencies
 			dependencies = new HashSet<TypeReference>();
+			dependenciesBaseTypes = new HashSet<TypeReference>();
+
+			AddDependency(typeDefinition.BaseType, dependencies);
+			AddDependency(typeDefinition.BaseType, dependenciesBaseTypes);
+			foreach (var i in typeDefinition.Interfaces)
+			{
+				AddDependency(i.InterfaceType, dependencies);
+				AddDependency(i.InterfaceType, dependenciesBaseTypes);
+			}
+
 			foreach (var field in fields)
 			{
-				if (!TypesEqual(field.resolvedFieldType, typeReference)) AddDependency(field.resolvedFieldType);
+				AddDependency(field.resolvedFieldType, dependencies);
 			}
 
 			foreach (var method in methods)
 			{
-				if (!TypesEqual(method.method.ReturnType, typeReference)) AddDependency(method.method.ReturnType);
+				AddDependency(method.method.ReturnType, dependencies);
 
 				if (method.asmParameters != null)
 				{
 					foreach (var p in method.asmParameters)
 					{
-						if (!TypesEqual(p.parameter.ParameterType, typeReference)) AddDependency(p.parameter.ParameterType);
+						AddDependency(p.parameter.ParameterType, dependencies);
 					}
 				}
 
@@ -98,7 +108,7 @@ namespace IL2X.Core.Jit
 				{
 					foreach (var l in method.asmLocals)
 					{
-						if (!TypesEqual(l.type, typeReference)) AddDependency(l.type);
+						AddDependency(l.type, dependencies);
 					}
 				}
 
@@ -106,7 +116,7 @@ namespace IL2X.Core.Jit
 				{
 					foreach (var l in method.asmEvalLocals)
 					{
-						if (!TypesEqual(l.type, typeReference)) AddDependency(l.type);
+						AddDependency(l.type, dependencies);
 					}
 				}
 
@@ -114,14 +124,15 @@ namespace IL2X.Core.Jit
 				{
 					foreach (var s in method.sizeofTypes)
 					{
-						if (!TypesEqual(s, typeReference)) AddDependency(s);
+						AddDependency(s, dependencies);
 					}
 				}
 			}
 		}
 
-		private void AddDependency(TypeReference type)
+		private void AddDependency(TypeReference type, HashSet<TypeReference> dependencies)
 		{
+			if (type == null || TypesEqual(type, typeReference)) return;
 			while (type.IsArray || type.IsByReference || type.IsPointer)
 			{
 				type = type.GetElementType();

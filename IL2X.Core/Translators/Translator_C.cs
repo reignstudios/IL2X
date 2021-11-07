@@ -33,7 +33,7 @@ namespace IL2X.Core.Translators
 		{
 			activeModule = module;
 
-			// write header file
+			// write header type-def-field file
 			foreach (var type in module.allTypes)
 			{
 				string filename = FormatTypeFilename(type.typeReference.FullName);
@@ -45,9 +45,26 @@ namespace IL2X.Core.Translators
 					// write standard header
 					WriteLine("#pragma once");
 
-					// write type
+					// write type definition
 					WriteTypeDefinition(type);
+				}
+			}
+
+			// write header type-method file
+			foreach (var type in module.allTypes)
+			{
+				string filename = FormatTypeFilename(type.typeReference.FullName);
+				using (var stream = new FileStream(Path.Combine(outputDirectory, filename) + "_Methods.h", FileMode.Create, FileAccess.Write, FileShare.Read))
+				using (var writer = new StreamWriter(stream))
+				{
+					activeWriter = writer;
+
+					// write standard header
+					WriteLine("#pragma once");
+					WriteLine($"#include \"{filename}.h\"");
 					WriteLine();
+
+					// write method definitions
 					WriteTypeMethodDefinition(type);
 				}
 			}
@@ -63,6 +80,7 @@ namespace IL2X.Core.Translators
 
 					// write type field metadata
 					WriteLine($"#include \"{filename}.h\"");
+					WriteLine($"#include \"{filename}_Methods.h\"");
 					IncludeSTD(type);
 
 					// write type method metadata
@@ -113,12 +131,26 @@ namespace IL2X.Core.Translators
 				}
 			}
 
-			// include dependencies
+			// include value-type dependencies
 			foreach (var d in type.dependencies)
 			{
-				char s = Path.DirectorySeparatorChar;
-				if (d.Scope != type.typeReference.Scope) WriteLine($"#include \"..{s}{GetScopeName(d.Scope)}{s}{FormatTypeFilename(d.FullName)}.h\"");
-				else WriteLine($"#include \"{FormatTypeFilename(d.FullName)}.h\"");
+				if ((d.IsValueType && !type.typeReference.IsValueType) || type.typeDefinition.IsEnum)
+				{
+					char s = Path.DirectorySeparatorChar;
+					if (d.Scope != type.typeReference.Scope) WriteLine($"#include \"..{s}{GetScopeName(d.Scope)}{s}{FormatTypeFilename(d.FullName)}.h\"");
+					else WriteLine($"#include \"{FormatTypeFilename(d.FullName)}.h\"");
+				}
+			}
+
+			// forware-declare reference-type dependencies
+			WriteLine();
+			foreach (var d in type.dependencies)
+			{
+				if (!d.IsValueType)
+				{
+					string dTypename = GetTypeFullName(d);
+					WriteLine($"typedef struct {dTypename} {dTypename};");
+				}
 			}
 
 			// write type
@@ -178,6 +210,16 @@ namespace IL2X.Core.Translators
 
 		private void WriteTypeMethodDefinition(TypeJit type)
 		{
+			// include all dependencies
+			foreach (var d in type.dependencies)
+			{
+				char s = Path.DirectorySeparatorChar;
+				if (d.Scope != type.typeReference.Scope) WriteLine($"#include \"..{s}{GetScopeName(d.Scope)}{s}{FormatTypeFilename(d.FullName)}.h\"");
+				else WriteLine($"#include \"{FormatTypeFilename(d.FullName)}.h\"");
+			}
+
+			// write method signatures
+			WriteLine();
 			foreach (var method in type.methods)
 			{
 				WriteMethodSignature(method);
