@@ -1,7 +1,7 @@
 [![Gitter](https://badges.gitter.im/IL2X/community.svg)](https://gitter.im/IL2X/community?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge)
 
 # IL2X (Currently Experimental)
-Translates .NET IL to supported and unsuported .NET platforms and architectures. (Powered by Mono.Cecil)<br><br>
+Translates .NET IL to supported and unsuported .NET platforms and architectures. (Powered by <a href="https://github.com/reignstudios/cecil">Mono.Cecil</a>)<br><br>
 <b>If IL2X works well, CS2X will focus on shader langs mostly:</b> https://github.com/reignstudios/CS2X
 
 ## Goals
