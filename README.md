@@ -5,12 +5,12 @@ Translates .NET IL to supported and unsuported .NET platforms and architectures.
 <b>If IL2X works well, CS2X will focus on shader langs mostly:</b> https://github.com/reignstudios/CS2X
 
 ## Goals
-This project will focus on translating .NET IL for non-supported .NET targets. Portibility is a huge focus.
+This projects focus is on translating .NET IL for non-supported .NET targets & performance. Portibility is a big focus.
 * Native C performance
-* C89: modern, legacy and embedded platforms (x86, MIPS, SPARK, RISC-V, PPC, AVR, etc)
-* CC65: 6502 platforms (Atari, C64, NES, Apple II, etc) [CS2X may be better suited]]
-* SDCC: Many targets (ColecoVision, etc) [CS2X may be better suited]
-* Assembly: CP1610 (Intellivision) [CS2X may be better suited]]
+* C89: modern, legacy and embedded platforms (x86, x64, MIPS, SPARK, RISC-V, PPC, 68k, AVR, etc)
+* CC65: 6502 platforms (Atari, C64, NES, Apple II, etc)
+* SDCC: Many targets (ColecoVision, etc)
+* Assembly: CP1610 (Intellivision)
 * Retarget: Custom assembly targets (FPGA CPU, 16bit bytes, etc)
 * Custom Standard lib(s) for various targets.
 * Documentation
