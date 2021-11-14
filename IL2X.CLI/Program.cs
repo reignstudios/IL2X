@@ -3,7 +3,7 @@ using System.IO;
 using IL2X.Core;
 using IL2X.Core.Emitters;
 
-namespace IL2X.CLR
+namespace IL2X.CLI
 {
 	class Program
 	{
