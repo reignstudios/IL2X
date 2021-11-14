@@ -2,7 +2,7 @@
 
 # IL2X (Currently Experimental)
 Translates .NET IL to supported and unsuported .NET platforms and architectures. (Powered by Mono.Cecil)<br><br>
-<b>If IL2X works well, CS2X will focus on shader langs only:</b> https://github.com/reignstudios/CS2X
+<b>If IL2X works well, CS2X will focus on shader langs mostly:</b> https://github.com/reignstudios/CS2X
 
 ## Goals
 This project will focus on translating .NET IL for non-supported .NET targets. Portibility is a huge focus.
