@@ -174,5 +174,35 @@ namespace IL2X.Core.Emitters
 
 			return false;
 		}
+
+		protected static bool GetNativeTypeAttributeInfo(NativeTarget target, TypeDefinition type, out string nativeType, out List<string> nativeHeaders)
+		{
+			if (type.HasCustomAttributes)
+			{
+				foreach (var a in type.CustomAttributes)
+				{
+					if (a.AttributeType.FullName == "IL2X.NativeTypeAttribute")
+					{
+						var args = a.ConstructorArguments;
+						var arg1 = (NativeTarget)args[0].Value;
+						if (arg1 == target)
+						{
+							nativeHeaders = new List<string>();
+							nativeType = (string)args[1].Value;
+							var arg3 = (CustomAttributeArgument[])args[2].Value;
+							foreach (var p in arg3)
+							{
+								nativeHeaders.Add((string)p.Value);
+							}
+							return true;
+						}
+					}
+				}
+			}
+
+			nativeType = null;
+			nativeHeaders = null;
+			return false;
+		}
 	}
 }

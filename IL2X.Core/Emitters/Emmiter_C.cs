@@ -33,17 +33,79 @@ namespace IL2X.Core.Emitters
 		{
 			activeModule = module;
 
-			// write header type-def-field file
-			foreach (var type in module.allTypes)
+			// write header forward-declare all types
 			{
-				string filename = FormatTypeFilename(type.typeReference.FullName);
-				using (var stream = new FileStream(Path.Combine(outputDirectory, filename) + ".h", FileMode.Create, FileAccess.Write, FileShare.Read))
+				using (var stream = new FileStream(Path.Combine(outputDirectory, "__ForwardDeclares.h"), FileMode.Create, FileAccess.Write, FileShare.Read))
 				using (var writer = new StreamWriter(stream))
 				{
 					activeWriter = writer;
 
 					// write standard header
 					WriteLine("#pragma once");
+
+					// write normal type declare
+					WriteLine();
+					WriteLine("/* === Normal Types === */");
+					foreach (var type in module.allTypes)
+					{
+						if (type.typeDefinition.IsEnum) continue;
+						if (GetNativeTypeAttributeInfo(NativeTarget.C, type.typeDefinition, out _, out _)) continue;
+
+						string typename = GetTypeFullName(type.typeReference);
+						WriteLine($"typedef struct {typename} {typename};");
+					}
+
+					// write native type declare
+					WriteLine();
+					WriteLine("/* === Native Types === */");
+					var nativeDefTypesSet = new HashSet<string>();
+					var nativeHeadersSet = new HashSet<string>();
+					foreach (var type in module.allTypes)
+					{
+						if (GetNativeTypeAttributeInfo(NativeTarget.C, type.typeDefinition, out string nativeType, out var nativeHeaders))
+						{
+							string typename = GetTypeFullName(type.typeReference);
+							nativeDefTypesSet.Add($"#define {typename} {nativeType}");
+							foreach (string header in nativeHeaders) nativeHeadersSet.Add(header);
+						}
+					}
+
+					foreach (string header in nativeHeadersSet)
+					{
+						WriteLine($"#include <{header}>");
+					}
+
+					foreach (string typeDef in nativeDefTypesSet)
+					{
+						WriteLine(typeDef);
+					}
+
+					// write enum type declare
+					WriteLine();
+					WriteLine("/* === Enums === */");
+					foreach (var type in module.allTypes)
+					{
+						if (!type.typeDefinition.IsEnum) continue;
+
+						string typename = GetTypeFullName(type.typeReference);
+						var field = type.typeDefinition.Fields[0];
+						WriteLine($"#define {typename} {GetTypeFullName(field.FieldType)}");
+					}
+				}
+			}
+
+			// write header type-def-field file
+			foreach (var type in module.allTypes)
+			{
+				string filename = FormatTypeFilename(type.typeReference.FullName);
+				using (var stream = new FileStream(Path.Combine(outputDirectory, filename + ".h"), FileMode.Create, FileAccess.Write, FileShare.Read))
+				using (var writer = new StreamWriter(stream))
+				{
+					activeWriter = writer;
+
+					// write standard header
+					WriteLine("#pragma once");
+					WriteLine("#include \"__ForwardDeclares.h\"");
 
 					// write type definition
 					WriteTypeDefinition(type);
@@ -54,7 +116,7 @@ namespace IL2X.Core.Emitters
 			foreach (var type in module.allTypes)
 			{
 				string filename = FormatTypeFilename(type.typeReference.FullName);
-				using (var stream = new FileStream(Path.Combine(outputDirectory, filename) + "_Methods.h", FileMode.Create, FileAccess.Write, FileShare.Read))
+				using (var stream = new FileStream(Path.Combine(outputDirectory, filename + "_Methods.h"), FileMode.Create, FileAccess.Write, FileShare.Read))
 				using (var writer = new StreamWriter(stream))
 				{
 					activeWriter = writer;
@@ -73,13 +135,12 @@ namespace IL2X.Core.Emitters
 			foreach (var type in module.allTypes)
 			{
 				string filename = FormatTypeFilename(type.typeReference.FullName);
-				using (var stream = new FileStream(Path.Combine(outputDirectory, filename) + ".c", FileMode.Create, FileAccess.Write, FileShare.Read))
+				using (var stream = new FileStream(Path.Combine(outputDirectory, filename + ".c"), FileMode.Create, FileAccess.Write, FileShare.Read))
 				using (var writer = new StreamWriter(stream))
 				{
 					activeWriter = writer;
 
 					// write type field metadata
-					WriteLine($"#include \"{filename}.h\"");
 					WriteLine($"#include \"{filename}_Methods.h\"");
 					IncludeSTD(type);
 
@@ -107,34 +168,10 @@ namespace IL2X.Core.Emitters
 
 		private void WriteTypeDefinition(TypeJit type)
 		{
-			// include native dependencies or get native type name
-			string nativeTypeName = null;
-			if (type.typeDefinition.HasCustomAttributes)
-			{
-				foreach (var a in type.typeDefinition.CustomAttributes)
-				{
-					if (a.AttributeType.FullName == "IL2X.NativeTypeAttribute")
-					{
-						var args = a.ConstructorArguments;
-						var arg1 = (NativeTarget)args[0].Value;
-						if (arg1 == NativeTarget.C)
-						{
-							nativeTypeName = (string)args[1].Value;
-							var arg3 = (CustomAttributeArgument[])args[2].Value;
-							foreach (var p in arg3)
-							{
-								var pVal = (string)p.Value;
-								WriteLine($"#include <{pVal}>");
-							}
-						}
-					}
-				}
-			}
-
 			// include value-type dependencies
 			foreach (var d in type.dependencies)
 			{
-				if ((d.IsValueType && !type.typeReference.IsValueType) || type.typeDefinition.IsEnum)
+				if (d.IsValueType || type.typeDefinition.IsEnum)
 				{
 					char s = Path.DirectorySeparatorChar;
 					if (d.Scope != type.typeReference.Scope) WriteLine($"#include \"..{s}{GetScopeName(d.Scope)}{s}{FormatTypeFilename(d.FullName)}.h\"");
@@ -142,30 +179,16 @@ namespace IL2X.Core.Emitters
 				}
 			}
 
-			// forware-declare reference-type dependencies
-			WriteLine();
-			foreach (var d in type.dependencies)
-			{
-				if (!d.IsValueType)
-				{
-					string dTypename = GetTypeFullName(d);
-					WriteLine($"typedef struct {dTypename} {dTypename};");
-				}
-			}
-
 			// write type
 			WriteLine();
 			string typename = GetTypeFullName(type.typeReference);
-			if (nativeTypeName != null)
+			if (GetNativeTypeAttributeInfo(NativeTarget.C, type.typeDefinition, out _, out _))
 			{
-				WriteLine($"#define {typename} {nativeTypeName}");
-				WriteLine();
+				WriteLine("/* Defined in '__ForwardDeclared.h' */");
 			}
 			else if (type.typeDefinition.IsEnum)
 			{
-				var field = type.typeDefinition.Fields[0];
-				WriteLine($"#define {typename} {GetTypeFullName(field.FieldType)}");
-				WriteLine();
+				WriteLine("/* Defined in '__ForwardDeclared.h' */");
 			}
 			else
 			{

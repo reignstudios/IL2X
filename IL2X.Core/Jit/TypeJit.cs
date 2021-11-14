@@ -17,7 +17,7 @@ namespace IL2X.Core.Jit
 		public List<TypeReference> genericArguments;
 		public List<FieldJit> fields;
 		public List<MethodJit> methods;
-		public HashSet<TypeReference> dependencies, dependenciesBaseTypes;
+		public HashSet<TypeReference> dependencies;
 
 		public TypeJit(TypeDefinition typeDefinition, TypeReference typeReference, ModuleJit module)
 		{
@@ -77,14 +77,11 @@ namespace IL2X.Core.Jit
 
 			// gather dependencies
 			dependencies = new HashSet<TypeReference>();
-			dependenciesBaseTypes = new HashSet<TypeReference>();
 
 			AddDependency(typeDefinition.BaseType, dependencies);
-			AddDependency(typeDefinition.BaseType, dependenciesBaseTypes);
 			foreach (var i in typeDefinition.Interfaces)
 			{
 				AddDependency(i.InterfaceType, dependencies);
-				AddDependency(i.InterfaceType, dependenciesBaseTypes);
 			}
 
 			foreach (var field in fields)

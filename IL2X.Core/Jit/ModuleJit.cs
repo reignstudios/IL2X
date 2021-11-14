@@ -67,8 +67,12 @@ namespace IL2X.Core.Jit
 			{
 				if (IsModuleType(type)) continue;// skip auto-generated module type
 				if (type.HasGenericParameters) continue;// don't JIT generic definition types
-				var typeJit = new TypeJit(type, type, this);
-				typeJit.Jit();
+				var typeJit = assembly.solution.FindJitTypeRecursive(type);
+				if (typeJit == null)
+				{
+					typeJit = new TypeJit(type, type, this);
+					typeJit.Jit();
+				}
 			}
 		}
 
