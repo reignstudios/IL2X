@@ -6,9 +6,9 @@ using System;
 using System.Text;
 using IL2X.Core.Jit;
 
-namespace IL2X.Core.Translators
+namespace IL2X.Core.Emitters
 {
-	public sealed class Translator_C : Translator
+	public sealed class Emmiter_C : Emitter
 	{
 		private StreamWriter activeWriter;
 		private string writerTab = string.Empty;
@@ -23,7 +23,7 @@ namespace IL2X.Core.Translators
 		private ModuleJit activeModule;
 		private MethodDebugInformation activemethodDebugInfo;
 
-		public Translator_C(Solution solution)
+		public Emmiter_C(Solution solution)
 		: base(solution)
 		{
 

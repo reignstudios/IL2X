@@ -8,13 +8,13 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace IL2X.Core.Translators
+namespace IL2X.Core.Emitters
 {
-	public abstract class Translator
+	public abstract class Emitter
 	{
 		public readonly Solution solution;
 
-		public Translator(Solution solution)
+		public Emitter(Solution solution)
 		{
 			this.solution = solution;
 		}

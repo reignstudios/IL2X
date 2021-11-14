@@ -1,7 +1,7 @@
 ﻿using System;
 using System.IO;
 using IL2X.Core;
-using IL2X.Core.Translators;
+using IL2X.Core.Emitters;
 
 namespace IL2X.CLR
 {
@@ -30,8 +30,8 @@ namespace IL2X.CLR
 				string outputPath = Path.GetDirectoryName(projPath);
 				outputPath = Path.Combine(outputPath, "IL2X_Output");
 
-				var translator = new Translator_C(solution);
-				translator.Translate(outputPath);
+				var emitter = new Emmiter_C(solution);
+				emitter.Translate(outputPath);
 			}
 		}
 	}
