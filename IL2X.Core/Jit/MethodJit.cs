@@ -10,7 +10,8 @@ namespace IL2X.Core.Jit
 {
 	public partial class MethodJit
 	{
-		public readonly MethodDefinition method;
+		public readonly MethodDefinition methodDefinition;
+		public readonly MethodReference methodReference;
 		public readonly TypeJit type;
 
 		public LinkedList<ASMObject> asmOperations;
@@ -24,9 +25,18 @@ namespace IL2X.Core.Jit
 		private Dictionary<Instruction, List<EvaluationStackProcessed>> processedInstructionPaths;
 		private int asmJumpIndex;
 
-		public MethodJit(MethodDefinition method, TypeJit type)
+		public MethodJit(MethodDefinition methodDefinition, MethodReference methodReference, TypeJit type)
 		{
-			this.method = method;
+			// resolve definition
+			if (methodDefinition == null)
+            {
+				if (methodReference.IsDefinition) methodDefinition = (MethodDefinition)methodReference;
+				else methodDefinition = methodReference.Resolve();
+				if (methodDefinition == null) throw new Exception("Method could not be reolved: " + methodReference.FullName);
+			}
+
+			this.methodDefinition = methodDefinition;
+			this.methodReference = methodReference;
 			this.type = type;
 			type.methods.Add(this);
 		}
@@ -35,9 +45,9 @@ namespace IL2X.Core.Jit
 		{
 			// add parameters
 			asmParameters = new List<ASMParameter>();
-			foreach (var parameter in method.Parameters)
+			foreach (var parameter in methodDefinition.Parameters)
 			{
-				var t = type.module.assembly.solution.ResolveType(parameter.ParameterType, type);
+				var t = type.module.assembly.solution.ResolveType(parameter.ParameterType, type, this);
 				if (t != parameter.ParameterType)
 				{
 					parameter.ParameterType = t;
@@ -46,18 +56,18 @@ namespace IL2X.Core.Jit
 			}
 
 			// skip rest if no instructions
-			if (!method.HasBody || method.Body.Instructions.Count == 0) return;
+			if (!methodDefinition.HasBody || methodDefinition.Body.Instructions.Count == 0) return;
 
 			// add locals
 			asmLocals = new List<ASMLocal>();
-			foreach (var variable in method.Body.Variables)
+			foreach (var variable in methodDefinition.Body.Variables)
 			{
-				var t = type.module.assembly.solution.ResolveType(variable.VariableType, type);
+				var t = type.module.assembly.solution.ResolveType(variable.VariableType, type, this);
 				if (t != variable.VariableType)
 				{
 					variable.VariableType = t;
 				}
-				asmLocals.Add(new ASMLocal(variable, method.Body.InitLocals));
+				asmLocals.Add(new ASMLocal(variable, methodDefinition.Body.InitLocals));
 			}
 
 			// interpret instructions
@@ -66,7 +76,7 @@ namespace IL2X.Core.Jit
 			evalStack = new Stack<EvaluationStackItem>();
 			evalStackVars = new Dictionary<TypeReference, ASMEvalStackLocal>();
 			processedInstructionPaths = new Dictionary<Instruction, List<EvaluationStackProcessed>>();
-			InterpretInstructionFlow(method.Body.Instructions[0]);
+			InterpretInstructionFlow(methodDefinition.Body.Instructions[0]);
 
 			// copy eval-stack locals into single list
 			asmEvalLocals = new List<ASMEvalStackLocal>();
@@ -92,16 +102,6 @@ namespace IL2X.Core.Jit
 			processedInstructionPaths = null;
 		}
 
-		private FieldReference ResolveFieldReference(FieldReference field)
-		{
-			var t = type.module.assembly.solution.ResolveType(field.FieldType, type);
-			if (t != field.FieldType)
-			{
-				field.FieldType = t;
-			}
-			return field;
-		}
-
 		private void InterpretInstructionFlow(Instruction op)
 		{
 			while (op != null)
@@ -116,6 +116,12 @@ namespace IL2X.Core.Jit
 					{
 						op = op.Next;
 						continue;
+					}
+
+					case Code.Pop:
+					{
+						StackPop();
+						break;
 					}
 
 					// ===================================
@@ -231,7 +237,7 @@ namespace IL2X.Core.Jit
 					{
 						var self = StackPop();
 						var field = (FieldReference)op.Operand;
-						field = ResolveFieldReference(field);
+						field = type.ResolveField(field);
 						Ldfld_X(op, self.obj, field);
 						break;
 					}
@@ -240,7 +246,7 @@ namespace IL2X.Core.Jit
 					{
 						var self = StackPop();
 						var field = (FieldReference)op.Operand;
-						field = ResolveFieldReference(field);
+						field = type.ResolveField(field);
 						Ldfld_X(op, self.obj, field);
 						break;
 					}
@@ -248,7 +254,7 @@ namespace IL2X.Core.Jit
 					case Code.Sizeof:
 					{
 						var type = (TypeReference)op.Operand;
-						var t = this.type.module.assembly.solution.ResolveType(type, this.type);
+						var t = this.type.module.assembly.solution.ResolveType(type, this.type, this);
 						if (!sizeofTypes.Any(x => TypeJit.TypesEqual(x, type))) sizeofTypes.Add(type);
 						StackPush(op, new ASMSizeOf(type));
 						break;
@@ -274,7 +280,7 @@ namespace IL2X.Core.Jit
 						var itemRight = StackPop();
 						var self = StackPop();
 						var fieldLeft = (FieldReference)op.Operand;
-						fieldLeft = ResolveFieldReference(fieldLeft);
+						fieldLeft = type.ResolveField(fieldLeft);
 						var field = new ASMField(self.obj, fieldLeft);
 						AddASMOp(new ASMWriteField(field, OperandToASMOperand(itemRight.obj)));
 						break;
@@ -302,7 +308,7 @@ namespace IL2X.Core.Jit
 					// ===================================
 					case Code.Ret:
 					{
-						if (IsVoidType(method.ReturnType))
+						if (IsVoidType(methodDefinition.ReturnType))
 						{
 							AddASMOp(new ASMObject(ASMCode.ReturnVoid));
 						}
@@ -453,7 +459,8 @@ namespace IL2X.Core.Jit
 					// ===================================
 					case Code.Call:
 					{
-						var methodInvoke = (MethodReference)op.Operand;
+						var methodInvoke = type.ResolveMethod((MethodReference)op.Operand);
+						var ttt = methodInvoke.GetType();
 						var returnVar = GetEvalStackVar(methodInvoke.ReturnType);
 						var parameters = new List<ASMObject>();
 						if (methodInvoke.HasThis)
@@ -518,7 +525,7 @@ namespace IL2X.Core.Jit
 			if (obj is ASMField) return (ASMField)obj;
 			if (obj is ASMThisPtr) return (ASMThisPtr)obj;
 			if (obj is ASMEvalStackLocal) return (ASMEvalStackLocal)obj;
-			if (obj == method.DeclaringType) return ASMThisPtr.handle;
+			if (obj == methodDefinition.DeclaringType) return ASMThisPtr.handle;
 			if (obj is VariableReference) return asmLocals.First(x => x.variable == obj);
 			if (obj is ParameterReference) return asmParameters.First(x => TypesEqual(x.parameter, (ParameterReference)obj));
 
@@ -544,13 +551,13 @@ namespace IL2X.Core.Jit
 
 		private void Ldarg_X(Instruction op, int index, bool indexCanThisOffset)
 		{
-			if (index == 0 && method.HasThis)
+			if (index == 0 && methodDefinition.HasThis)
 			{
 				StackPush(op, new ASMThisPtr());
 			}
 			else
 			{
-				if (indexCanThisOffset && method.HasThis) --index;
+				if (indexCanThisOffset && methodDefinition.HasThis) --index;
 				var p = asmParameters[index].parameter;
 				StackPush(op, p);
 			}
@@ -564,12 +571,12 @@ namespace IL2X.Core.Jit
 		private void Stloc_X(int index)
 		{
 			var p = StackPop();
-			AddASMOp(new ASMWriteLocal(asmLocals.First(x => x.variable == method.Body.Variables[index]), OperandToASMOperand(p.obj)));
+			AddASMOp(new ASMWriteLocal(asmLocals.First(x => x.variable == methodDefinition.Body.Variables[index]), OperandToASMOperand(p.obj)));
 		}
 
 		private void Ldloc_X(Instruction op, int index)
 		{
-			var variable = method.Body.Variables[index];
+			var variable = methodDefinition.Body.Variables[index];
 			if (variable.VariableType.IsGenericParameter)
 			{
 				variable = asmLocals[variable.Index].variable;
@@ -591,7 +598,7 @@ namespace IL2X.Core.Jit
 				++result.refCount;
 				return result;
 			}
-			var t = this.type.module.assembly.solution.ResolveType(type, this.type);
+			var t = this.type.module.assembly.solution.ResolveType(type, this.type, this);
 			result = new ASMEvalStackLocal(t, evalStackVars.Count);
 			evalStackVars.Add(type, result);
 			return result;
@@ -732,7 +739,7 @@ namespace IL2X.Core.Jit
 
 		private TypeSystem GetTypeSystem()
 		{
-			return method.Module.TypeSystem;
+			return methodDefinition.Module.TypeSystem;
 		}
 
 		private bool IsVoidType(TypeReference type)

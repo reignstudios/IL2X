@@ -51,7 +51,13 @@
 
 		static void FooGeneric(MyGeneric<int> wow)//, MyGeneric<int>.NestedClass nested)
 		{
-
+			FooGenericMethod<int>(22);
+			FooGenericMethod<int>(44);
 		}
+
+		static T FooGenericMethod<T>(T t)
+        {
+			return t;
+        }
 	}
 }

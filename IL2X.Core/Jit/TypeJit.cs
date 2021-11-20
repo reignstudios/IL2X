@@ -53,7 +53,7 @@ namespace IL2X.Core.Jit
 				genericArguments = new List<TypeReference>();
 				foreach (var arg in genericTypeReference.GenericArguments)
 				{
-					var typeJit = module.assembly.solution.ResolveType(arg, this);
+					var typeJit = module.assembly.solution.ResolveType(arg, this, null);
 					genericArguments.Add(typeJit);
 				}
 			}
@@ -71,7 +71,7 @@ namespace IL2X.Core.Jit
 			foreach (var method in typeDefinition.Methods)
 			{
 				if (method.HasGenericParameters) continue;// don't JIT generic definition methods
-				var methodJit = new MethodJit(method, this);
+				var methodJit = new MethodJit(method, method, this);
 				methodJit.Jit();
 			}
 
@@ -91,7 +91,7 @@ namespace IL2X.Core.Jit
 
 			foreach (var method in methods)
 			{
-				AddDependency(method.method.ReturnType, dependencies);
+				AddDependency(method.methodDefinition.ReturnType, dependencies);
 
 				if (method.asmParameters != null)
 				{
@@ -163,5 +163,48 @@ namespace IL2X.Core.Jit
 			}
 			return null;
 		}
+
+		internal FieldReference ResolveField(FieldReference field)
+		{
+			var t = module.assembly.solution.ResolveType(field.FieldType, this, null);
+			if (t != field.FieldType)
+			{
+				field.FieldType = t;
+			}
+			return field;
+		}
+
+		internal MethodReference ResolveMethod(MethodReference method)
+        {
+			if (method.IsGenericInstance)
+            {
+				// resolve return type
+				var g = (GenericInstanceMethod)method;
+				if (method.ReturnType.IsGenericParameter)
+                {
+					var gp = (GenericParameter)method.ReturnType;
+					method.ReturnType = g.GenericArguments[gp.Position];
+                }
+
+				// resolve parameters
+				foreach (var p in g.Parameters)
+                {
+					if (p.ParameterType.IsGenericParameter)
+                    {
+						var gp = (GenericParameter)p.ParameterType;
+						p.ParameterType = g.GenericArguments[gp.Position];
+                    }
+				}
+
+				// make sure method is jit
+				if (!methods.Any(x => x.methodReference == method || x.methodReference.FullName == method.FullName))
+                {
+					var methodJit = new MethodJit(null, method, this);
+					methodJit.Jit();
+				}
+			}
+
+			return method;
+        }
 	}
 }

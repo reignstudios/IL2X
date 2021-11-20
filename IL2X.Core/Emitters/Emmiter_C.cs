@@ -252,9 +252,9 @@ namespace IL2X.Core.Emitters
 
 		private void WriteMethodSignature(MethodJit method)
 		{
-			Write(GetTypeReferenceName(method.method.ReturnType));
+			Write(GetTypeReferenceName(method.methodReference.ReturnType));
 			Write(" ");
-			Write(GetMethodName(method.method));
+			Write(GetMethodName(method.methodReference));
 			Write("(");
 			WriteMethodParameters(method);
 			Write(")");
@@ -262,7 +262,7 @@ namespace IL2X.Core.Emitters
 
 		private void WriteMethodParameters(MethodJit method)
 		{
-			if (method.method.HasThis)
+			if (method.methodReference.HasThis)
 			{
 				Write(GetTypeFullName(method.type.typeReference));
 				Write("* self");
@@ -284,7 +284,7 @@ namespace IL2X.Core.Emitters
 			foreach (var method in type.methods)
 			{
 				// load debug info if avaliable
-				if (activeModule.module.symbolReader != null) activemethodDebugInfo = activeModule.module.symbolReader.Read(method.method);
+				if (activeModule.module.symbolReader != null) activemethodDebugInfo = activeModule.module.symbolReader.Read(method.methodDefinition);
 
 				// write method
 				WriteLine();
@@ -307,7 +307,7 @@ namespace IL2X.Core.Emitters
 			foreach (var local in method.asmLocals)
 			{
 				WriteTab($"{GetTypeReferenceName(local.type)} {GetLocalVariableName(local.variable)}");
-				if (method.method.Body.InitLocals) Write(" = {0}");
+				if (method.methodDefinition.Body.InitLocals) Write(" = {0}");
 				WriteLine(";");
 			}
 		}
@@ -641,7 +641,8 @@ namespace IL2X.Core.Emitters
 		private string GetLocalVariableName(VariableDefinition variable)
 		{
 			if (activemethodDebugInfo.TryGetName(variable, out string name)) return "l_" + name;
-			return "l_" + variable.GetHashCode().ToString();//variable.Index.ToString();
+			//return "l_" + variable.GetHashCode().ToString();
+			return "l_" + variable.Index.ToString();
 		}
 
 		private string GetLocalEvalVariableName(int index)
@@ -666,8 +667,21 @@ namespace IL2X.Core.Emitters
 
 		private static string GetMethodName(MethodReference method)
 		{
+			string name = method.Name.Replace('.', '_');
+			if (method.IsGenericInstance)
+			{
+				var genericMethod = (GenericInstanceMethod)method;
+				name += "_";
+				for (int i = 0; i != genericMethod.GenericArguments.Count; ++i)
+                {
+					name += GetTypeName(genericMethod.GenericArguments[i]);
+					if (i != genericMethod.GenericArguments.Count - 1) name += "_";
+                }
+				name += "_";
+			}
+
 			int overload = GetMethodOverloadIndex(method);
-			return $"{GetTypeFullName(method.DeclaringType)}_{method.Name.Replace('.', '_')}_{overload}";
+			return $"{GetTypeFullName(method.DeclaringType)}_{name}_{overload}";
 		}
 
 		private string GetJumpIndexName(int jumpIndex)

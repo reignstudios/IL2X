@@ -18,7 +18,7 @@ namespace IL2X.Core.Jit
 
 		internal void Jit()
 		{
-			resolvedFieldType = type.module.assembly.solution.ResolveType(field.FieldType, type);
+			resolvedFieldType = type.module.assembly.solution.ResolveType(field.FieldType, type, null);
 		}
 	}
 }

@@ -184,12 +184,12 @@ namespace IL2X.Core
 			return resolvedTypeJit;
 		}
 
-		internal TypeReference ResolveType(TypeReference type, TypeJit usedInType)
+		internal TypeReference ResolveType(TypeReference type, TypeJit usedInType, MethodJit usedInMethod)
 		{
 			// resolve types with elements
 			if (type.IsArray || type.IsByReference || type.IsPointer)
 			{
-				var elementType = ResolveType(type.GetElementType(), usedInType);
+				var elementType = ResolveType(type.GetElementType(), usedInType, usedInMethod);
 				type.SetElementType(elementType);
 				return type;
 			}
@@ -204,7 +204,7 @@ namespace IL2X.Core
 					for (int i = 0; i != g.GenericArguments.Count; ++i)
 					{
 						var arg = g.GenericArguments[i];
-						var argResolved = ResolveType(arg, usedInType);
+						var argResolved = ResolveType(arg, usedInType, usedInMethod);
 						g.GenericArguments[i] = argResolved;
 					}
 				}
@@ -214,9 +214,24 @@ namespace IL2X.Core
 			else if (type.IsGenericParameter)
 			{
 				var genericParamArg = (GenericParameter)type;
-				var g = (IGenericInstance)usedInType.typeReference;
-				var argType = g.GenericArguments[genericParamArg.Position];
-				return ResolveType(argType, usedInType);
+				TypeReference argType;
+				if (genericParamArg.Type == GenericParameterType.Type)
+				{
+					if (usedInType == null) throw new Exception("Trying to resolve generic type but the expected generic-parameter's type is null");
+					var g = (IGenericInstance)usedInType.typeReference;
+					argType = g.GenericArguments[genericParamArg.Position];
+				}
+				else if (genericParamArg.Type == GenericParameterType.Method)
+                {
+					if (usedInMethod == null) throw new Exception("Trying to resolve generic type but the expected generic-parameter's method is null");
+					var g = (GenericInstanceMethod)usedInMethod.methodReference;
+					argType = g.GenericArguments[genericParamArg.Position];
+				}
+				else
+                {
+					throw new NotImplementedException("Unsupported generic parameter type: " + genericParamArg.Type.ToString());
+                }
+				return ResolveType(argType, usedInType, usedInMethod);
 			}
 
 			// resolve normal type
