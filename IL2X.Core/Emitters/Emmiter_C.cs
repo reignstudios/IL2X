@@ -56,47 +56,54 @@ namespace IL2X.Core.Emitters
 					}
 
 					// write native type declare
-					WriteLine();
-					WriteLine("/* === Native Types === */");
+					bool nativeTypesExist = false;
 					var nativeDefTypesSet = new HashSet<string>();
 					var nativeHeadersSet = new HashSet<string>();
 					foreach (var type in module.allTypes)
 					{
 						if (GetNativeTypeAttributeInfo(NativeTarget.C, type.typeDefinition, out string nativeType, out var nativeHeaders))
 						{
+							nativeTypesExist = true;
 							string typename = GetTypeFullName(type.typeReference);
 							nativeDefTypesSet.Add($"#define {typename} {nativeType}");
 							foreach (string header in nativeHeaders) nativeHeadersSet.Add(header);
 						}
 					}
 
-					foreach (string header in nativeHeadersSet)
+					if (nativeTypesExist)
 					{
-						WriteLine($"#include <{header}>");
-					}
+						WriteLine();
+						WriteLine("/* === Native Types === */");
 
-					foreach (string typeDef in nativeDefTypesSet)
-					{
-						WriteLine(typeDef);
+						foreach (string header in nativeHeadersSet)
+						{
+							WriteLine($"#include <{header}>");
+						}
+
+						foreach (string typeDef in nativeDefTypesSet)
+						{
+							WriteLine(typeDef);
+						}
 					}
 
 					// write enum type declare
-					WriteLine();
-					WriteLine("/* === Enums === */");
-					foreach (var type in module.allTypes)
+					if (module.enumTypes.Count != 0)
 					{
-						if (!type.typeDefinition.IsEnum) continue;
-
-						string typename = GetTypeFullName(type.typeReference);
-						var field = type.typeDefinition.Fields[0];
-						WriteLine($"#define {typename} {GetTypeFullName(field.FieldType)}");
+						WriteLine();
+						WriteLine("/* === Enums === */");
+						foreach (var type in module.enumTypes)
+						{
+							string typename = GetTypeFullName(type.typeReference);
+							var field = type.typeDefinition.Fields[0];
+							WriteLine($"#define {typename} {GetTypeFullName(field.FieldType)}");
+						}
 					}
 
 					// write runtime-type-base if core-lib
-					WriteLine();
-					WriteLine("/* === RuntimeTypeBase === */");
 					if (module.assembly.assembly.isCoreLib)
                     {
+						WriteLine();
+						WriteLine("/* === RuntimeTypeBase === */");
 						WriteLine("typedef struct IL2X_RuntimeTypeBase IL2X_RuntimeTypeBase;");
 						WriteLine("struct IL2X_RuntimeTypeBase");
 						WriteLine("{");
