@@ -91,6 +91,22 @@ namespace IL2X.Core.Emitters
 						var field = type.typeDefinition.Fields[0];
 						WriteLine($"#define {typename} {GetTypeFullName(field.FieldType)}");
 					}
+
+					// write runtime-type-base if core-lib
+					WriteLine();
+					WriteLine("/* === RuntimeTypeBase === */");
+					if (module.assembly.assembly.isCoreLib)
+                    {
+						WriteLine("typedef struct IL2X_RuntimeTypeBase IL2X_RuntimeTypeBase;");
+						WriteLine("struct IL2X_RuntimeTypeBase");
+						WriteLine("{");
+						AddTab();
+						WriteLineTab($"{GetTypeFullName(typeJit.typeReference)}* Type;");
+						WriteLineTab("// TODO: string ptr to Name");
+						WriteLineTab("// TODO: string ptr to FullName");
+						RemoveTab();
+						WriteLine("};");
+                    }
 				}
 			}
 
@@ -128,6 +144,10 @@ namespace IL2X.Core.Emitters
 
 					// write method definitions
 					WriteTypeMethodDefinition(type);
+
+					// write runtime type
+					WriteLine();
+					WriteRuntimeType(type);
 				}
 			}
 
@@ -166,7 +186,19 @@ namespace IL2X.Core.Emitters
 			}
 		}
 
-		private void WriteTypeDefinition(TypeJit type)
+		private void WriteRuntimeType(TypeJit type)
+        {
+			string typename = GetRuntimeTypeFullName(type.typeReference);
+			WriteLine($"typedef struct {typename} {typename};");
+			WriteLine($"struct {typename}");
+			WriteLine("{");
+			AddTab();
+			WriteLineTab("IL2X_RuntimeTypeBase RuntimeTypeBase;");// TODO: write special value-type that contains BaseClass, Name & Fullname
+			RemoveTab();
+			WriteLine("};");
+		}
+
+        private void WriteTypeDefinition(TypeJit type)
 		{
 			// include value-type dependencies
 			foreach (var d in type.dependencies)
@@ -592,14 +624,9 @@ namespace IL2X.Core.Emitters
 			}
 		}
 
-		private TypeSystem GetTypeSystem()
-		{
-			return activeModule.module.cecilModule.TypeSystem;
-		}
-
 		private bool IsVoidType(TypeReference type)
 		{
-			return type == GetTypeSystem().Void || type.FullName == "System.Void";
+			return type.FullName == "System.Void";// TODO: don't just validate by name
 		}
 
 		public static string GetTypeName(TypeReference type)
@@ -630,6 +657,11 @@ namespace IL2X.Core.Emitters
 				}
 			}
 			return result;
+		}
+
+		public static string GetRuntimeTypeFullName(TypeReference type)
+		{
+			return "r" + GetTypeFullName(type);
 		}
 
 		private static string GetTypeReferenceMemberAccessor(TypeReference type)

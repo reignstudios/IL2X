@@ -13,6 +13,7 @@ namespace IL2X.Core.Emitters
 	public abstract class Emitter
 	{
 		public readonly Solution solution;
+		protected TypeJit runtimeTypeJit, typeJit;
 
 		public Emitter(Solution solution)
 		{
@@ -21,6 +22,9 @@ namespace IL2X.Core.Emitters
 
 		public virtual void Translate(string outputDirectory)
 		{
+			runtimeTypeJit = solution.coreAssemblyJit.FindJitTypeRecursive("System.RuntimeType");
+			typeJit = solution.coreAssemblyJit.FindJitTypeRecursive("System.Type");
+
 			if (!Directory.Exists(outputDirectory)) Directory.CreateDirectory(outputDirectory);
 			TranslateAssembly(solution.mainAssemblyJit, outputDirectory);
 		}

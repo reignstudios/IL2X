@@ -61,6 +61,8 @@ namespace IL2X.Core
 				mainAssembly = AddAssembly(dllPath);
 				mainAssembly.Load(assemblyResolver);
 			}
+
+			coreAssembly = assemblies.Find(x => x.isCoreLib);
 		}
 
 		public void Jit()
@@ -68,6 +70,7 @@ namespace IL2X.Core
 			assemblyJits = new List<AssemblyJit>();
 			mainAssemblyJit = new AssemblyJit(this, mainAssembly);
 			mainAssemblyJit.Jit();
+			coreAssemblyJit = assemblyJits.Find(x => x.assembly == coreAssembly);
 		}
 
 		public void Optimize()
@@ -83,6 +86,11 @@ namespace IL2X.Core
 		public TypeJit FindJitTypeRecursive(TypeReference type)
 		{
 			return mainAssemblyJit.FindJitTypeRecursive(type);
+		}
+
+		public TypeJit FindJitTypeRecursive(string fullTypeName)
+		{
+			return mainAssemblyJit.FindJitTypeRecursive(fullTypeName);
 		}
 
 		public FieldJit FindJitFieldRecursive(FieldDefinition field)

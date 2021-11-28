@@ -67,6 +67,19 @@ namespace IL2X.Core.Jit
 			return null;
 		}
 
+		public TypeJit FindJitTypeRecursive(string fullTypeName)
+		{
+			if (modules != null)
+			{
+				foreach (var module in modules)
+				{
+					var result = module.FindJitTypeRecursive(fullTypeName);
+					if (result != null) return result;
+				}
+			}
+			return null;
+		}
+
 		public FieldJit FindJitFieldRecursive(FieldDefinition field)
 		{
 			if (modules != null)

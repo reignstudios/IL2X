@@ -133,6 +133,30 @@ namespace IL2X.Core.Jit
 			return null;
 		}
 
+		public TypeJit FindJitTypeRecursive(string fullTypeName)
+		{
+			// search references first
+			if (assemblyReferences != null)
+			{
+				foreach (var assemblyRef in assemblyReferences)
+				{
+					var result = assemblyRef.FindJitTypeRecursive(fullTypeName);
+					if (result != null) return result;
+				}
+			}
+
+			// search types
+			if (allTypes != null)
+			{
+				foreach (var t in allTypes)
+				{
+					if (t.typeReference.FullName == fullTypeName) return t;
+				}
+			}
+
+			return null;
+		}
+
 		public FieldJit FindJitFieldRecursive(FieldDefinition field)
 		{
 			// search references first

@@ -13,6 +13,7 @@ namespace IL2X.Core
 		public readonly string binaryPath;
 		public List<Module> modules;
 		public AssemblyDefinition cecilAssembly;
+		public bool isCoreLib;
 
 		public Assembly(Solution solution, string binaryPath)
 		{
@@ -47,6 +48,9 @@ namespace IL2X.Core
 			// read assembly file
 			cecilAssembly = AssemblyDefinition.ReadAssembly(binaryPath, readerParameters);
 
+			// check if core lib
+			isCoreLib = cecilAssembly.Name.Name == "IL2X.CoreLib";
+			
 			// load modules
 			modules = new List<Module>();
 			foreach (var cecilModule in cecilAssembly.Modules)

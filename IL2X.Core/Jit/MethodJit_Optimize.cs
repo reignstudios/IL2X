@@ -32,6 +32,9 @@ namespace IL2X.Core.Jit
 
 			// remove eval-locals with zero references
 			Optimize_RemoveUnusedEvalLocals();
+
+			// remove eval-locals with that are only set not used
+			//Optimize_RemoveUnusedSetOnlyEvalLocals();
 		}
 
 		private void Optimize_RedundentStackCopies()
@@ -239,5 +242,50 @@ namespace IL2X.Core.Jit
 				if (asmEvalLocals[i].refCount == 0) asmEvalLocals.RemoveAt(i);
 			}
 		}
+
+		/*private void Optimize_RemoveUnusedSetOnlyEvalLocals()
+        {
+			for (int i = asmEvalLocals.Count - 1; i >= 0; --i)
+			{
+				var local = asmEvalLocals[i];
+				if (local.refCount > 0)
+                {
+					// check if local is used outside of being set
+					bool found = false;
+					foreach (var op in asmOperations)
+                    {
+						if (op.code == ASMCode.CallMethod)
+                        {
+							var asmCall = (ASMCallMethod)op;
+							if (!(asmCall.resultLocal is ASMEvalStackLocal))
+                            {
+								found = true;
+								break;
+                            }
+						}
+                    }
+					
+					// remove local if its only being set
+					if (!found)
+                    {
+						// remove op connections no longer needed
+						foreach (var op in asmOperations)
+						{
+							if (op.code == ASMCode.CallMethod)
+							{
+								var asmCall = (ASMCallMethod)op;
+								if (asmCall.resultLocal == local)
+								{
+									asmCall.resultLocal = null;
+								}
+							}
+						}
+
+						// remove local
+						asmEvalLocals.RemoveAt(i);
+					}
+				}
+			}
+		}*/
 	}
 }

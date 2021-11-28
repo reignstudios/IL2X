@@ -51,7 +51,7 @@
 
 		static void FooGeneric(MyGeneric<int> wow)//, MyGeneric<int>.NestedClass nested)
 		{
-			FooGenericMethod<int>(22);
+			int unusedLocal = FooGenericMethod<int>(22);
 			FooGenericMethod<int>(44);
 		}
 
