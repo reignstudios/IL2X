@@ -13,7 +13,7 @@ namespace IL2X.Core.Jit
 		public readonly Module module;
 		public List<ModuleJit> moduleReferences;
 		public List<AssemblyJit> assemblyReferences;
-		public List<TypeJit> allTypes, classTypes, structTypes, enumTypes;
+		public List<TypeJit> allTypes, classTypes, structTypes, interfaceTypes, enumTypes;
 
 		public ModuleJit(AssemblyJit assembly, Module module)
 		{
@@ -62,6 +62,7 @@ namespace IL2X.Core.Jit
 			allTypes = new List<TypeJit>();
 			classTypes = new List<TypeJit>();
 			structTypes = new List<TypeJit>();
+			interfaceTypes = new List<TypeJit>();
 			enumTypes = new List<TypeJit>();
 			foreach (var type in module.cecilModule.Types)
 			{

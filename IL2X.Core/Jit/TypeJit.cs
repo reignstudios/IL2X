@@ -40,9 +40,26 @@ namespace IL2X.Core.Jit
 
 			// add to module
 			module.allTypes.Add(this);
-			if (typeDefinition.IsValueType) module.structTypes.Add(this);
-			else if (typeDefinition.IsEnum) module.enumTypes.Add(this);
-			else module.classTypes.Add(this);
+			if (typeDefinition.IsEnum)// enum must come before value type check
+			{
+				module.enumTypes.Add(this);
+			}
+			else if (typeDefinition.IsValueType)
+			{
+				module.structTypes.Add(this);
+			}
+			else if (typeDefinition.IsClass)
+			{
+				module.classTypes.Add(this);
+			}
+			else if (typeDefinition.IsInterface)
+			{
+				module.classTypes.Add(this);
+			}
+			else
+			{
+				throw new NotImplementedException("Unsupported type: " + typeDefinition.ToString());
+			}
 		}
 
 		internal void Jit()
