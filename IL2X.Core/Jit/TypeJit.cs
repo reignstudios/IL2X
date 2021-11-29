@@ -54,7 +54,7 @@ namespace IL2X.Core.Jit
 			}
 			else if (typeDefinition.IsInterface)
 			{
-				module.classTypes.Add(this);
+				module.interfaceTypes.Add(this);
 			}
 			else
 			{
