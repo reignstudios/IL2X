@@ -231,12 +231,13 @@ namespace IL2X.Core.Emitters
 			}
 			else
 			{
-				if (type.fields.Count != 0)
+				if (type.fields.Count != 0 || !type.isValueType)
 				{
 					WriteLine($"typedef struct {typename} {typename};");
 					WriteLine($"struct {typename}");
 					WriteLine("{");
 					AddTab();
+					if (!type.isValueType) WriteLineTab("void* RuntimeType;");
 					WriteTypeNonStaticFieldDefinition(type);
 					RemoveTab();
 					Write("};");
