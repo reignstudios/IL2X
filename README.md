@@ -1,4 +1,4 @@
-[![Gitter](https://badges.gitter.im/IL2X/community.svg)](https://gitter.im/IL2X/community?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge)
+# <a href="https://discord.gg/QmJEGER9An"><image src="https://theme.zdassets.com/theme_assets/678183/cc59daa07820943e943c2fc283b9079d7003ff76.svg"/></a>
 
 # IL2X (Currently Experimental)
 Translates .NET IL to supported and unsuported .NET platforms and architectures. (Powered by <a href="https://github.com/reignstudios/cecil">Mono.Cecil</a>)<br><br>
