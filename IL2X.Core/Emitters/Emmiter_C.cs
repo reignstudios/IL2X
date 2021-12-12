@@ -331,13 +331,19 @@ namespace IL2X.Core.Emitters
 				WriteMethodSignature(method);
 				WriteLine();
 				WriteLine("{");
+				AddTab();
 				if (method.asmOperations != null && method.asmOperations.Count != 0)
 				{
-					AddTab();
 					WriteMethodLocals(method);
 					WriteMethodInstructions(method);
-					RemoveTab();
 				}
+				else
+                {
+					// write implementation detail
+					if (method.methodDefinition.IsInternalCall) WriteMethodImplementationDetail(method);
+
+				}
+				RemoveTab();
 				WriteLine("}");
 			}
 		}
@@ -382,6 +388,17 @@ namespace IL2X.Core.Emitters
 				WriteLine(";");
 			}
 		}
+
+		private void WriteMethodImplementationDetail(MethodJit method)
+        {
+			if (method.methodDefinition.DeclaringType.FullName == "System.Object")
+			{
+				if (method.methodDefinition.FullName == "System.Type System.Object::GetType()")
+				{
+					WriteLineTab("return ((IL2X_RuntimeTypeBase*)self->RuntimeType)->Type;");
+				}
+			}
+        }
 
 		private string GetOperationValue(ASMObject op)
 		{
