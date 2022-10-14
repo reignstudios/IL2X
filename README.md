@@ -27,5 +27,15 @@ This projects focus is on translating .NET IL for non-supported .NET targets & p
 * Allows you to directly invoke C methods statically for better optimizations vs using DllImport.
 * Supports many C compilers allowing you to choose what's best.
 
+## Building
+
+###Dependencies
+To build IL2X, you will need the <a href=https://git-lfs.github.com>Git Large File Storage</a> extension and the <a href=https://dotnet.microsoft.com/en-us/download/dotnet/6.0>.NET 6 SDK</a>
+
+### Terminal
+`git clone https://github.com/reignstudios/IL2X`<br>
+`cd IL2X`<br>
+`dotnet build`
+
 ## Is this project ready for general use?
 No still experimental.
