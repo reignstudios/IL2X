@@ -488,6 +488,30 @@ namespace IL2X.Core.Emitters
 					return $"{GetOperationValue(arithmaticOp.value1)} + {GetOperationValue(arithmaticOp.value2)}";
 				}
 
+				case ASMCode.BitwiseAnd: 
+				{
+					var arithmaticOp = (ASMArithmatic)op;
+					return $"{GetOperationValue(arithmaticOp.value1)} & {GetOperationValue(arithmaticOp.value2)}";	
+				}
+				
+				case ASMCode.BitwiseOr: 
+				{
+					var arithmaticOp = (ASMArithmatic)op;
+					return $"{GetOperationValue(arithmaticOp.value1)} | {GetOperationValue(arithmaticOp.value2)}";	
+				}
+				
+				case ASMCode.BitwiseXor: 
+				{
+					var arithmaticOp = (ASMArithmatic)op;
+					return $"{GetOperationValue(arithmaticOp.value1)} ^ {GetOperationValue(arithmaticOp.value2)}";	
+				}
+				
+				case ASMCode.BitwiseNot:
+				{
+					var arithmaticOp = (ASMArithmatic)op;
+					return $"~{GetOperationValue(arithmaticOp.value1)}";
+				}
+
 				case ASMCode.Sub:
 				{
 					var arithmaticOp = (ASMArithmatic)op;

@@ -20,7 +20,11 @@ namespace IL2X.Core
 
 		// arithmatic
 		Add,
-		Sub,
+		BitwiseAnd,
+		BitwiseOr,
+		BitwiseXor,
+		BitwiseNot,
+		Sub,		
 		Mul,
 		Div,
 
@@ -48,7 +52,7 @@ namespace IL2X.Core
 		CmpLess_1_0,
 
 		// invoke
-		CallMethod
+		CallMethod,
 	}
 
 	public class ASMObject
