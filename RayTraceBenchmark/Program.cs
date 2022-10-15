@@ -28,7 +28,7 @@
 		{
 			int a = Foo(123);
 			int b = 24;
-			int c = a ^ b & a | ~b;
+			int c = (a ^ b & a | ~b >> 3) << 1;
 			EXIT:;
 			if (a == 124) a = -200;
 			for (int i = 0; i != 2; ++i)

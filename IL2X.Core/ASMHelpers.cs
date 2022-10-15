@@ -20,13 +20,16 @@ namespace IL2X.Core
 
 		// arithmatic
 		Add,
+		Sub,		
+		Mul,
+		Div,
 		BitwiseAnd,
 		BitwiseOr,
 		BitwiseXor,
 		BitwiseNot,
-		Sub,		
-		Mul,
-		Div,
+		ShiftLeft,
+		ShiftRight,
+		ShiftRightUnsigned,
 
 		// writes
 		WriteLocal,

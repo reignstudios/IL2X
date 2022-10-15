@@ -216,6 +216,39 @@ namespace IL2X.Core.Jit
 						break;
 					}
 
+					case Code.Shl: 
+					{
+						var shiftAmount = StackPop();
+						var value       = StackPop();
+						var evalVarType = GetArithmaticResultType(value.obj);
+						var evalVar     = GetEvalStackVar(evalVarType);
+						AddASMOp(new ASMArithmatic(ASMCode.ShiftLeft, OperandToASMOperand(value.obj), OperandToASMOperand(shiftAmount.obj), evalVar));
+						StackPush(op, evalVar);
+						break;
+					}
+					
+					case Code.Shr: 
+					{
+						var shiftAmount = StackPop();
+						var value       = StackPop();
+						var evalVarType = GetArithmaticResultType(value.obj);
+						var evalVar     = GetEvalStackVar(evalVarType);
+						AddASMOp(new ASMArithmatic(ASMCode.ShiftRight, OperandToASMOperand(value.obj), OperandToASMOperand(shiftAmount.obj), evalVar));
+						StackPush(op, evalVar);
+						break;
+					}
+					
+					case Code.Shr_Un: 
+					{
+						var shiftAmount = StackPop();
+						var value       = StackPop();
+						var evalVarType = GetArithmaticResultType(value.obj);
+						var evalVar     = GetEvalStackVar(evalVarType);
+						AddASMOp(new ASMArithmatic(ASMCode.ShiftRightUnsigned, OperandToASMOperand(value.obj), OperandToASMOperand(shiftAmount.obj), evalVar));
+						StackPush(op, evalVar);
+						break;
+					}
+
 					// ===================================
 					// loads
 					// ===================================
