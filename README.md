@@ -33,7 +33,7 @@ This projects focus is on translating .NET IL for non-supported .NET targets & p
 To build IL2X, you will need the <a href=https://git-lfs.github.com>Git Large File Storage</a> extension and the <a href=https://dotnet.microsoft.com/en-us/download/dotnet/6.0>.NET 6 SDK</a>
 
 ### Terminal
-`git clone https://github.com/reignstudios/IL2X`<br>
+`git clone --recursive https://github.com/reignstudios/IL2X.git`<br>
 `cd IL2X`<br>
 `dotnet build`
 
