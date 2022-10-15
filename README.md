@@ -20,7 +20,7 @@ This projects focus is on translating .NET IL for non-supported .NET targets & p
 * IL2X.CLI: CLI interface for IL2X.Core
 * IL2X.CoreLib: The IL2X CoreLib & runtime base
 
-## What IL2X arms to provide CoreCLR / .NET-Native / Mono / Mono-AOT doesn't
+## What IL2X aims to provide CoreCLR / .NET-Native / Mono / Mono-AOT doesn't
 * True portability. IL2X output should compile without requiring explicit support for different target platforms as portable C does much of this already along with portable GC's strantagies that can compile to any OS or embedded platform. There are special case exceptions and IL2X will try to take care of those. Such as storing string literals in ROM etc.
 * Statically compile the entire programs dependencies (this is required as IL2X can be thought of as a AOT-JIT => C89 etc).
 * IL2X can be faster than all currently available .NET runtimes when it comes to heavy number crunching thanks to mature C optimizers and lighter weight code gen.
