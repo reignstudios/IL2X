@@ -186,7 +186,9 @@ namespace IL2X.Core.Emitters
 				{
 					if (op.code == ASMCode.InitObject)
 					{
-						WriteLine("#include <stdio.h>");
+						// TODO: only include whats needed
+						WriteLine("#include <stdio.h>");// VC++
+						WriteLine("#include <string.h>");// Clang
 						break;
 					}
 				}
@@ -282,11 +284,14 @@ namespace IL2X.Core.Emitters
 			}
 
 			// write method signatures
-			WriteLine();
-			foreach (var method in type.methods)
+			if (!type.typeDefinition.IsInterface)
 			{
-				WriteMethodSignature(method);
-				WriteLine(";");
+				WriteLine();
+				foreach (var method in type.methods)
+				{
+					WriteMethodSignature(method);
+					WriteLine(";");
+				}
 			}
 		}
 
@@ -326,6 +331,7 @@ namespace IL2X.Core.Emitters
 
 		private void WriteTypeMethodImplementation(TypeJit type)
 		{
+			if (type.typeDefinition.IsInterface) return;
 			foreach (var method in type.methods)
 			{
 				// load debug info if avaliable
