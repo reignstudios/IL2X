@@ -10,9 +10,11 @@ This projects focus is on translating .NET IL for non-supported .NET targets & p
 * C89: modern, legacy and embedded platforms (x86, x64, MIPS, SPARK, RISC-V, PPC, 68k, AVR, etc)
 * CC65: 6502 platforms (Atari, C64, NES, Apple II, etc)
 * SDCC: Many targets (ColecoVision, etc)
+* z88dk: Z80 platforms
 * Assembly: CP1610 (Intellivision)
 * Retarget: Custom assembly targets (FPGA CPU, 16bit bytes, etc)
 * Custom Standard lib(s) for various targets.
+* Other lang targets: Java, JS, ActionScript, etc (portability or framework targeting)
 * Documentation
 
 ## Project libraries
@@ -21,21 +23,18 @@ This projects focus is on translating .NET IL for non-supported .NET targets & p
 * IL2X.CoreLib: The IL2X CoreLib & runtime base
 
 ## What IL2X aims to provide CoreCLR / .NET-Native / Mono / Mono-AOT doesn't
-* True portability. IL2X output should compile without requiring explicit support for different target platforms as portable C does much of this already along with portable GC's strantagies that can compile to any OS or embedded platform. There are special case exceptions and IL2X will try to take care of those. Such as storing string literals in ROM etc.
-* Statically compile the entire programs dependencies (this is required as IL2X can be thought of as a AOT-JIT => C89 etc).
+* True portability. IL2X output will compile to C89 along with a CPU agnostic GC, Boehm or low-ram embedded GC. Special or platform specific C targets will have options. Such as storing string literals in ROM, VC++, Clang or GCC specifics etc.
+* Statically compile the entire program & dependencies in a single AOT binary from any C compiler.
 * IL2X can be faster than all currently available .NET runtimes when it comes to heavy number crunching thanks to mature C optimizers and lighter weight code gen.
-* Allows you to directly invoke C methods statically for better optimizations vs using DllImport.
+* Allows you to directly invoke C methods statically for better optimizations vs using DllImport etc.
 * Supports many C compilers allowing you to choose what's best.
 
 ## Building
+NOTE: To clone repo you will need the <a href=https://git-lfs.github.com>Git Large File Storage</a></a>
 
-###Dependencies
-To build IL2X, you will need the <a href=https://git-lfs.github.com>Git Large File Storage</a> extension and the <a href=https://dotnet.microsoft.com/en-us/download/dotnet/6.0>.NET 6 SDK</a>
-
-### Terminal
-`git clone --recursive https://github.com/reignstudios/IL2X.git`<br>
-`cd IL2X`<br>
-`dotnet build`
+* Prerequisites
+	* VS 2022, vscode, Rider, etc
+	* .NET 8
 
 ## Is this project ready for general use?
 No still experimental.
