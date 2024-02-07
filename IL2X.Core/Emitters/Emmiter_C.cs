@@ -277,8 +277,8 @@ namespace IL2X.Core.Emitters
 			foreach (var d in type.dependencies)
 			{
 				char s = Path.DirectorySeparatorChar;
-				if (d.Scope != type.typeReference.Scope) WriteLine($"#include \"..{s}{GetScopeName(d.Scope)}{s}{FormatTypeFilename(d.FullName)}.h\"");
-				else WriteLine($"#include \"{FormatTypeFilename(d.FullName)}.h\"");
+				if (d.Scope != type.typeReference.Scope) WriteLine($"#include \"..{s}{GetScopeName(d.Scope)}{s}{FormatTypeFilename(d.FullName)}_Methods.h\"");
+				else WriteLine($"#include \"{FormatTypeFilename(d.FullName)}_Methods.h\"");
 			}
 
 			// write method signatures
@@ -316,6 +316,11 @@ namespace IL2X.Core.Emitters
 				Write(" ");
 				Write(GetParameterName(p.parameter));
 				if (i != method.asmParameters.Count - 1) Write(", ");
+			}
+
+			if (!method.methodReference.HasThis && method.asmParameters.Count == 0)
+			{
+				Write("void");
 			}
 		}
 
