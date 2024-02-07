@@ -1,8 +1,8 @@
 # <a href="https://discord.gg/QmJEGER9An"><image src="https://theme.zdassets.com/theme_assets/678183/cc59daa07820943e943c2fc283b9079d7003ff76.svg"/></a>
 
 # IL2X (Currently Experimental)
-Translates .NET IL to supported and unsuported .NET platforms and architectures. (Powered by <a href="https://github.com/reignstudios/cecil">Mono.Cecil</a>)<br><br>
-<b>If IL2X works well, CS2X will focus on shader langs mostly:</b> https://github.com/reignstudios/CS2X
+Translates .NET IL to supported and unsuported .NET platforms and architectures. (Powered by <a href="https://github.com/reignstudios/cecil">Mono.Cecil</a>)<br>
+NOTE: <a href="https://github.com/reignstudios/CS2X">CS2X</a> will be for GPU targets
 
 ## Goals
 This projects focus is on translating .NET IL for non-supported .NET targets & performance. Portibility is a big focus.
