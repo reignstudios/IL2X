@@ -20,9 +20,16 @@ namespace IL2X.Core
 
 		// arithmatic
 		Add,
-		Sub,
+		Sub,		
 		Mul,
 		Div,
+		BitwiseAnd,
+		BitwiseOr,
+		BitwiseXor,
+		BitwiseNot,
+		ShiftLeft,
+		ShiftRight,
+		ShiftRightUnsigned,
 
 		// writes
 		WriteLocal,
@@ -48,7 +55,7 @@ namespace IL2X.Core
 		CmpLess_1_0,
 
 		// invoke
-		CallMethod
+		CallMethod,
 	}
 
 	public class ASMObject
