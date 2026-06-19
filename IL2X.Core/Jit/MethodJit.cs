@@ -478,10 +478,45 @@ namespace IL2X.Core.Jit
 						break;
 					}
 
-					// ===================================
-					// unsupported
-					// ===================================
-					default:
+                    case Code.Callvirt:
+                    {
+                        var methodInvoke = type.ResolveMethod((MethodReference)op.Operand);
+                        var ttt = methodInvoke.GetType();
+                        var returnVar = GetEvalStackVar(methodInvoke.ReturnType);
+                        var parameters = new List<ASMObject>();
+                        if (methodInvoke.HasThis)
+                        {
+                            var p = StackPop();
+                            parameters.Add(OperandToASMOperand(p.obj));
+                        }
+                        for (int i = 0; i != methodInvoke.Parameters.Count; ++i)
+                        {
+                            var p = StackPop();
+                            parameters.Add(OperandToASMOperand(p.obj));
+                        }
+                        AddASMOp(new ASMCallMethod(ASMCode.CallMethod, methodInvoke, returnVar, parameters));
+                        if (!IsVoidType(methodInvoke.ReturnType)) StackPush(op, returnVar);
+                        break;
+                    }
+
+					case Code.Leave:
+					case Code.Leave_S:
+					{
+						var o = op;
+						break;
+					}
+
+                    case Code.Isinst:
+					case Code.Endfinally:
+                    {
+                        var o = op;
+                        break;
+                    }
+
+                    // ===================================
+                    // unsupported
+                    // ===================================
+                    default:
 					{
 						throw new NotImplementedException("Unsupported IL instruction: " + op.ToString());
 					}

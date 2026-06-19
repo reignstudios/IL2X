@@ -1,11 +1,14 @@
-﻿namespace RayTraceBenchmark
+﻿using System.Collections;
+
+namespace RayTraceBenchmark
 {
-	class MyGeneric<T>
+	class MyGeneric<T> : IEnumerable
 	{
 		public T t;
 		NestedClass n;
+        IEnumerator e;
 
-		public class NestedClass
+        public class NestedClass
 		{
 			public int i;
 			MyGeneric<T> n;
@@ -17,7 +20,12 @@
 			T localT = default;
 			this.t = localT;
 		}
-	}
+
+        public IEnumerator GetEnumerator()
+        {
+            return e;
+        }
+    }
 
 	public class Program
 	{
@@ -26,7 +34,7 @@
 
 		static void Main()
 		{
-			int a = Foo(123);
+            int a = Foo(123);
 			EXIT:;
 			if (a == 124) a = -200;
 			for (int i = 0; i != 2; ++i)
@@ -38,6 +46,14 @@
 				}
 			}
 		}
+
+		static void TestE(MyGeneric<int> t)
+		{
+            foreach (var i in t)
+            {
+
+            }
+        }
 
 		static int Foo(int value)
 		{
